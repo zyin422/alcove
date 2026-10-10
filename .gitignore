@@ -1,23 +1,16 @@
-# Dependencies & Build
-node_modules/
-dist/
+# Xcode
 build/
-.vite/
-apps/web/dist/
-apps/api/dist/
-coverage/
-.turbo/
-*.tsbuildinfo
-*.log
-npm-debug.log*
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
 
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
+# Swift Package Manager
+.build/
+.swiftpm/
 
-# Environment Variables
+# Secrets
 .env
 .env.local
 
@@ -26,13 +19,8 @@ venv/
 .AppleDouble
 .LSOverride
 
-# Runtime Data
-data/store.json
-data/audio_temp/
-*.webm
-*.wav
-
 # IDE
 .vscode/
 .idea/
 *.swp
+*.log
