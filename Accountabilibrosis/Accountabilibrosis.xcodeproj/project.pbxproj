@@ -19,7 +19,9 @@
 		65C3F0DDB5C05CAE5942B99F /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D23D9E84FC83FF697ECC652B /* Keychain.swift */; };
 		6A6DCB66267A9251BDC6061E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA4C85E2CC95A6E3A156B098 /* Assets.xcassets */; };
 		6CF71183DAFB3ACE9D918971 /* DomainMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F8C55B3422557819C64E537 /* DomainMatcher.swift */; };
+		70192398AAC294F7E2667DDB /* BlockPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A1852436A1E08BF9B5D7D8 /* BlockPolicy.swift */; };
 		7371BF5AA8703450AE14C133 /* TimeFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90AA75750FB3B5D82220DAF /* TimeFormat.swift */; };
+		790959824B9FB1F555EFCBB4 /* BlockPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40616FE77DAD08DB18924C7E /* BlockPolicyTests.swift */; };
 		7BA190743193CC60EF30EF94 /* DiscordClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45888CBAE72DB3BC8D986E3 /* DiscordClient.swift */; };
 		7E12EA8E58BC078D816B819F /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA93859E6E9956B9532479C /* Store.swift */; };
 		7E4815A44DA323298EF75A4B /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */; };
@@ -49,12 +51,14 @@
 		0CA93859E6E9956B9532479C /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
 		0DA2C21E5C3306A97D58F275 /* Accountabilibrosis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Accountabilibrosis.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEngineTests.swift; sourceTree = "<group>"; };
+		13A1852436A1E08BF9B5D7D8 /* BlockPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPolicy.swift; sourceTree = "<group>"; };
 		183F88A178E255D11F6733C5 /* StoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreTests.swift; sourceTree = "<group>"; };
 		1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainMatcherTests.swift; sourceTree = "<group>"; };
 		2F8C55B3422557819C64E537 /* DomainMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainMatcher.swift; sourceTree = "<group>"; };
 		303C65C43B4E40C079E7C09B /* DiscordMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordMessages.swift; sourceTree = "<group>"; };
 		3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTests.swift; sourceTree = "<group>"; };
 		3CA73667C3936E7305C6FA6E /* LayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEngine.swift; sourceTree = "<group>"; };
+		40616FE77DAD08DB18924C7E /* BlockPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPolicyTests.swift; sourceTree = "<group>"; };
 		4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenGeometryTests.swift; sourceTree = "<group>"; };
 		52AD65B7C2B5AD2E83761B3C /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatTests.swift; sourceTree = "<group>"; };
@@ -98,6 +102,7 @@
 		2E6F7EE8EE1072C8B641A74E /* AccountabilibrosisTests */ = {
 			isa = PBXGroup;
 			children = (
+				40616FE77DAD08DB18924C7E /* BlockPolicyTests.swift */,
 				75362484A0E16959169BA12D /* ChannelPickerTests.swift */,
 				F4A9B506EF3A2973B337B0E7 /* DiscordClientTests.swift */,
 				E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */,
@@ -186,6 +191,7 @@
 		F0A8CA7F00CC7015A7B3DB06 /* System */ = {
 			isa = PBXGroup;
 			children = (
+				13A1852436A1E08BF9B5D7D8 /* BlockPolicy.swift */,
 				DB429F7BCF82ACFD008EECD7 /* ScreenGeometry.swift */,
 			);
 			path = System;
@@ -285,6 +291,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				790959824B9FB1F555EFCBB4 /* BlockPolicyTests.swift in Sources */,
 				4DF29D1795B0FE4914454FF5 /* ChannelPickerTests.swift in Sources */,
 				C84F9EAA33DF884A6037B6A9 /* DiscordClientTests.swift in Sources */,
 				9875C553E75D19B5C174305C /* DiscordMessagesTests.swift in Sources */,
@@ -306,6 +313,7 @@
 			files = (
 				25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */,
 				A87ECA5C972ADF8070E298C6 /* AppSettings.swift in Sources */,
+				70192398AAC294F7E2667DDB /* BlockPolicy.swift in Sources */,
 				47AAC2D70A3F403890D979A4 /* ChannelPicker.swift in Sources */,
 				7BA190743193CC60EF30EF94 /* DiscordClient.swift in Sources */,
 				9D258440E8A0C0F575E8B448 /* DiscordMessages.swift in Sources */,
