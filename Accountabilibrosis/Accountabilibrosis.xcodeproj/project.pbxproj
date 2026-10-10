@@ -10,6 +10,7 @@
 		03F031B238C12D71D3C0D503 /* AppBlocker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF14732275FF4B006155618B /* AppBlocker.swift */; };
 		0762E32664E222F2D49001BA /* ChromeScriptsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC91DCCFD158B468FE74F62 /* ChromeScriptsTests.swift */; };
 		0AF7CB01CEF00F73934FCC09 /* LockInOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57320FAB47A775061DF1DC4 /* LockInOptionTests.swift */; };
+		12CF389CCAF20FA95D00C2F7 /* MiniTimerLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002600BF53FA0FFC054FECBB /* MiniTimerLayoutTests.swift */; };
 		134C11A27050664DF9911D39 /* SessionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C100C04D3A5EFCEA9D197989 /* SessionEngineTests.swift */; };
 		182448117B907D7E2ED85A5E /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B72520C7E2C9BD3900B14E /* AppModelTests.swift */; };
 		1DF2C6E2883A11079F44E428 /* SubjectValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E7D62299AC0E3840DA1C71 /* SubjectValidator.swift */; };
@@ -22,6 +23,7 @@
 		25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */; };
 		27F4833F18C1D36C72FEB140 /* StatsEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CABFA2A93644587BF41DC4F /* StatsEngineTests.swift */; };
 		2B50576ED19F8C79BA845DD0 /* AppPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCE0D508A39C3F35893843DF /* AppPickerView.swift */; };
+		2FE54DA3E5ADAA455470A3E1 /* GiveUpSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89DD1402ABF15C17DA790F6C /* GiveUpSheet.swift */; };
 		30EF75A225EC524CAD9D3423 /* ScreenGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */; };
 		3791497AAD48B4C73C7CCF9A /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F2F59F7B8654BD9F3D2617 /* DemoData.swift */; };
 		4201631E894C78D5F05D2DE5 /* SubjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92623A49AD5EC7E44FBC938 /* SubjectDetailView.swift */; };
@@ -29,6 +31,7 @@
 		47924008DF0332891827BD40 /* DomainMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */; };
 		47AAC2D70A3F403890D979A4 /* ChannelPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61E934BCA35925FC559717D9 /* ChannelPicker.swift */; };
 		483FDAE5C49C48ECC84363DD /* KeychainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */; };
+		4CF2487BE0C54497F025D37B /* LockedLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13169F56E717F425754885EC /* LockedLayoutTests.swift */; };
 		4DF29D1795B0FE4914454FF5 /* ChannelPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75362484A0E16959169BA12D /* ChannelPickerTests.swift */; };
 		57550C92769C7A5ED7D876FB /* AppCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4776DA96DF580974B5614122 /* AppCatalogTests.swift */; };
 		5A709BEBF01679E8F6B5DFE7 /* LayoutEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */; };
@@ -49,6 +52,7 @@
 		82DF3EBE64DE9CBEC756F002 /* AppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF1AD33BCFE5F9D01CE938B /* AppCatalog.swift */; };
 		892A4B4ED85D315F214D8EAB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51AE8606E3A8BA19468D68E /* SettingsView.swift */; };
 		8A29DF36757FF6E6BF75F0B4 /* LayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA73667C3936E7305C6FA6E /* LayoutEngine.swift */; };
+		8C962914CFC5353218AF602F /* MiniTimerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2F0F93C625B23507D92878 /* MiniTimerPanel.swift */; };
 		8D6147FB0EAE8378DC62D49C /* ScreenGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB429F7BCF82ACFD008EECD7 /* ScreenGeometry.swift */; };
 		96A693FF2DDADB9E9DB7FA83 /* PresetThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F411E6CE5B34004F1B9245 /* PresetThumbnail.swift */; };
 		9875C553E75D19B5C174305C /* DiscordMessagesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */; };
@@ -85,6 +89,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		002600BF53FA0FFC054FECBB /* MiniTimerLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniTimerLayoutTests.swift; sourceTree = "<group>"; };
 		02D441ACC6C39537AECDB6B5 /* LockedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockedView.swift; sourceTree = "<group>"; };
 		05933A6F5CD030F74E8AF59B /* ChromeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeController.swift; sourceTree = "<group>"; };
 		0CA93859E6E9956B9532479C /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
@@ -92,6 +97,7 @@
 		0DA2C21E5C3306A97D58F275 /* Accountabilibrosis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Accountabilibrosis.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0DB624FDDE4DBC3AF5F80E08 /* SubjectEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectEditorView.swift; sourceTree = "<group>"; };
 		0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEngineTests.swift; sourceTree = "<group>"; };
+		13169F56E717F425754885EC /* LockedLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockedLayoutTests.swift; sourceTree = "<group>"; };
 		1362AD75D795508C3559194D /* DemoDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoDataTests.swift; sourceTree = "<group>"; };
 		13A1852436A1E08BF9B5D7D8 /* BlockPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPolicy.swift; sourceTree = "<group>"; };
 		1723CA03B8C65091884C19FA /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -118,7 +124,9 @@
 		71F411E6CE5B34004F1B9245 /* PresetThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetThumbnail.swift; sourceTree = "<group>"; };
 		75362484A0E16959169BA12D /* ChannelPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelPickerTests.swift; sourceTree = "<group>"; };
 		77899BE94E8C3945F24AB2E5 /* ChromeControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeControllerTests.swift; sourceTree = "<group>"; };
+		7E2F0F93C625B23507D92878 /* MiniTimerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniTimerPanel.swift; sourceTree = "<group>"; };
 		7E7156EF3D0062C1DB6E380C /* Fakes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fakes.swift; sourceTree = "<group>"; };
+		89DD1402ABF15C17DA790F6C /* GiveUpSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiveUpSheet.swift; sourceTree = "<group>"; };
 		8BEF98E2CC163BB3141348B0 /* MainWindowPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowPresenter.swift; sourceTree = "<group>"; };
 		90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilibrosisApp.swift; sourceTree = "<group>"; };
 		9AE82FED4B667D5B68E0FEE0 /* ToastLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastLayoutTests.swift; sourceTree = "<group>"; };
@@ -193,7 +201,9 @@
 				7E7156EF3D0062C1DB6E380C /* Fakes.swift */,
 				3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */,
 				0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */,
+				13169F56E717F425754885EC /* LockedLayoutTests.swift */,
 				E57320FAB47A775061DF1DC4 /* LockInOptionTests.swift */,
+				002600BF53FA0FFC054FECBB /* MiniTimerLayoutTests.swift */,
 				5E274569CB062581F5318294 /* MockTransport.swift */,
 				EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */,
 				4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */,
@@ -276,9 +286,11 @@
 			isa = PBXGroup;
 			children = (
 				CCE0D508A39C3F35893843DF /* AppPickerView.swift */,
+				89DD1402ABF15C17DA790F6C /* GiveUpSheet.swift */,
 				02D441ACC6C39537AECDB6B5 /* LockedView.swift */,
 				58ECEAE5630275145DF77D26 /* LockInSheet.swift */,
 				8BEF98E2CC163BB3141348B0 /* MainWindowPresenter.swift */,
+				7E2F0F93C625B23507D92878 /* MiniTimerPanel.swift */,
 				71F411E6CE5B34004F1B9245 /* PresetThumbnail.swift */,
 				FC098D48F330217B5EC70857 /* RootView.swift */,
 				F51AE8606E3A8BA19468D68E /* SettingsView.swift */,
@@ -425,6 +437,8 @@
 				483FDAE5C49C48ECC84363DD /* KeychainTests.swift in Sources */,
 				5A709BEBF01679E8F6B5DFE7 /* LayoutEngineTests.swift in Sources */,
 				0AF7CB01CEF00F73934FCC09 /* LockInOptionTests.swift in Sources */,
+				4CF2487BE0C54497F025D37B /* LockedLayoutTests.swift in Sources */,
+				12CF389CCAF20FA95D00C2F7 /* MiniTimerLayoutTests.swift in Sources */,
 				A4E54FCC2DFBDD3BB8D690A8 /* MockTransport.swift in Sources */,
 				7E4815A44DA323298EF75A4B /* ModelsTests.swift in Sources */,
 				30EF75A225EC524CAD9D3423 /* ScreenGeometryTests.swift in Sources */,
@@ -458,11 +472,13 @@
 				7BA190743193CC60EF30EF94 /* DiscordClient.swift in Sources */,
 				9D258440E8A0C0F575E8B448 /* DiscordMessages.swift in Sources */,
 				6CF71183DAFB3ACE9D918971 /* DomainMatcher.swift in Sources */,
+				2FE54DA3E5ADAA455470A3E1 /* GiveUpSheet.swift in Sources */,
 				65C3F0DDB5C05CAE5942B99F /* Keychain.swift in Sources */,
 				8A29DF36757FF6E6BF75F0B4 /* LayoutEngine.swift in Sources */,
 				E6DB4EFBBD51EC0A0929468A /* LockInSheet.swift in Sources */,
 				5B54E967389C86D4EDB35845 /* LockedView.swift in Sources */,
 				24D4D8F7CE8049365BBA7E6C /* MainWindowPresenter.swift in Sources */,
+				8C962914CFC5353218AF602F /* MiniTimerPanel.swift in Sources */,
 				96A693FF2DDADB9E9DB7FA83 /* PresetThumbnail.swift in Sources */,
 				2176BDD2AA1377581BF2C564 /* RootView.swift in Sources */,
 				8D6147FB0EAE8378DC62D49C /* ScreenGeometry.swift in Sources */,
