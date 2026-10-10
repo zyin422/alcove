@@ -1,0 +1,29 @@
+{
+  "session_date": "2026-10-10",
+  "user_name": "Alex",
+  "active_priorities": [
+    {
+      "id": "task_1",
+      "title": "Build Auth Middleware & JWT Verification",
+      "target_repo_path": "src/middleware/auth.py",
+      "verification_criteria": "Pass unit tests for auth and token decoding",
+      "status": "PENDING",
+      "prep_notes": "Scaffold starter test fixture and token claims validator"
+    },
+    {
+      "id": "task_2",
+      "title": "Create 60s Voice Memo Audio Recorder UI",
+      "target_repo_path": "frontend/static/js/audio_recorder.js",
+      "verification_criteria": "Web Audio visualizer + countdown timer works in browser",
+      "status": "PENDING",
+      "prep_notes": "Use HTML5 MediaRecorder and AudioContext AnalyserNode"
+    }
+  ],
+  "distraction_blacklist": [
+    "Discord",
+    "Steam",
+    "Twitter",
+    "Reddit"
+  ],
+  "last_updated_at": "2026-10-10T15:00:00Z"
+}
