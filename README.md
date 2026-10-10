@@ -122,6 +122,23 @@ The app does **not** need Accessibility, Screen Recording, Full Disk Access or n
 
 Discord bots can't join group DMs, so the app posts to one text channel in every server the bot is in.
 
+### Team token (`.env`)
+
+The team shares one bot. Its token lives in the repo-root `.env` file (this repo is private):
+
+```
+DISCORD_BOT_TOKEN=<the team bot token>
+```
+
+- **Bundled at build time.** Every build copies `.env` into the app as `Resources/discord.env`. If the file is missing, the build still works and the app simply has no team token.
+- **Used automatically.** On a first launch (no saved data yet) with a token available, **Post lock-ins to Discord** starts out on.
+- **Your own token wins.** A token saved in **Settings › Discord** goes to the Keychain and overrides the team token. **Remove** deletes it, and the team token applies again. Settings shows which one is in use: "Using your token from Keychain", "Using the team token from .env" or "No token".
+- **Rebuild after editing `.env`.** The app only sees the copy made at build time.
+
+To run your own bot instead of the team's, follow the steps below.
+
+### Your own bot
+
 1. Create an application at <https://discord.com/developers/applications> (**New Application**).
 2. Open **Bot**, click **Reset Token**, and copy the token.
 3. In Accountabilibrosis, open **Settings › Discord**:
@@ -154,10 +171,11 @@ The name comes from **Settings › Profile › Display name**. Discord problems 
 | Data | Location |
 |---|---|
 | Subjects, sessions, settings | `~/Library/Application Support/Accountabilibrosis/store.json`. Writes are atomic. An unreadable file is renamed to `store.corrupt-<timestamp>.json`, and the app starts fresh. |
-| Discord bot token | The Keychain: a generic password with service `com.accountabilibrosis.discord` and account `bot-token`. It is never written to JSON or logs. |
+| Discord bot token (yours) | The Keychain: a generic password with service `com.accountabilibrosis.discord` and account `bot-token`. It is never written to JSON or logs. It overrides the team token. |
+| Discord bot token (team) | The repo's `.env`, copied into the app bundle as `Resources/discord.env` at build time. |
 | Discord Application ID (only used for the invite link) | App preferences, key `discordAppID` |
 
-To start over, quit the app and delete `~/Library/Application Support/Accountabilibrosis/`. To remove the token, use **Settings › Discord › Remove**.
+To start over, quit the app and delete `~/Library/Application Support/Accountabilibrosis/`. To remove your own token, use **Settings › Discord › Remove**.
 
 ## Known limitations
 
@@ -178,6 +196,7 @@ To start over, quit the app and delete `~/Library/Application Support/Accountabi
 ```
 accountabilibrosis/
 ├── README.md
+├── .env                     team Discord bot token (DISCORD_BOT_TOKEN), bundled into the app at build time
 ├── docs/superpowers/        design spec and implementation plan
 ├── *.pdf                    Code Ada 2026 packet and presentation guidelines
 └── Accountabilibrosis/
@@ -186,7 +205,7 @@ accountabilibrosis/
     ├── Accountabilibrosis/
     │   ├── App/             app entry point, AppDelegate (⌘Q handling), AppModel (root state)
     │   ├── Models/          Subject, Session, AppSettings, StoreData
-    │   ├── Persistence/     Store (JSON file), Keychain (bot token)
+    │   ├── Persistence/     Store (JSON file), Keychain (bot token), EnvFile (bundled team token)
     │   ├── Engine/          pure, unit-tested logic: LayoutEngine, DomainMatcher, TimeFormat, StatsEngine,
     │   │                    DemoData, SettingsStatus, StatsFormatting; SessionEngine (lock-in state machine)
     │   ├── System/          AppKit + AppleScript side effects: WorkspaceController, AppBlocker, BlockPolicy,
