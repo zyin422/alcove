@@ -44,11 +44,13 @@
 		A4E54FCC2DFBDD3BB8D690A8 /* MockTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E274569CB062581F5318294 /* MockTransport.swift */; };
 		A87ECA5C972ADF8070E298C6 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C555595552ED9F832CA29195 /* AppSettings.swift */; };
 		BA198C6A7E1B35DC5FA538EB /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */; };
+		BB779E8DB98D873F4AAD5DEE /* DiscordAnnouncerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E2544FD76100A3AC80AE40 /* DiscordAnnouncerTests.swift */; };
 		BC8073E2B09755FBEA4A01BE /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A581497D658574554F5D87 /* Session.swift */; };
 		BD776FEA33ED5869075EF196 /* TimeFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */; };
 		C43466E58FA72E6FB5DE41B9 /* ChromeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05933A6F5CD030F74E8AF59B /* ChromeController.swift */; };
 		C84F9EAA33DF884A6037B6A9 /* DiscordClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A9B506EF3A2973B337B0E7 /* DiscordClientTests.swift */; };
 		CCC0F69FDF0F49EFAF145BC6 /* SessionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6116A290C8F1408496892A05 /* SessionEngine.swift */; };
+		DC5FE46AF825E2B9923CD5A5 /* DiscordAnnouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACC4DFBAAF469AFE94BB343 /* DiscordAnnouncer.swift */; };
 		FD7B35B4DB3DB3AAF9984AF7 /* ToastCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CAACBFF6358254AC7C11B54 /* ToastCenter.swift */; };
 /* End PBXBuildFile section */
 
@@ -72,11 +74,13 @@
 		13A1852436A1E08BF9B5D7D8 /* BlockPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPolicy.swift; sourceTree = "<group>"; };
 		183F88A178E255D11F6733C5 /* StoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreTests.swift; sourceTree = "<group>"; };
 		1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainMatcherTests.swift; sourceTree = "<group>"; };
+		2ACC4DFBAAF469AFE94BB343 /* DiscordAnnouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordAnnouncer.swift; sourceTree = "<group>"; };
 		2F8C55B3422557819C64E537 /* DomainMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainMatcher.swift; sourceTree = "<group>"; };
 		303C65C43B4E40C079E7C09B /* DiscordMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordMessages.swift; sourceTree = "<group>"; };
 		3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTests.swift; sourceTree = "<group>"; };
 		3CA73667C3936E7305C6FA6E /* LayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEngine.swift; sourceTree = "<group>"; };
 		40616FE77DAD08DB18924C7E /* BlockPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPolicyTests.swift; sourceTree = "<group>"; };
+		43E2544FD76100A3AC80AE40 /* DiscordAnnouncerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordAnnouncerTests.swift; sourceTree = "<group>"; };
 		4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenGeometryTests.swift; sourceTree = "<group>"; };
 		52AD65B7C2B5AD2E83761B3C /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatTests.swift; sourceTree = "<group>"; };
@@ -123,6 +127,7 @@
 			isa = PBXGroup;
 			children = (
 				61E934BCA35925FC559717D9 /* ChannelPicker.swift */,
+				2ACC4DFBAAF469AFE94BB343 /* DiscordAnnouncer.swift */,
 				C45888CBAE72DB3BC8D986E3 /* DiscordClient.swift */,
 				303C65C43B4E40C079E7C09B /* DiscordMessages.swift */,
 			);
@@ -137,6 +142,7 @@
 				77899BE94E8C3945F24AB2E5 /* ChromeControllerTests.swift */,
 				DFC91DCCFD158B468FE74F62 /* ChromeScriptsTests.swift */,
 				1362AD75D795508C3559194D /* DemoDataTests.swift */,
+				43E2544FD76100A3AC80AE40 /* DiscordAnnouncerTests.swift */,
 				F4A9B506EF3A2973B337B0E7 /* DiscordClientTests.swift */,
 				E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */,
 				1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */,
@@ -349,6 +355,7 @@
 				A1AF59C362CB22B4D87DCE7B /* ChromeControllerTests.swift in Sources */,
 				0762E32664E222F2D49001BA /* ChromeScriptsTests.swift in Sources */,
 				21F9D787DA3D84AEE75B17DD /* DemoDataTests.swift in Sources */,
+				BB779E8DB98D873F4AAD5DEE /* DiscordAnnouncerTests.swift in Sources */,
 				C84F9EAA33DF884A6037B6A9 /* DiscordClientTests.swift in Sources */,
 				9875C553E75D19B5C174305C /* DiscordMessagesTests.swift in Sources */,
 				47924008DF0332891827BD40 /* DomainMatcherTests.swift in Sources */,
@@ -379,6 +386,7 @@
 				C43466E58FA72E6FB5DE41B9 /* ChromeController.swift in Sources */,
 				9A769BFBF2EFE3E506282957 /* ChromeScripts.swift in Sources */,
 				3791497AAD48B4C73C7CCF9A /* DemoData.swift in Sources */,
+				DC5FE46AF825E2B9923CD5A5 /* DiscordAnnouncer.swift in Sources */,
 				7BA190743193CC60EF30EF94 /* DiscordClient.swift in Sources */,
 				9D258440E8A0C0F575E8B448 /* DiscordMessages.swift in Sources */,
 				6CF71183DAFB3ACE9D918971 /* DomainMatcher.swift in Sources */,
