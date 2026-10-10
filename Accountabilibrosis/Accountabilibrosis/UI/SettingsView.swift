@@ -8,7 +8,7 @@ struct SettingsView: View {
     /// Discord application id, only used to build the invite link. Not a secret, so UserDefaults is fine.
     @AppStorage("discordAppID") private var discordAppID = ""
     @State private var tokenDraft = ""
-    @State private var hasToken = false
+    @State private var tokenSource = TokenSource.none
     @State private var discordStatus = ""
     @State private var isTesting = false
     @State private var chromeStatus = SettingsStatus.chromeUnchecked
@@ -52,16 +52,16 @@ struct SettingsView: View {
                 Button("Save", action: saveToken)
                     .disabled(SettingsStatus.cleanedToken(tokenDraft) == nil)
             }
-            if hasToken {
-                HStack {
-                    Label("Token saved in Keychain", systemImage: "lock.fill")
-                    Spacer()
+            HStack {
+                Label(tokenSource.label, systemImage: tokenIcon)
+                Spacer()
+                if tokenSource == .keychain {
                     Button("Remove", action: removeToken)
                 }
             }
             HStack(spacing: Theme.Space.s) {
                 Button("Test connection", action: testConnection)
-                    .disabled(!hasToken || isTesting)
+                    .disabled(tokenSource == .none || isTesting)
                 if isTesting {
                     ProgressView().controlSize(.small)
                 }
@@ -72,7 +72,7 @@ struct SettingsView: View {
         } header: {
             Text("Discord")
         } footer: {
-            Text("The bot posts when you lock in, finish, or bail. Bots can't join group DMs, so it posts in one text channel per server it is in.")
+            Text("The bot posts when you lock in, finish, or bail. Bots can't join group DMs, so it posts in one text channel per server it is in. A token you save here overrides the team token bundled from .env.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -174,24 +174,34 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
+    private var tokenIcon: String {
+        switch tokenSource {
+        case .keychain: "lock.fill"
+        case .teamFile: "doc.text"
+        case .none: "key"
+        }
+    }
+
     private func refresh() {
-        hasToken = model.discordToken != nil
+        tokenSource = model.discordTokenSource
         if !ChromeController.isInstalled {
             chromeStatus = SettingsStatus.chromeResult(.notInstalled)
         }
     }
 
+    /// Saves to the Keychain, which overrides the team token.
     private func saveToken() {
         guard let token = SettingsStatus.cleanedToken(tokenDraft) else { return }
         model.setDiscordToken(token)
         tokenDraft = ""
-        hasToken = model.discordToken != nil
+        tokenSource = model.discordTokenSource
         discordStatus = ""
     }
 
+    /// Deletes the Keychain token; the team token (if bundled) applies again.
     private func removeToken() {
         model.setDiscordToken(nil)
-        hasToken = model.discordToken != nil
+        tokenSource = model.discordTokenSource
         discordStatus = ""
     }
 

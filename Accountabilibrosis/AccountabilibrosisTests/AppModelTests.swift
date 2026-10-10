@@ -215,6 +215,108 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(settings.giveUpTemplate, "I quit {subject}")
     }
 
+    // MARK: Discord token
+
+    func testResolveTokenKeychainWins() {
+        let result = AppModel.resolveToken(keychain: "mine.token", env: "team.token")
+        XCTAssertEqual(result.token, "mine.token")
+        XCTAssertEqual(result.source, .keychain)
+    }
+
+    func testResolveTokenFallsBackToTeamFile() {
+        let result = AppModel.resolveToken(keychain: nil, env: "team.token")
+        XCTAssertEqual(result.token, "team.token")
+        XCTAssertEqual(result.source, .teamFile)
+    }
+
+    func testResolveTokenTreatsEmptyStringsAsMissing() {
+        let blankKeychain = AppModel.resolveToken(keychain: "", env: "team.token")
+        XCTAssertEqual(blankKeychain.token, "team.token")
+        XCTAssertEqual(blankKeychain.source, .teamFile)
+
+        let whitespaceKeychain = AppModel.resolveToken(keychain: "  \n", env: "team.token")
+        XCTAssertEqual(whitespaceKeychain.source, .teamFile)
+
+        let blankEnv = AppModel.resolveToken(keychain: nil, env: "")
+        XCTAssertNil(blankEnv.token)
+        XCTAssertEqual(blankEnv.source, .none)
+    }
+
+    func testResolveTokenWithoutAnyTokenIsNone() {
+        let result = AppModel.resolveToken(keychain: nil, env: nil)
+        XCTAssertNil(result.token)
+        XCTAssertEqual(result.source, .none)
+        XCTAssertEqual(AppModel.resolveToken(keychain: " ", env: "\t").source, .none)
+    }
+
+    func testResolveTokenTrimsWhitespace() {
+        XCTAssertEqual(AppModel.resolveToken(keychain: "  mine.token \n", env: nil).token, "mine.token")
+        XCTAssertEqual(AppModel.resolveToken(keychain: nil, env: "team.token\n").token, "team.token")
+    }
+
+    func testTokenSourceLabels() {
+        XCTAssertEqual(TokenSource.keychain.label, "Using your token from Keychain")
+        XCTAssertEqual(TokenSource.teamFile.label, "Using the team token from .env")
+        XCTAssertEqual(TokenSource.none.label, "No token")
+    }
+
+    func testModelReadsTokenAndSourceFromItsInjectedSources() throws {
+        let team = AppModel(store: try makeStore(), engine: EngineHarness().engine,
+                            keychainToken: { nil }, envToken: { "team.token" })
+        XCTAssertEqual(team.discordToken, "team.token")
+        XCTAssertEqual(team.discordTokenSource, .teamFile)
+
+        let mine = AppModel(store: try makeStore(), engine: EngineHarness().engine,
+                            keychainToken: { "mine.token" }, envToken: { "team.token" })
+        XCTAssertEqual(mine.discordToken, "mine.token")
+        XCTAssertEqual(mine.discordTokenSource, .keychain)
+
+        let none = AppModel(store: try makeStore(), engine: EngineHarness().engine)
+        XCTAssertNil(none.discordToken)
+        XCTAssertEqual(none.discordTokenSource, .none)
+    }
+
+    func testFirstLaunchWithATokenTurnsDiscordOnAndSaves() throws {
+        let store = try makeStore()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.fileURL.path))
+
+        let model = AppModel(store: store, engine: EngineHarness().engine,
+                             keychainToken: { nil }, envToken: { "team.token" })
+
+        XCTAssertTrue(model.data.settings.discordEnabled)
+        XCTAssertTrue(reloaded(store).settings.discordEnabled)
+    }
+
+    func testFirstLaunchWithAKeychainTokenTurnsDiscordOn() throws {
+        let store = try makeStore()
+        let model = AppModel(store: store, engine: EngineHarness().engine,
+                             keychainToken: { "mine.token" }, envToken: { nil })
+
+        XCTAssertTrue(model.data.settings.discordEnabled)
+        XCTAssertTrue(reloaded(store).settings.discordEnabled)
+    }
+
+    func testFirstLaunchWithoutATokenLeavesDiscordOffAndWritesNothing() throws {
+        let store = try makeStore()
+
+        let model = AppModel(store: store, engine: EngineHarness().engine,
+                             keychainToken: { "  " }, envToken: { "" })
+
+        XCTAssertFalse(model.data.settings.discordEnabled)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.fileURL.path))
+    }
+
+    func testLaterLaunchesNeverTurnDiscordOnByThemselves() throws {
+        let store = try makeStore()
+        try store.save(StoreData(subjects: [makeSubject()]))   // the store file exists: not a first launch
+
+        let model = AppModel(store: store, engine: EngineHarness().engine,
+                             keychainToken: { nil }, envToken: { "team.token" })
+
+        XCTAssertFalse(model.data.settings.discordEnabled)
+        XCTAssertFalse(reloaded(store).settings.discordEnabled)
+    }
+
     // MARK: Demo data
 
     func testLoadDemoDataCreatesDefaultSubjectsWhenThereAreNone() throws {
