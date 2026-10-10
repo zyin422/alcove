@@ -24,6 +24,21 @@ targets:
     platform: macOS
     sources:
       - path: Accountabilibrosis
+    postCompileScripts:
+      # Bundles the repo-root .env (team Discord bot token) as Resources/discord.env, read by EnvFile.
+      # A missing .env is fine: the app then needs a token from Settings. The script never prints the file.
+      - name: Bundle team .env
+        script: |
+          ENV_SRC="${SRCROOT}/../.env"
+          ENV_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/discord.env"
+          if [ -f "$ENV_SRC" ]; then
+            mkdir -p "$(dirname "$ENV_DEST")"
+            cp "$ENV_SRC" "$ENV_DEST"
+          else
+            rm -f "$ENV_DEST"
+          fi
+          exit 0
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_NAME: Accountabilibrosis
