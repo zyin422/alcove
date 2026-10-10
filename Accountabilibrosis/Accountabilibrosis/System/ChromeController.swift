@@ -6,7 +6,8 @@ import AppKit
     /// Launch/activate Chrome, minimize existing windows, open one window per site (sites normalized with
     /// DomainMatcher.normalizedURL; unparseable sites skipped). bounds[i] applies to sites[i]; when bounds is
     /// shorter than sites (e.g. no screen), windows without a matching bounds entry are opened without setting bounds.
-    /// Returns nil on success, otherwise the first fatal error (notInstalled / automationDenied / profileNotReady).
+    /// A site that still fails after retries (profileNotReady / scriptFailed) does not stop the others from opening.
+    /// Returns nil when every site opened, otherwise the first error; notInstalled / automationDenied abort at once.
     func prepare(sites: [String], bounds: [ChromeBounds]) async -> ChromeError?
     func startTabWatch(allowedDomains: [String])
     func stopTabWatch()
@@ -26,6 +27,9 @@ import AppKit
     /// Protection keys of the tabs that existed before `prepare` opened the study windows. The tab watch never
     /// closes them, so the user's own windows (minimized at lock-in, restored at the end) keep their tabs.
     private var preexistingTabs: Set<String> = []
+    /// Ids of the windows that existed before `prepare`. The tab watch re-minimizes them whenever the user
+    /// un-minimizes one, so their protected tabs cannot be used as a way around the allowed-domains rule.
+    private var preexistingWindowIDs: Set<Int> = []
     private var allowedDomains: [String] = []
     private var tabTimer: Timer?
 
@@ -76,19 +80,37 @@ import AppKit
         case .failure: minimizedIDs = []   // not fatal: the new windows still open on top
         }
         if case .success(let output) = Self.run(ChromeScripts.listTabs) {
-            preexistingTabs = Set(ChromeScripts.parseTabs(output).map(ChromeScripts.protectionKey))
+            let tabs = ChromeScripts.parseTabs(output)
+            preexistingTabs = Set(tabs.map(ChromeScripts.protectionKey))
+            preexistingWindowIDs = Set(tabs.map(\.windowID))
         } else {
             preexistingTabs = []
+            preexistingWindowIDs = []
         }
+        preexistingWindowIDs.formUnion(minimizedIDs)
 
+        var scripts: [String] = []
         for (index, site) in sites.enumerated() {
             guard let url = DomainMatcher.normalizedURL(site) else { continue }
-            let script = index < bounds.count
+            scripts.append(index < bounds.count
                 ? ChromeScripts.openWindow(url: url.absoluteString, bounds: bounds[index])
-                : ChromeScripts.openWindow(url: url.absoluteString)
-            if let error = await openWithRetry(script) { return error }
+                : ChromeScripts.openWindow(url: url.absoluteString))
         }
-        return nil
+        return await Self.openAll(scripts) { await self.openWithRetry($0) }
+    }
+
+    /// Opens every script's window in order. automationDenied / notInstalled stop immediately; any other error is
+    /// remembered and the remaining sites are still attempted. Returns the first error, or nil if none failed.
+    static func openAll(_ scripts: [String], using open: (String) async -> ChromeError?) async -> ChromeError? {
+        var firstError: ChromeError?
+        for script in scripts {
+            guard let error = await open(script) else { continue }
+            switch error {
+            case .automationDenied, .notInstalled: return error
+            case .profileNotReady, .scriptFailed: firstError = firstError ?? error
+            }
+        }
+        return firstError
     }
 
     /// First attempt plus `openRetries` retries, 1 s apart. `make new window` fails until a profile is loaded.
@@ -119,7 +141,8 @@ import AppKit
         tabTimer = nil
     }
 
-    /// One poll: list every tab, close the disallowed ones (descending index per window), report each closed host.
+    /// One poll: list every tab, close the disallowed ones (descending index per window), report each closed host,
+    /// then minimize again any pre-existing window the user brought back.
     private func pollTabs() {
         guard Self.isRunning else { return }
         switch Self.run(ChromeScripts.listTabs) {
@@ -131,6 +154,9 @@ import AppKit
                     onTabClosed?(DomainMatcher.host(of: tab.url) ?? tab.url)
                 }
             }
+            let liveWindowIDs = Set(tabs.map(\.windowID))
+            let strays = preexistingWindowIDs.filter(liveWindowIDs.contains).sorted()
+            if !strays.isEmpty { _ = Self.run(ChromeScripts.minimize(windowIDs: strays)) }
         case .failure(.automationDenied):
             stopTabWatch()   // permission revoked mid-session: stop retrying every 2 s
         case .failure:
@@ -138,9 +164,11 @@ import AppKit
         }
     }
 
+    /// Un-minimizes the windows `prepare` minimized, and stops the tab watch from minimizing them again.
     func restoreMinimized() {
         let ids = minimizedIDs
         minimizedIDs = []
+        preexistingWindowIDs = []
         guard !ids.isEmpty, Self.isRunning else { return }
         _ = Self.run(ChromeScripts.restore(windowIDs: ids))
     }

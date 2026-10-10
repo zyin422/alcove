@@ -43,6 +43,20 @@ final class ChromeScriptsTests: XCTestCase {
         XCTAssertEqual(script.components(separatedBy: "try").count - 1, 4)   // 2 × "try" + 2 × "end try"
     }
 
+    func testMinimizeMinimizesEachIDInsideTry() {
+        let script = ChromeScripts.minimize(windowIDs: [5, 9])
+        XCTAssertTrue(script.hasPrefix(#"tell application "Google Chrome""#))
+        XCTAssertTrue(script.contains(#"set minimized of window id "5" to true"#))
+        XCTAssertTrue(script.contains(#"set minimized of window id "9" to true"#))
+        XCTAssertFalse(script.contains("to false"))
+        XCTAssertEqual(script.components(separatedBy: "try").count - 1, 4)   // 2 × "try" + 2 × "end try"
+        XCTAssertTrue(script.hasSuffix("end tell"))
+    }
+
+    func testMinimizeWithNoIDsIsEmptyScript() {
+        XCTAssertEqual(ChromeScripts.minimize(windowIDs: []), "")
+    }
+
     func testListTabsUsesTabAndLinefeedCapturedOutsideTell() {
         let script = ChromeScripts.listTabs
         XCTAssertTrue(script.hasPrefix("set tabChar to tab\nset lineChar to linefeed"))

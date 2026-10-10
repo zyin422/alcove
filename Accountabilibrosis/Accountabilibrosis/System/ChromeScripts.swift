@@ -100,6 +100,19 @@ enum ChromeScripts {
         return lines.joined(separator: "\n")
     }
 
+    /// Minimizes the given windows; ids that no longer exist are skipped by `try`. "" (nothing to run) for no ids.
+    static func minimize(windowIDs: [Int]) -> String {
+        guard !windowIDs.isEmpty else { return "" }
+        var lines = ["tell application \"Google Chrome\""]
+        for id in windowIDs {
+            lines.append("    try")
+            lines.append("        set minimized of window id \"\(id)\" to true")
+            lines.append("    end try")
+        }
+        lines.append("end tell")
+        return lines.joined(separator: "\n")
+    }
+
     /// Harmless call used to trigger/check the Automation permission: returns count of windows.
     static let ping: String = "tell application \"Google Chrome\" to count windows"
 
