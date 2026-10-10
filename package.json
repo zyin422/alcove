@@ -1,0 +1,16 @@
+{
+  "name": "accountabilibrosis",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @accountabilibrosis/api\" \"npm run dev -w @accountabilibrosis/web\"",
+    "dev:api": "npm run dev -w @accountabilibrosis/api",
+    "dev:web": "npm run dev -w @accountabilibrosis/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
