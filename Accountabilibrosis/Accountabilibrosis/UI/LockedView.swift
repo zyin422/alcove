@@ -50,7 +50,7 @@ enum LockedLayout {
 
 /// Giant timer screen shown in the main window while locked: subject, timer, goal progress,
 /// counters and the End button. It re-renders every tick because it reads `engine.now`
-/// (through `elapsed`/`remaining`).
+/// (through `elapsed`/`remaining`). The mini timer's ✕ starts the same end flow as the End button.
 struct LockedView: View {
     let model: AppModel
     @State private var isConfirmingEnd = false
@@ -91,12 +91,15 @@ struct LockedView: View {
         .sheet(isPresented: $isShowingGiveUp) {
             GiveUpSheet(model: model)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .accountabilibrosisRequestEnd)) { _ in
+            endTapped()
+        }
     }
 
     /// Timer sized to the available space, plus the goal progress line and caption in goal mode.
     private func timerBlock(engine: SessionEngine, size: CGSize) -> some View {
         VStack(spacing: Theme.Space.m) {
-            Text(TimeFormat.clock(engine.remaining ?? engine.elapsed))
+            Text(TimeFormat.clockFull(engine.remaining ?? engine.elapsed))
                 .font(Theme.timerFont(size: LockedLayout.timerFontSize(for: size)))
                 .lineLimit(1)
                 .minimumScaleFactor(0.2)
@@ -118,6 +121,7 @@ struct LockedView: View {
     }
 
     /// Goal mode before the goal needs the give-up phrase; everything else just confirms.
+    /// Shared by the End button and the mini timer's ✕.
     private func endTapped() {
         if model.engine.needsGiveUpPhrase {
             isShowingGiveUp = true

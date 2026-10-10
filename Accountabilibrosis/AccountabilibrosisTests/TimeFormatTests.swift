@@ -33,4 +33,23 @@ final class TimeFormatTests: XCTestCase {
         XCTAssertEqual(TimeFormat.clock(-1), "00:00")
         XCTAssertEqual(TimeFormat.clock(.nan), "00:00")
     }
+
+    func testClockFullAlwaysHasHoursMinutesSeconds() {
+        XCTAssertEqual(TimeFormat.clockFull(0), "00:00:00")
+        XCTAssertEqual(TimeFormat.clockFull(5.9), "00:00:05")
+        XCTAssertEqual(TimeFormat.clockFull(65), "00:01:05")
+        XCTAssertEqual(TimeFormat.clockFull(3599), "00:59:59")
+        XCTAssertEqual(TimeFormat.clockFull(3600), "01:00:00")
+        XCTAssertEqual(TimeFormat.clockFull(36000 + 61), "10:01:01")
+    }
+
+    func testClockFullGrowsPastTwoHourDigits() {
+        XCTAssertEqual(TimeFormat.clockFull(360_000), "100:00:00")
+    }
+
+    func testClockFullNegativeAndNonFiniteAreZero() {
+        XCTAssertEqual(TimeFormat.clockFull(-1), "00:00:00")
+        XCTAssertEqual(TimeFormat.clockFull(.nan), "00:00:00")
+        XCTAssertEqual(TimeFormat.clockFull(-.infinity), "00:00:00")
+    }
 }
