@@ -1,8 +1,10 @@
 import SwiftUI
 
 /// NavigationSplitView (sidebar + detail). When model.engine.isLocked shows LockedView(model:) full-window instead.
+/// Presents SessionSummaryView once a session has ended (not when it was interrupted by quitting).
 struct RootView: View {
     let model: AppModel
+    @State private var summary: Session?
 
     var body: some View {
         Group {
@@ -17,6 +19,14 @@ struct RootView: View {
             }
         }
         .frame(minWidth: 820, minHeight: 560)
+        .onChange(of: model.engine.lastEnded?.id) { _, _ in
+            if let ended = model.engine.lastEnded, SessionSummaryText.shouldPresent(ended) {
+                summary = ended
+            }
+        }
+        .sheet(item: $summary) { ended in
+            SessionSummaryView(session: ended)
+        }
     }
 
     @ViewBuilder private var detail: some View {

@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// App entry point: a single main window ("New Window" is disabled). The AppDelegate owns the model.
+/// App entry point: a single main window ("New Window" is disabled) plus the Settings scene (⌘,).
+/// The AppDelegate owns the model.
 @main
 struct AccountabilibrosisApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -16,6 +17,15 @@ struct AccountabilibrosisApp: App {
         .defaultSize(width: 1100, height: 720)
         .commands {
             CommandGroup(replacing: .newItem) {}
+        }
+
+        Settings {
+            if AppDelegate.isRunningTests {
+                Text("Running tests")
+            } else {
+                SettingsView(model: appDelegate.model)
+                    .frame(width: 560, height: 640)
+            }
         }
     }
 }
