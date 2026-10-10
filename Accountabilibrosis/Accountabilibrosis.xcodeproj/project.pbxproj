@@ -11,6 +11,7 @@
 		0762E32664E222F2D49001BA /* ChromeScriptsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC91DCCFD158B468FE74F62 /* ChromeScriptsTests.swift */; };
 		134C11A27050664DF9911D39 /* SessionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C100C04D3A5EFCEA9D197989 /* SessionEngineTests.swift */; };
 		182448117B907D7E2ED85A5E /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B72520C7E2C9BD3900B14E /* AppModelTests.swift */; };
+		1DF2C6E2883A11079F44E428 /* SubjectValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E7D62299AC0E3840DA1C71 /* SubjectValidator.swift */; };
 		1E7370C9F78AD0CF607B21C8 /* WorkspaceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C252D44FBF9AF3AFEAE64EFB /* WorkspaceController.swift */; };
 		20EC9836CFD90AF9F321CBAF /* Fakes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7156EF3D0062C1DB6E380C /* Fakes.swift */; };
 		21F9D787DA3D84AEE75B17DD /* DemoDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1362AD75D795508C3559194D /* DemoDataTests.swift */; };
@@ -31,6 +32,7 @@
 		6CF71183DAFB3ACE9D918971 /* DomainMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F8C55B3422557819C64E537 /* DomainMatcher.swift */; };
 		70192398AAC294F7E2667DDB /* BlockPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A1852436A1E08BF9B5D7D8 /* BlockPolicy.swift */; };
 		72214357A181C77B4867423F /* ToastLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE82FED4B667D5B68E0FEE0 /* ToastLayoutTests.swift */; };
+		734D8E66009E1B552E3BFE0B /* SubjectValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6C392D3C815445CD28E1230 /* SubjectValidatorTests.swift */; };
 		7371BF5AA8703450AE14C133 /* TimeFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90AA75750FB3B5D82220DAF /* TimeFormat.swift */; };
 		790959824B9FB1F555EFCBB4 /* BlockPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40616FE77DAD08DB18924C7E /* BlockPolicyTests.swift */; };
 		7BA190743193CC60EF30EF94 /* DiscordClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45888CBAE72DB3BC8D986E3 /* DiscordClient.swift */; };
@@ -84,6 +86,7 @@
 		3CA73667C3936E7305C6FA6E /* LayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEngine.swift; sourceTree = "<group>"; };
 		40616FE77DAD08DB18924C7E /* BlockPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPolicyTests.swift; sourceTree = "<group>"; };
 		43E2544FD76100A3AC80AE40 /* DiscordAnnouncerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordAnnouncerTests.swift; sourceTree = "<group>"; };
+		43E7D62299AC0E3840DA1C71 /* SubjectValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectValidator.swift; sourceTree = "<group>"; };
 		4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenGeometryTests.swift; sourceTree = "<group>"; };
 		52AD65B7C2B5AD2E83761B3C /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatTests.swift; sourceTree = "<group>"; };
@@ -106,6 +109,7 @@
 		CF14732275FF4B006155618B /* AppBlocker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBlocker.swift; sourceTree = "<group>"; };
 		D0A384AAA2381355154EE6D1 /* StatsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsEngine.swift; sourceTree = "<group>"; };
 		D23D9E84FC83FF697ECC652B /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		D6C392D3C815445CD28E1230 /* SubjectValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectValidatorTests.swift; sourceTree = "<group>"; };
 		DB429F7BCF82ACFD008EECD7 /* ScreenGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenGeometry.swift; sourceTree = "<group>"; };
 		DFC91DCCFD158B468FE74F62 /* ChromeScriptsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeScriptsTests.swift; sourceTree = "<group>"; };
 		E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordMessagesTests.swift; sourceTree = "<group>"; };
@@ -162,6 +166,7 @@
 				A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */,
 				0CABFA2A93644587BF41DC4F /* StatsEngineTests.swift */,
 				183F88A178E255D11F6733C5 /* StoreTests.swift */,
+				D6C392D3C815445CD28E1230 /* SubjectValidatorTests.swift */,
 				5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */,
 				9AE82FED4B667D5B68E0FEE0 /* ToastLayoutTests.swift */,
 			);
@@ -185,6 +190,7 @@
 				3CA73667C3936E7305C6FA6E /* LayoutEngine.swift */,
 				6116A290C8F1408496892A05 /* SessionEngine.swift */,
 				D0A384AAA2381355154EE6D1 /* StatsEngine.swift */,
+				43E7D62299AC0E3840DA1C71 /* SubjectValidator.swift */,
 				A90AA75750FB3B5D82220DAF /* TimeFormat.swift */,
 			);
 			path = Engine;
@@ -376,6 +382,7 @@
 				BA198C6A7E1B35DC5FA538EB /* SmokeTests.swift in Sources */,
 				27F4833F18C1D36C72FEB140 /* StatsEngineTests.swift in Sources */,
 				2407E40A0F36DD2DBB9F1B8C /* StoreTests.swift in Sources */,
+				734D8E66009E1B552E3BFE0B /* SubjectValidatorTests.swift in Sources */,
 				BD776FEA33ED5869075EF196 /* TimeFormatTests.swift in Sources */,
 				72214357A181C77B4867423F /* ToastLayoutTests.swift in Sources */,
 			);
@@ -406,6 +413,7 @@
 				461F4C7B03EF77111B27BB2C /* StatsEngine.swift in Sources */,
 				7E12EA8E58BC078D816B819F /* Store.swift in Sources */,
 				639FE63C5191A0F2280AE66C /* Subject.swift in Sources */,
+				1DF2C6E2883A11079F44E428 /* SubjectValidator.swift in Sources */,
 				7371BF5AA8703450AE14C133 /* TimeFormat.swift in Sources */,
 				FD7B35B4DB3DB3AAF9984AF7 /* ToastCenter.swift in Sources */,
 				1E7370C9F78AD0CF607B21C8 /* WorkspaceController.swift in Sources */,
