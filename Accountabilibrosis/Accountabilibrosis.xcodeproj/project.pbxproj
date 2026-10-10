@@ -14,6 +14,7 @@
 		12CF389CCAF20FA95D00C2F7 /* MiniTimerLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002600BF53FA0FFC054FECBB /* MiniTimerLayoutTests.swift */; };
 		134C11A27050664DF9911D39 /* SessionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C100C04D3A5EFCEA9D197989 /* SessionEngineTests.swift */; };
 		182448117B907D7E2ED85A5E /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B72520C7E2C9BD3900B14E /* AppModelTests.swift */; };
+		1887E998D773DB8FBD13578C /* SessionSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC42F2ECAE3BDCF25E0B74C /* SessionSummaryView.swift */; };
 		1DF2C6E2883A11079F44E428 /* SubjectValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E7D62299AC0E3840DA1C71 /* SubjectValidator.swift */; };
 		1E7370C9F78AD0CF607B21C8 /* WorkspaceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C252D44FBF9AF3AFEAE64EFB /* WorkspaceController.swift */; };
 		20EC9836CFD90AF9F321CBAF /* Fakes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7156EF3D0062C1DB6E380C /* Fakes.swift */; };
@@ -63,6 +64,7 @@
 		9A769BFBF2EFE3E506282957 /* ChromeScripts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4AA52F0671CB40B44A94257 /* ChromeScripts.swift */; };
 		9D258440E8A0C0F575E8B448 /* DiscordMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 303C65C43B4E40C079E7C09B /* DiscordMessages.swift */; };
 		A1AF59C362CB22B4D87DCE7B /* ChromeControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77899BE94E8C3945F24AB2E5 /* ChromeControllerTests.swift */; };
+		A440AAD60E8EC6F88E2137B4 /* LockedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCCE48FE9F589FB55F76044 /* LockedUITests.swift */; };
 		A4E54FCC2DFBDD3BB8D690A8 /* MockTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E274569CB062581F5318294 /* MockTransport.swift */; };
 		A87ECA5C972ADF8070E298C6 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C555595552ED9F832CA29195 /* AppSettings.swift */; };
 		B4D40D8EF1D2C7CC1E9B8CCA /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E702B77D2185AA2527C487D8 /* AppModel.swift */; };
@@ -140,6 +142,7 @@
 		9CAACBFF6358254AC7C11B54 /* ToastCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastCenter.swift; sourceTree = "<group>"; };
 		A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		A90AA75750FB3B5D82220DAF /* TimeFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormat.swift; sourceTree = "<group>"; };
+		ABC42F2ECAE3BDCF25E0B74C /* SessionSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSummaryView.swift; sourceTree = "<group>"; };
 		B163AA87AE478D7BF3925593 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		C100C04D3A5EFCEA9D197989 /* SessionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEngineTests.swift; sourceTree = "<group>"; };
 		C252D44FBF9AF3AFEAE64EFB /* WorkspaceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceController.swift; sourceTree = "<group>"; };
@@ -158,6 +161,7 @@
 		E57320FAB47A775061DF1DC4 /* LockInOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockInOptionTests.swift; sourceTree = "<group>"; };
 		E702B77D2185AA2527C487D8 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
+		EBCCE48FE9F589FB55F76044 /* LockedUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockedUITests.swift; sourceTree = "<group>"; };
 		EC86FC2B606251622D85DFD6 /* StatsFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsFormatting.swift; sourceTree = "<group>"; };
 		F4A9B506EF3A2973B337B0E7 /* DiscordClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordClientTests.swift; sourceTree = "<group>"; };
 		F4AA52F0671CB40B44A94257 /* ChromeScripts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeScripts.swift; sourceTree = "<group>"; };
@@ -210,6 +214,7 @@
 				3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */,
 				0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */,
 				13169F56E717F425754885EC /* LockedLayoutTests.swift */,
+				EBCCE48FE9F589FB55F76044 /* LockedUITests.swift */,
 				E57320FAB47A775061DF1DC4 /* LockInOptionTests.swift */,
 				002600BF53FA0FFC054FECBB /* MiniTimerLayoutTests.swift */,
 				5E274569CB062581F5318294 /* MockTransport.swift */,
@@ -305,6 +310,7 @@
 				7E2F0F93C625B23507D92878 /* MiniTimerPanel.swift */,
 				71F411E6CE5B34004F1B9245 /* PresetThumbnail.swift */,
 				FC098D48F330217B5EC70857 /* RootView.swift */,
+				ABC42F2ECAE3BDCF25E0B74C /* SessionSummaryView.swift */,
 				F51AE8606E3A8BA19468D68E /* SettingsView.swift */,
 				B163AA87AE478D7BF3925593 /* SidebarView.swift */,
 				F66D70443CA4A07A77137933 /* StatsView.swift */,
@@ -450,6 +456,7 @@
 				5A709BEBF01679E8F6B5DFE7 /* LayoutEngineTests.swift in Sources */,
 				0AF7CB01CEF00F73934FCC09 /* LockInOptionTests.swift in Sources */,
 				4CF2487BE0C54497F025D37B /* LockedLayoutTests.swift in Sources */,
+				A440AAD60E8EC6F88E2137B4 /* LockedUITests.swift in Sources */,
 				12CF389CCAF20FA95D00C2F7 /* MiniTimerLayoutTests.swift in Sources */,
 				A4E54FCC2DFBDD3BB8D690A8 /* MockTransport.swift in Sources */,
 				7E4815A44DA323298EF75A4B /* ModelsTests.swift in Sources */,
@@ -498,6 +505,7 @@
 				8D6147FB0EAE8378DC62D49C /* ScreenGeometry.swift in Sources */,
 				BC8073E2B09755FBEA4A01BE /* Session.swift in Sources */,
 				CCC0F69FDF0F49EFAF145BC6 /* SessionEngine.swift in Sources */,
+				1887E998D773DB8FBD13578C /* SessionSummaryView.swift in Sources */,
 				708F0AE858BF160C9996EC32 /* SettingsStatus.swift in Sources */,
 				892A4B4ED85D315F214D8EAB /* SettingsView.swift in Sources */,
 				C7F893F3AEDB961918454967 /* SidebarView.swift in Sources */,
