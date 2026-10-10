@@ -14,9 +14,19 @@ final class LockInOptionTests: XCTestCase {
     }
 
     func testCustomUsesTheStepperValueClampedToItsRange() {
-        XCTAssertEqual(LockInOption.customRange, 5...240)
+        XCTAssertEqual(LockInOption.customRange, 1...240)
         XCTAssertEqual(LockInOption.custom.mode(customMinutes: 45), .goal(minutes: 45))
-        XCTAssertEqual(LockInOption.custom.mode(customMinutes: 1), .goal(minutes: 5))
+        XCTAssertEqual(LockInOption.custom.mode(customMinutes: 1), .goal(minutes: 1))
+        XCTAssertEqual(LockInOption.custom.mode(customMinutes: 0), .goal(minutes: 1))
+        XCTAssertEqual(LockInOption.custom.mode(customMinutes: -7), .goal(minutes: 1))
+        XCTAssertEqual(LockInOption.custom.mode(customMinutes: 240), .goal(minutes: 240))
         XCTAssertEqual(LockInOption.custom.mode(customMinutes: 500), .goal(minutes: 240))
+    }
+
+    func testClampedMinutesKeepsTypedValuesInRange() {
+        XCTAssertEqual(LockInOption.clampedMinutes(0), 1)
+        XCTAssertEqual(LockInOption.clampedMinutes(1), 1)
+        XCTAssertEqual(LockInOption.clampedMinutes(90), 90)
+        XCTAssertEqual(LockInOption.clampedMinutes(999), 240)
     }
 }

@@ -4,8 +4,13 @@ import SwiftUI
 enum LockInOption: Hashable, CaseIterable, Identifiable {
     case openEnded, minutes25, minutes50, minutes90, custom
 
-    /// Stepper range for `custom`, in minutes (step 5).
-    static let customRange = 5...240
+    /// Allowed range for `custom`, in minutes (stepper step 1).
+    static let customRange = 1...240
+
+    /// `minutes` limited to `customRange`.
+    static func clampedMinutes(_ minutes: Int) -> Int {
+        min(max(minutes, customRange.lowerBound), customRange.upperBound)
+    }
 
     var id: Self { self }
 
@@ -26,9 +31,7 @@ enum LockInOption: Hashable, CaseIterable, Identifiable {
         case .minutes25: return .goal(minutes: 25)
         case .minutes50: return .goal(minutes: 50)
         case .minutes90: return .goal(minutes: 90)
-        case .custom:
-            let clamped = min(max(customMinutes, Self.customRange.lowerBound), Self.customRange.upperBound)
-            return .goal(minutes: clamped)
+        case .custom: return .goal(minutes: Self.clampedMinutes(customMinutes))
         }
     }
 }
@@ -57,8 +60,15 @@ struct LockInSheet: View {
             .labelsHidden()
 
             if option == .custom {
-                Stepper(value: $customMinutes, in: LockInOption.customRange, step: 5) {
-                    Text("\(customMinutes) min").monospacedDigit()
+                HStack(spacing: Theme.Space.s) {
+                    TextField("Minutes", value: typedMinutes, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .frame(width: 64)
+                    Text("min").foregroundStyle(.secondary)
+                    Stepper("Minutes", value: $customMinutes, in: LockInOption.customRange, step: 1)
+                        .labelsHidden()
                 }
             }
 
@@ -89,6 +99,12 @@ struct LockInSheet: View {
         }
         .padding(Theme.Space.xl)
         .frame(width: 480)
+    }
+
+    /// Typed minutes, clamped to the custom range before they reach the stepper.
+    private var typedMinutes: Binding<Int> {
+        Binding(get: { customMinutes },
+                set: { customMinutes = LockInOption.clampedMinutes($0) })
     }
 
     private func note(_ text: String) -> some View {

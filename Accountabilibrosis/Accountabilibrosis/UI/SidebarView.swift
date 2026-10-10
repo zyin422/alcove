@@ -48,6 +48,16 @@ struct SidebarView: View {
             .help("Add subject (⌘N)")
             .padding(Theme.Space.m)
         }
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    isAddingSubject = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .help("Add subject")
+            }
+        }
         .sheet(isPresented: $isAddingSubject) {
             SubjectEditorView(model: model, subject: nil)
         }
