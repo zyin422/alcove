@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		03F031B238C12D71D3C0D503 /* AppBlocker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF14732275FF4B006155618B /* AppBlocker.swift */; };
+		1E7370C9F78AD0CF607B21C8 /* WorkspaceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C252D44FBF9AF3AFEAE64EFB /* WorkspaceController.swift */; };
 		2407E40A0F36DD2DBB9F1B8C /* StoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 183F88A178E255D11F6733C5 /* StoreTests.swift */; };
 		25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */; };
 		30EF75A225EC524CAD9D3423 /* ScreenGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */; };
@@ -68,9 +70,11 @@
 		90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilibrosisApp.swift; sourceTree = "<group>"; };
 		A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		A90AA75750FB3B5D82220DAF /* TimeFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormat.swift; sourceTree = "<group>"; };
+		C252D44FBF9AF3AFEAE64EFB /* WorkspaceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceController.swift; sourceTree = "<group>"; };
 		C45888CBAE72DB3BC8D986E3 /* DiscordClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordClient.swift; sourceTree = "<group>"; };
 		C4A581497D658574554F5D87 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		C555595552ED9F832CA29195 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		CF14732275FF4B006155618B /* AppBlocker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBlocker.swift; sourceTree = "<group>"; };
 		D23D9E84FC83FF697ECC652B /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
 		DB429F7BCF82ACFD008EECD7 /* ScreenGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenGeometry.swift; sourceTree = "<group>"; };
 		E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordMessagesTests.swift; sourceTree = "<group>"; };
@@ -191,8 +195,10 @@
 		F0A8CA7F00CC7015A7B3DB06 /* System */ = {
 			isa = PBXGroup;
 			children = (
+				CF14732275FF4B006155618B /* AppBlocker.swift */,
 				13A1852436A1E08BF9B5D7D8 /* BlockPolicy.swift */,
 				DB429F7BCF82ACFD008EECD7 /* ScreenGeometry.swift */,
+				C252D44FBF9AF3AFEAE64EFB /* WorkspaceController.swift */,
 			);
 			path = System;
 			sourceTree = "<group>";
@@ -312,6 +318,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */,
+				03F031B238C12D71D3C0D503 /* AppBlocker.swift in Sources */,
 				A87ECA5C972ADF8070E298C6 /* AppSettings.swift in Sources */,
 				70192398AAC294F7E2667DDB /* BlockPolicy.swift in Sources */,
 				47AAC2D70A3F403890D979A4 /* ChannelPicker.swift in Sources */,
@@ -325,6 +332,7 @@
 				7E12EA8E58BC078D816B819F /* Store.swift in Sources */,
 				639FE63C5191A0F2280AE66C /* Subject.swift in Sources */,
 				7371BF5AA8703450AE14C133 /* TimeFormat.swift in Sources */,
+				1E7370C9F78AD0CF607B21C8 /* WorkspaceController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
