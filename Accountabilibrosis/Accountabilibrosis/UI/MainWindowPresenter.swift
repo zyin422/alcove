@@ -47,6 +47,13 @@ import AppKit
         window.orderFrontRegardless()
     }
 
+    /// Mini timer ✕: shows the main window, then asks LockedView to start the end flow
+    /// (give-up sheet before a goal is reached, otherwise the "End this session?" confirmation).
+    func requestEnd() {
+        showMainWindow()
+        NotificationCenter.default.post(name: .accountabilibrosisRequestEnd, object: nil)
+    }
+
     /// Close mini timer, restore main window frame, bring app to front.
     func exitLocked() {
         closePanel()
@@ -81,9 +88,9 @@ import AppKit
 
     private func showPanel() {
         closePanel()
-        let panel = MiniTimerPanel(engine: model.engine) { [weak self] in
-            self?.showMainWindow()
-        }
+        let panel = MiniTimerPanel(engine: model.engine,
+                                   onOpen: { [weak self] in self?.showMainWindow() },
+                                   onEnd: { [weak self] in self?.requestEnd() })
         panel.show()
         self.panel = panel
     }

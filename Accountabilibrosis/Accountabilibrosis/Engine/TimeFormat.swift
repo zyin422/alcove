@@ -25,6 +25,13 @@ enum TimeFormat {
         return "\(twoDigits(minutes)):\(twoDigits(secs))"
     }
 
+    /// Floor to seconds, always "HH:MM:SS": 0 -> "00:00:00", 3599 -> "00:59:59", 360000 -> "100:00:00".
+    /// Negative -> "00:00:00". Used by the giant timer.
+    static func clockFull(_ seconds: TimeInterval) -> String {
+        let total = wholeSeconds(seconds)
+        return "\(twoDigits(total / 3600)):\(twoDigits((total % 3600) / 60)):\(twoDigits(total % 60))"
+    }
+
     /// Whole, non-negative seconds. NaN, infinities and negatives become 0.
     private static func wholeSeconds(_ seconds: TimeInterval) -> Int {
         guard seconds.isFinite, seconds > 0 else { return 0 }
