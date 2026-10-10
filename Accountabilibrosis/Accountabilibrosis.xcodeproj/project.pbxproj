@@ -12,10 +12,12 @@
 		134C11A27050664DF9911D39 /* SessionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C100C04D3A5EFCEA9D197989 /* SessionEngineTests.swift */; };
 		1E7370C9F78AD0CF607B21C8 /* WorkspaceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C252D44FBF9AF3AFEAE64EFB /* WorkspaceController.swift */; };
 		20EC9836CFD90AF9F321CBAF /* Fakes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7156EF3D0062C1DB6E380C /* Fakes.swift */; };
+		21F9D787DA3D84AEE75B17DD /* DemoDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1362AD75D795508C3559194D /* DemoDataTests.swift */; };
 		2407E40A0F36DD2DBB9F1B8C /* StoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 183F88A178E255D11F6733C5 /* StoreTests.swift */; };
 		25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */; };
 		27F4833F18C1D36C72FEB140 /* StatsEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CABFA2A93644587BF41DC4F /* StatsEngineTests.swift */; };
 		30EF75A225EC524CAD9D3423 /* ScreenGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */; };
+		3791497AAD48B4C73C7CCF9A /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F2F59F7B8654BD9F3D2617 /* DemoData.swift */; };
 		461F4C7B03EF77111B27BB2C /* StatsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A384AAA2381355154EE6D1 /* StatsEngine.swift */; };
 		47924008DF0332891827BD40 /* DomainMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */; };
 		47AAC2D70A3F403890D979A4 /* ChannelPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61E934BCA35925FC559717D9 /* ChannelPicker.swift */; };
@@ -66,6 +68,7 @@
 		0CABFA2A93644587BF41DC4F /* StatsEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsEngineTests.swift; sourceTree = "<group>"; };
 		0DA2C21E5C3306A97D58F275 /* Accountabilibrosis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Accountabilibrosis.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEngineTests.swift; sourceTree = "<group>"; };
+		1362AD75D795508C3559194D /* DemoDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoDataTests.swift; sourceTree = "<group>"; };
 		13A1852436A1E08BF9B5D7D8 /* BlockPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPolicy.swift; sourceTree = "<group>"; };
 		183F88A178E255D11F6733C5 /* StoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreTests.swift; sourceTree = "<group>"; };
 		1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainMatcherTests.swift; sourceTree = "<group>"; };
@@ -103,6 +106,7 @@
 		F4A9B506EF3A2973B337B0E7 /* DiscordClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordClientTests.swift; sourceTree = "<group>"; };
 		F4AA52F0671CB40B44A94257 /* ChromeScripts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeScripts.swift; sourceTree = "<group>"; };
 		F4EDB831ECA425F1A82FB5D7 /* AccountabilibrosisTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AccountabilibrosisTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F5F2F59F7B8654BD9F3D2617 /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoData.swift; sourceTree = "<group>"; };
 		FA4C85E2CC95A6E3A156B098 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -132,6 +136,7 @@
 				75362484A0E16959169BA12D /* ChannelPickerTests.swift */,
 				77899BE94E8C3945F24AB2E5 /* ChromeControllerTests.swift */,
 				DFC91DCCFD158B468FE74F62 /* ChromeScriptsTests.swift */,
+				1362AD75D795508C3559194D /* DemoDataTests.swift */,
 				F4A9B506EF3A2973B337B0E7 /* DiscordClientTests.swift */,
 				E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */,
 				1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */,
@@ -163,6 +168,7 @@
 		3D9963003F23A593997485ED /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				F5F2F59F7B8654BD9F3D2617 /* DemoData.swift */,
 				2F8C55B3422557819C64E537 /* DomainMatcher.swift */,
 				3CA73667C3936E7305C6FA6E /* LayoutEngine.swift */,
 				6116A290C8F1408496892A05 /* SessionEngine.swift */,
@@ -342,6 +348,7 @@
 				4DF29D1795B0FE4914454FF5 /* ChannelPickerTests.swift in Sources */,
 				A1AF59C362CB22B4D87DCE7B /* ChromeControllerTests.swift in Sources */,
 				0762E32664E222F2D49001BA /* ChromeScriptsTests.swift in Sources */,
+				21F9D787DA3D84AEE75B17DD /* DemoDataTests.swift in Sources */,
 				C84F9EAA33DF884A6037B6A9 /* DiscordClientTests.swift in Sources */,
 				9875C553E75D19B5C174305C /* DiscordMessagesTests.swift in Sources */,
 				47924008DF0332891827BD40 /* DomainMatcherTests.swift in Sources */,
@@ -371,6 +378,7 @@
 				47AAC2D70A3F403890D979A4 /* ChannelPicker.swift in Sources */,
 				C43466E58FA72E6FB5DE41B9 /* ChromeController.swift in Sources */,
 				9A769BFBF2EFE3E506282957 /* ChromeScripts.swift in Sources */,
+				3791497AAD48B4C73C7CCF9A /* DemoData.swift in Sources */,
 				7BA190743193CC60EF30EF94 /* DiscordClient.swift in Sources */,
 				9D258440E8A0C0F575E8B448 /* DiscordMessages.swift in Sources */,
 				6CF71183DAFB3ACE9D918971 /* DomainMatcher.swift in Sources */,
