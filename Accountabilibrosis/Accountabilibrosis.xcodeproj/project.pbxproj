@@ -9,7 +9,9 @@
 /* Begin PBXBuildFile section */
 		03F031B238C12D71D3C0D503 /* AppBlocker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF14732275FF4B006155618B /* AppBlocker.swift */; };
 		0762E32664E222F2D49001BA /* ChromeScriptsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC91DCCFD158B468FE74F62 /* ChromeScriptsTests.swift */; };
+		134C11A27050664DF9911D39 /* SessionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C100C04D3A5EFCEA9D197989 /* SessionEngineTests.swift */; };
 		1E7370C9F78AD0CF607B21C8 /* WorkspaceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C252D44FBF9AF3AFEAE64EFB /* WorkspaceController.swift */; };
+		20EC9836CFD90AF9F321CBAF /* Fakes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7156EF3D0062C1DB6E380C /* Fakes.swift */; };
 		2407E40A0F36DD2DBB9F1B8C /* StoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 183F88A178E255D11F6733C5 /* StoreTests.swift */; };
 		25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */; };
 		30EF75A225EC524CAD9D3423 /* ScreenGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */; };
@@ -42,6 +44,7 @@
 		BD776FEA33ED5869075EF196 /* TimeFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */; };
 		C43466E58FA72E6FB5DE41B9 /* ChromeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05933A6F5CD030F74E8AF59B /* ChromeController.swift */; };
 		C84F9EAA33DF884A6037B6A9 /* DiscordClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A9B506EF3A2973B337B0E7 /* DiscordClientTests.swift */; };
+		CCC0F69FDF0F49EFAF145BC6 /* SessionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6116A290C8F1408496892A05 /* SessionEngine.swift */; };
 		FD7B35B4DB3DB3AAF9984AF7 /* ToastCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CAACBFF6358254AC7C11B54 /* ToastCenter.swift */; };
 /* End PBXBuildFile section */
 
@@ -72,14 +75,17 @@
 		52AD65B7C2B5AD2E83761B3C /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatTests.swift; sourceTree = "<group>"; };
 		5E274569CB062581F5318294 /* MockTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTransport.swift; sourceTree = "<group>"; };
+		6116A290C8F1408496892A05 /* SessionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEngine.swift; sourceTree = "<group>"; };
 		61E934BCA35925FC559717D9 /* ChannelPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelPicker.swift; sourceTree = "<group>"; };
 		75362484A0E16959169BA12D /* ChannelPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelPickerTests.swift; sourceTree = "<group>"; };
 		77899BE94E8C3945F24AB2E5 /* ChromeControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeControllerTests.swift; sourceTree = "<group>"; };
+		7E7156EF3D0062C1DB6E380C /* Fakes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fakes.swift; sourceTree = "<group>"; };
 		90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilibrosisApp.swift; sourceTree = "<group>"; };
 		9AE82FED4B667D5B68E0FEE0 /* ToastLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastLayoutTests.swift; sourceTree = "<group>"; };
 		9CAACBFF6358254AC7C11B54 /* ToastCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastCenter.swift; sourceTree = "<group>"; };
 		A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		A90AA75750FB3B5D82220DAF /* TimeFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormat.swift; sourceTree = "<group>"; };
+		C100C04D3A5EFCEA9D197989 /* SessionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEngineTests.swift; sourceTree = "<group>"; };
 		C252D44FBF9AF3AFEAE64EFB /* WorkspaceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceController.swift; sourceTree = "<group>"; };
 		C45888CBAE72DB3BC8D986E3 /* DiscordClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordClient.swift; sourceTree = "<group>"; };
 		C4A581497D658574554F5D87 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
@@ -125,11 +131,13 @@
 				F4A9B506EF3A2973B337B0E7 /* DiscordClientTests.swift */,
 				E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */,
 				1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */,
+				7E7156EF3D0062C1DB6E380C /* Fakes.swift */,
 				3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */,
 				0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */,
 				5E274569CB062581F5318294 /* MockTransport.swift */,
 				EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */,
 				4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */,
+				C100C04D3A5EFCEA9D197989 /* SessionEngineTests.swift */,
 				A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */,
 				183F88A178E255D11F6733C5 /* StoreTests.swift */,
 				5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */,
@@ -152,6 +160,7 @@
 			children = (
 				2F8C55B3422557819C64E537 /* DomainMatcher.swift */,
 				3CA73667C3936E7305C6FA6E /* LayoutEngine.swift */,
+				6116A290C8F1408496892A05 /* SessionEngine.swift */,
 				A90AA75750FB3B5D82220DAF /* TimeFormat.swift */,
 			);
 			path = Engine;
@@ -330,11 +339,13 @@
 				C84F9EAA33DF884A6037B6A9 /* DiscordClientTests.swift in Sources */,
 				9875C553E75D19B5C174305C /* DiscordMessagesTests.swift in Sources */,
 				47924008DF0332891827BD40 /* DomainMatcherTests.swift in Sources */,
+				20EC9836CFD90AF9F321CBAF /* Fakes.swift in Sources */,
 				483FDAE5C49C48ECC84363DD /* KeychainTests.swift in Sources */,
 				5A709BEBF01679E8F6B5DFE7 /* LayoutEngineTests.swift in Sources */,
 				A4E54FCC2DFBDD3BB8D690A8 /* MockTransport.swift in Sources */,
 				7E4815A44DA323298EF75A4B /* ModelsTests.swift in Sources */,
 				30EF75A225EC524CAD9D3423 /* ScreenGeometryTests.swift in Sources */,
+				134C11A27050664DF9911D39 /* SessionEngineTests.swift in Sources */,
 				BA198C6A7E1B35DC5FA538EB /* SmokeTests.swift in Sources */,
 				2407E40A0F36DD2DBB9F1B8C /* StoreTests.swift in Sources */,
 				BD776FEA33ED5869075EF196 /* TimeFormatTests.swift in Sources */,
@@ -360,6 +371,7 @@
 				8A29DF36757FF6E6BF75F0B4 /* LayoutEngine.swift in Sources */,
 				8D6147FB0EAE8378DC62D49C /* ScreenGeometry.swift in Sources */,
 				BC8073E2B09755FBEA4A01BE /* Session.swift in Sources */,
+				CCC0F69FDF0F49EFAF145BC6 /* SessionEngine.swift in Sources */,
 				7E12EA8E58BC078D816B819F /* Store.swift in Sources */,
 				639FE63C5191A0F2280AE66C /* Subject.swift in Sources */,
 				7371BF5AA8703450AE14C133 /* TimeFormat.swift in Sources */,
