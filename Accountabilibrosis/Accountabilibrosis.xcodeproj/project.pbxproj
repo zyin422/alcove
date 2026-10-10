@@ -49,6 +49,7 @@
 		7371BF5AA8703450AE14C133 /* TimeFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90AA75750FB3B5D82220DAF /* TimeFormat.swift */; };
 		790959824B9FB1F555EFCBB4 /* BlockPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40616FE77DAD08DB18924C7E /* BlockPolicyTests.swift */; };
 		7BA190743193CC60EF30EF94 /* DiscordClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45888CBAE72DB3BC8D986E3 /* DiscordClient.swift */; };
+		7D5DE2D0DE946A1FB05F8989 /* EnvFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5286F779ABB4F6CE469CECF /* EnvFileTests.swift */; };
 		7E12EA8E58BC078D816B819F /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA93859E6E9956B9532479C /* Store.swift */; };
 		7E4815A44DA323298EF75A4B /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */; };
 		7F8D10FAC925A59DFD7A125A /* SubjectEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB624FDDE4DBC3AF5F80E08 /* SubjectEditorView.swift */; };
@@ -79,6 +80,7 @@
 		DC5FE46AF825E2B9923CD5A5 /* DiscordAnnouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACC4DFBAAF469AFE94BB343 /* DiscordAnnouncer.swift */; };
 		E45E6CD467B0D07571E3E8CD /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F66D70443CA4A07A77137933 /* StatsView.swift */; };
 		E6DB4EFBBD51EC0A0929468A /* LockInSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58ECEAE5630275145DF77D26 /* LockInSheet.swift */; };
+		F0CE1DE07964F3CAC2596039 /* EnvFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CA2ADD19FD17FF7B15DD8 /* EnvFile.swift */; };
 		FD7B35B4DB3DB3AAF9984AF7 /* ToastCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CAACBFF6358254AC7C11B54 /* ToastCenter.swift */; };
 /* End PBXBuildFile section */
 
@@ -117,6 +119,7 @@
 		43E2544FD76100A3AC80AE40 /* DiscordAnnouncerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordAnnouncerTests.swift; sourceTree = "<group>"; };
 		43E7D62299AC0E3840DA1C71 /* SubjectValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectValidator.swift; sourceTree = "<group>"; };
 		4776DA96DF580974B5614122 /* AppCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCatalogTests.swift; sourceTree = "<group>"; };
+		477CA2ADD19FD17FF7B15DD8 /* EnvFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvFile.swift; sourceTree = "<group>"; };
 		4D4CE45AAFA97DABE9F1B553 /* StatsFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsFormattingTests.swift; sourceTree = "<group>"; };
 		4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenGeometryTests.swift; sourceTree = "<group>"; };
 		52AD65B7C2B5AD2E83761B3C /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
@@ -155,6 +158,7 @@
 		DFC91DCCFD158B468FE74F62 /* ChromeScriptsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeScriptsTests.swift; sourceTree = "<group>"; };
 		DFF1AD33BCFE5F9D01CE938B /* AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCatalog.swift; sourceTree = "<group>"; };
 		E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordMessagesTests.swift; sourceTree = "<group>"; };
+		E5286F779ABB4F6CE469CECF /* EnvFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvFileTests.swift; sourceTree = "<group>"; };
 		E57320FAB47A775061DF1DC4 /* LockInOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockInOptionTests.swift; sourceTree = "<group>"; };
 		E702B77D2185AA2527C487D8 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
@@ -206,6 +210,7 @@
 				F4A9B506EF3A2973B337B0E7 /* DiscordClientTests.swift */,
 				E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */,
 				1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */,
+				E5286F779ABB4F6CE469CECF /* EnvFileTests.swift */,
 				7E7156EF3D0062C1DB6E380C /* Fakes.swift */,
 				3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */,
 				0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */,
@@ -280,6 +285,7 @@
 		67EFAEA9EF4B88B054C89E37 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
+				477CA2ADD19FD17FF7B15DD8 /* EnvFile.swift */,
 				D23D9E84FC83FF697ECC652B /* Keychain.swift */,
 				0CA93859E6E9956B9532479C /* Store.swift */,
 			);
@@ -348,6 +354,7 @@
 			buildConfigurationList = C2539E307B07432E51329883 /* Build configuration list for PBXNativeTarget "Accountabilibrosis" */;
 			buildPhases = (
 				ED306134E2F49E504E6FF85D /* Sources */,
+				95177B23A286A1B2A0F2E4FD /* Bundle team .env */,
 				321D23F93119647270195034 /* Resources */,
 			);
 			buildRules = (
@@ -429,6 +436,28 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		95177B23A286A1B2A0F2E4FD /* Bundle team .env */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle team .env";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "ENV_SRC=\"${SRCROOT}/../.env\"\nENV_DEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/discord.env\"\nif [ -f \"$ENV_SRC\" ]; then\n  mkdir -p \"$(dirname \"$ENV_DEST\")\"\n  cp \"$ENV_SRC\" \"$ENV_DEST\"\nelse\n  rm -f \"$ENV_DEST\"\nfi\nexit 0\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		72CB4DED5DCA7B19AD1D7838 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -445,6 +474,7 @@
 				C84F9EAA33DF884A6037B6A9 /* DiscordClientTests.swift in Sources */,
 				9875C553E75D19B5C174305C /* DiscordMessagesTests.swift in Sources */,
 				47924008DF0332891827BD40 /* DomainMatcherTests.swift in Sources */,
+				7D5DE2D0DE946A1FB05F8989 /* EnvFileTests.swift in Sources */,
 				20EC9836CFD90AF9F321CBAF /* Fakes.swift in Sources */,
 				483FDAE5C49C48ECC84363DD /* KeychainTests.swift in Sources */,
 				5A709BEBF01679E8F6B5DFE7 /* LayoutEngineTests.swift in Sources */,
@@ -486,6 +516,7 @@
 				7BA190743193CC60EF30EF94 /* DiscordClient.swift in Sources */,
 				9D258440E8A0C0F575E8B448 /* DiscordMessages.swift in Sources */,
 				6CF71183DAFB3ACE9D918971 /* DomainMatcher.swift in Sources */,
+				F0CE1DE07964F3CAC2596039 /* EnvFile.swift in Sources */,
 				2FE54DA3E5ADAA455470A3E1 /* GiveUpSheet.swift in Sources */,
 				65C3F0DDB5C05CAE5942B99F /* Keychain.swift in Sources */,
 				8A29DF36757FF6E6BF75F0B4 /* LayoutEngine.swift in Sources */,
