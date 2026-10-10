@@ -9,7 +9,8 @@ struct RunningAppInfo: Equatable {
 
 /// Pure rules for which apps may stay visible while locked in.
 enum BlockPolicy {
-    static let alwaysAllowed: Set<String> = ["com.google.Chrome", "com.apple.finder"]
+    /// Chrome, Finder and System Settings (so Chrome Automation can be granted mid-session).
+    static let alwaysAllowed: Set<String> = ["com.google.Chrome", "com.apple.finder", "com.apple.systempreferences"]
 
     /// alwaysAllowed ∪ {ownBundleID} ∪ subject.allowedApps bundle IDs.
     static func allowedSet(for subject: Subject, ownBundleID: String) -> Set<String> {

@@ -15,22 +15,28 @@ final class BlockPolicyTests: XCTestCase {
 
     // MARK: allowedSet
 
-    func testAllowedSetIsChromeFinderOwnAppAndSubjectApps() {
+    func testAllowedSetIsChromeFinderSystemSettingsOwnAppAndSubjectApps() {
         let notes = AllowedApp(bundleID: "com.apple.Notes", name: "Notes")
         let allowed = BlockPolicy.allowedSet(for: subject(apps: [notes]), ownBundleID: ownID)
-        XCTAssertEqual(allowed, ["com.google.Chrome", "com.apple.finder", ownID, "com.apple.Notes"])
+        XCTAssertEqual(allowed, ["com.google.Chrome", "com.apple.finder", "com.apple.systempreferences",
+                                 ownID, "com.apple.Notes"])
     }
 
     func testAllowedSetWithoutSubjectAppsStillHasAlwaysAllowedAndOwnApp() {
         let allowed = BlockPolicy.allowedSet(for: subject(), ownBundleID: ownID)
-        XCTAssertEqual(allowed, ["com.google.Chrome", "com.apple.finder", ownID])
+        XCTAssertEqual(allowed, ["com.google.Chrome", "com.apple.finder", "com.apple.systempreferences", ownID])
+    }
+
+    func testAllowedSetContainsSystemSettingsSoUsersCanGrantChromeAutomationMidSession() {
+        XCTAssertTrue(BlockPolicy.alwaysAllowed.contains("com.apple.systempreferences"))
+        XCTAssertTrue(BlockPolicy.allowedSet(for: subject(), ownBundleID: ownID).contains("com.apple.systempreferences"))
     }
 
     // MARK: shouldBlock
 
-    func testChromeFinderAndOwnAppAreNeverBlocked() {
+    func testChromeFinderSystemSettingsAndOwnAppAreNeverBlocked() {
         let allowed = BlockPolicy.allowedSet(for: subject(), ownBundleID: ownID)
-        for id in ["com.google.Chrome", "com.apple.finder", ownID] {
+        for id in ["com.google.Chrome", "com.apple.finder", "com.apple.systempreferences", ownID] {
             XCTAssertFalse(BlockPolicy.shouldBlock(app(id), allowed: allowed), id)
         }
     }

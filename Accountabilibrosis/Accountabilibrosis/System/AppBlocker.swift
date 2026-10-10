@@ -21,7 +21,7 @@ import AppKit
     /// Bumped by every start/stop so delayed re-hides from an earlier run do nothing.
     private var generation = 0
 
-    /// After hiding, activates `fallbackBundleID` if it is running.
+    /// After hiding, activates `fallbackBundleID` if it is running, otherwise our own app.
     init(fallbackBundleID: String = "com.google.Chrome") {
         self.fallbackBundleID = fallbackBundleID
     }
@@ -74,7 +74,12 @@ import AppKit
         }
     }
 
+    /// Brings the fallback app to the front; when it is not running, activates our own app instead.
     private func activateFallback() {
-        NSRunningApplication.runningApplications(withBundleIdentifier: fallbackBundleID).first?.activate()
+        if let fallback = NSRunningApplication.runningApplications(withBundleIdentifier: fallbackBundleID).first {
+            fallback.activate()
+        } else {
+            NSApp.activate()
+        }
     }
 }
