@@ -5,7 +5,7 @@
 Accountabilibrosis is a native macOS app. One click hides every other app and opens your study sites in Google Chrome, tiled in the layout you picked. Distractions are pushed away the moment they appear, your friends on Discord see that you're locked in, and the app tracks how long you actually stayed focused.
 
 Built for **Code Ada 2026, Off the Clock** track.
-
+ 
 ## How a lock-in works
 
 1. Create a subject, for example `CS128`. Give it one or two study sites, a window layout, and any extra apps or domains it needs.
