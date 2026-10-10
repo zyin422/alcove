@@ -28,7 +28,7 @@ final class SessionEngineTests: XCTestCase {
         await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
 
         XCTAssertEqual(h.workspace.hideCalls,
-                       [[ownID, "com.google.Chrome", "com.apple.finder", "com.microsoft.VSCode"]])
+                       [[ownID, "com.google.Chrome", "com.apple.finder", "com.apple.systempreferences", "com.microsoft.VSCode"]])
         XCTAssertTrue(h.engine.isLocked)
         XCTAssertEqual(h.engine.subject?.name, "CS128")
         XCTAssertEqual(h.engine.session?.subjectName, "CS128")
@@ -97,7 +97,8 @@ final class SessionEngineTests: XCTestCase {
         let h = EngineHarness()
         await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
 
-        XCTAssertEqual(h.blocker.startedWith, [ownID, "com.google.Chrome", "com.apple.finder", "com.microsoft.VSCode"])
+        XCTAssertEqual(h.blocker.startedWith,
+                       [ownID, "com.google.Chrome", "com.apple.finder", "com.apple.systempreferences", "com.microsoft.VSCode"])
         XCTAssertEqual(h.chrome.watchedDomains, ["cs128.org", "docs.python.org", "piazza.com"])
         XCTAssertEqual(h.announcer.messages, ["🔒 **Alex** is locked in on **CS128**"])
         XCTAssertEqual(h.toaster.messages, [])
