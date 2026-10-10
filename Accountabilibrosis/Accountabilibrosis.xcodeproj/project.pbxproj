@@ -25,6 +25,7 @@
 		47AAC2D70A3F403890D979A4 /* ChannelPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61E934BCA35925FC559717D9 /* ChannelPicker.swift */; };
 		483FDAE5C49C48ECC84363DD /* KeychainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */; };
 		4DF29D1795B0FE4914454FF5 /* ChannelPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75362484A0E16959169BA12D /* ChannelPickerTests.swift */; };
+		57550C92769C7A5ED7D876FB /* AppCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4776DA96DF580974B5614122 /* AppCatalogTests.swift */; };
 		5A709BEBF01679E8F6B5DFE7 /* LayoutEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */; };
 		639FE63C5191A0F2280AE66C /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52AD65B7C2B5AD2E83761B3C /* Subject.swift */; };
 		65C3F0DDB5C05CAE5942B99F /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D23D9E84FC83FF697ECC652B /* Keychain.swift */; };
@@ -38,6 +39,7 @@
 		7BA190743193CC60EF30EF94 /* DiscordClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45888CBAE72DB3BC8D986E3 /* DiscordClient.swift */; };
 		7E12EA8E58BC078D816B819F /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA93859E6E9956B9532479C /* Store.swift */; };
 		7E4815A44DA323298EF75A4B /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */; };
+		82DF3EBE64DE9CBEC756F002 /* AppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF1AD33BCFE5F9D01CE938B /* AppCatalog.swift */; };
 		8A29DF36757FF6E6BF75F0B4 /* LayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA73667C3936E7305C6FA6E /* LayoutEngine.swift */; };
 		8D6147FB0EAE8378DC62D49C /* ScreenGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB429F7BCF82ACFD008EECD7 /* ScreenGeometry.swift */; };
 		9875C553E75D19B5C174305C /* DiscordMessagesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */; };
@@ -87,6 +89,7 @@
 		40616FE77DAD08DB18924C7E /* BlockPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPolicyTests.swift; sourceTree = "<group>"; };
 		43E2544FD76100A3AC80AE40 /* DiscordAnnouncerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordAnnouncerTests.swift; sourceTree = "<group>"; };
 		43E7D62299AC0E3840DA1C71 /* SubjectValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectValidator.swift; sourceTree = "<group>"; };
+		4776DA96DF580974B5614122 /* AppCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCatalogTests.swift; sourceTree = "<group>"; };
 		4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenGeometryTests.swift; sourceTree = "<group>"; };
 		52AD65B7C2B5AD2E83761B3C /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatTests.swift; sourceTree = "<group>"; };
@@ -112,6 +115,7 @@
 		D6C392D3C815445CD28E1230 /* SubjectValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectValidatorTests.swift; sourceTree = "<group>"; };
 		DB429F7BCF82ACFD008EECD7 /* ScreenGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenGeometry.swift; sourceTree = "<group>"; };
 		DFC91DCCFD158B468FE74F62 /* ChromeScriptsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeScriptsTests.swift; sourceTree = "<group>"; };
+		DFF1AD33BCFE5F9D01CE938B /* AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCatalog.swift; sourceTree = "<group>"; };
 		E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordMessagesTests.swift; sourceTree = "<group>"; };
 		E702B77D2185AA2527C487D8 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
@@ -146,6 +150,7 @@
 		2E6F7EE8EE1072C8B641A74E /* AccountabilibrosisTests */ = {
 			isa = PBXGroup;
 			children = (
+				4776DA96DF580974B5614122 /* AppCatalogTests.swift */,
 				38B72520C7E2C9BD3900B14E /* AppModelTests.swift */,
 				40616FE77DAD08DB18924C7E /* BlockPolicyTests.swift */,
 				75362484A0E16959169BA12D /* ChannelPickerTests.swift */,
@@ -259,6 +264,7 @@
 			isa = PBXGroup;
 			children = (
 				CF14732275FF4B006155618B /* AppBlocker.swift */,
+				DFF1AD33BCFE5F9D01CE938B /* AppCatalog.swift */,
 				13A1852436A1E08BF9B5D7D8 /* BlockPolicy.swift */,
 				05933A6F5CD030F74E8AF59B /* ChromeController.swift */,
 				F4AA52F0671CB40B44A94257 /* ChromeScripts.swift */,
@@ -362,6 +368,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				57550C92769C7A5ED7D876FB /* AppCatalogTests.swift in Sources */,
 				182448117B907D7E2ED85A5E /* AppModelTests.swift in Sources */,
 				790959824B9FB1F555EFCBB4 /* BlockPolicyTests.swift in Sources */,
 				4DF29D1795B0FE4914454FF5 /* ChannelPickerTests.swift in Sources */,
@@ -394,6 +401,7 @@
 			files = (
 				25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */,
 				03F031B238C12D71D3C0D503 /* AppBlocker.swift in Sources */,
+				82DF3EBE64DE9CBEC756F002 /* AppCatalog.swift in Sources */,
 				B4D40D8EF1D2C7CC1E9B8CCA /* AppModel.swift in Sources */,
 				A87ECA5C972ADF8070E298C6 /* AppSettings.swift in Sources */,
 				70192398AAC294F7E2667DDB /* BlockPolicy.swift in Sources */,
