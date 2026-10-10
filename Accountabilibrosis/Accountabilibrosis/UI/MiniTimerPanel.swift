@@ -1,6 +1,11 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    /// Posted by the mini timer's ✕: LockedView answers by starting the end flow (give-up sheet or confirmation).
+    static let accountabilibrosisRequestEnd = Notification.Name("accountabilibrosis.requestEnd")
+}
+
 /// Pure geometry for the floating mini timer (unit-tested).
 enum MiniTimerLayout {
     static let panelSize = CGSize(width: 240, height: 64)
@@ -8,6 +13,12 @@ enum MiniTimerLayout {
     static let topMargin: CGFloat = 8
     /// Pointer travel (points) after which a press counts as a drag instead of a click.
     static let dragThreshold: CGFloat = 3
+    /// Leading/trailing inset of the pill's content; the ✕ sits against the trailing one.
+    static let horizontalPadding: CGFloat = Theme.Space.m
+    /// Diameter of the ✕ button.
+    static let closeButtonSize: CGFloat = 22
+    /// Extra clickable margin around the ✕ so the small target is easy to hit.
+    static let closeHitSlop: CGFloat = 8
 
     /// Panel frame centered horizontally at the top of `visible` (Cocoa coordinates), `topMargin` below
     /// its top edge. x is rounded down to whole points; a panel wider than `visible` is pinned to its left edge.
@@ -15,6 +26,20 @@ enum MiniTimerLayout {
         let x = visible.minX + max(0, ((visible.width - size.width) / 2).rounded(.down))
         let y = visible.maxY - topMargin - size.height
         return CGRect(x: x, y: y, width: size.width, height: size.height)
+    }
+
+    /// Clickable area of the ✕ in a panel of `size` (view coordinates): the trailing, vertically centered
+    /// button grown by `closeHitSlop` on every side.
+    static func closeHitRect(in size: CGSize) -> CGRect {
+        let side = closeButtonSize + 2 * closeHitSlop
+        return CGRect(x: size.width - horizontalPadding - closeButtonSize - closeHitSlop,
+                      y: (size.height - side) / 2,
+                      width: side, height: side)
+    }
+
+    /// True when `point` (view coordinates) lands on the ✕ rather than the body.
+    static func isCloseHit(_ point: CGPoint, in size: CGSize) -> Bool {
+        closeHitRect(in: size).contains(point)
     }
 
     /// True once the pointer is at least `dragThreshold` points away from where the press began.
@@ -28,7 +53,7 @@ enum MiniTimerLayout {
     }
 }
 
-/// Rounded black/white (inverted in dark mode) pill: subject, timer and a small ✕.
+/// Rounded black/white (inverted in dark mode) pill: subject, timer and a small ✕ (End).
 /// Purely visual; clicks and drags are handled by the panel's overlay view.
 struct MiniTimerView: View {
     let engine: SessionEngine
@@ -47,21 +72,23 @@ struct MiniTimerView: View {
             Spacer(minLength: Theme.Space.s)
             Image(systemName: "xmark")
                 .font(.system(size: 10, weight: .bold))
-                .frame(width: 22, height: 22)
+                .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
                 .overlay(Circle().stroke(Color.lockBackground.opacity(0.5), lineWidth: 1))
         }
         .foregroundStyle(Color.lockBackground)
-        .padding(.horizontal, Theme.Space.m)
+        .padding(.horizontal, MiniTimerLayout.horizontalPadding)
         .frame(width: MiniTimerLayout.panelSize.width, height: MiniTimerLayout.panelSize.height)
         .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Color.primary))
     }
 }
 
-/// Transparent view on top of the SwiftUI content: a click calls `onClick`, a drag moves the window.
+/// Transparent view on top of the SwiftUI content: a click calls `onClick` (or `onClose` when it lands on
+/// the ✕), a drag moves the window.
 /// Handling the mouse here (instead of SwiftUI buttons plus isMovableByWindowBackground) keeps a drag
 /// from also counting as a click, and works on the first click while the app is inactive.
 @MainActor private final class ClickDragView: NSView {
     var onClick: (() -> Void)?
+    var onClose: (() -> Void)?
     private var pressMouse: CGPoint?
     private var pressOrigin: CGPoint = .zero
     private var isDragging = false
@@ -90,14 +117,21 @@ struct MiniTimerView: View {
         let wasClick = pressMouse != nil && !isDragging
         pressMouse = nil
         isDragging = false
-        if wasClick { onClick?() }
+        guard wasClick else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        if MiniTimerLayout.isCloseHit(point, in: bounds.size) {
+            onClose?()
+        } else {
+            onClick?()
+        }
     }
 }
 
 /// Floating, non-activating mini timer shown top-center while a split/full session runs.
-/// Clicking it (body or ✕) calls `onOpen`, which brings up the main window with LockedView.
+/// Clicking the body calls `onOpen` (main window with LockedView); clicking the ✕ calls `onEnd`
+/// (main window plus the end flow).
 @MainActor final class MiniTimerPanel: NSPanel {
-    init(engine: SessionEngine, onOpen: @escaping () -> Void) {
+    init(engine: SessionEngine, onOpen: @escaping () -> Void, onEnd: @escaping () -> Void) {
         let size = MiniTimerLayout.panelSize
         super.init(contentRect: NSRect(origin: .zero, size: size),
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -120,6 +154,7 @@ struct MiniTimerView: View {
         let overlay = ClickDragView(frame: container.bounds)
         overlay.autoresizingMask = [.width, .height]
         overlay.onClick = onOpen
+        overlay.onClose = onEnd
         container.addSubview(overlay)
         contentView = container
     }
