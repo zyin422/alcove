@@ -25,4 +25,60 @@ import XCTest
         }
         XCTAssertFalse(message.isEmpty)
     }
+
+    // MARK: openAll (prepare's per-site loop)
+
+    /// Records every script handed to `openAll` and answers from `results` (missing key = success).
+    private func runOpenAll(_ scripts: [String], results: [String: ChromeError]) async -> (ChromeError?, [String]) {
+        var attempted: [String] = []
+        let error = await ChromeController.openAll(scripts) { script in
+            attempted.append(script)
+            return results[script]
+        }
+        return (error, attempted)
+    }
+
+    func testOpenAllReturnsNilWhenEverySiteOpens() async {
+        let (error, attempted) = await runOpenAll(["a", "b", "c"], results: [:])
+        XCTAssertNil(error)
+        XCTAssertEqual(attempted, ["a", "b", "c"])
+    }
+
+    func testOpenAllKeepsOpeningRemainingSitesAfterProfileNotReady() async {
+        let (error, attempted) = await runOpenAll(["a", "b", "c"], results: ["a": .profileNotReady])
+        XCTAssertEqual(error, .profileNotReady)
+        XCTAssertEqual(attempted, ["a", "b", "c"])
+    }
+
+    func testOpenAllReturnsTheFirstErrorWhenSeveralSitesFail() async {
+        let (error, attempted) = await runOpenAll(["a", "b", "c"],
+                                                  results: ["b": .scriptFailed("first"), "c": .profileNotReady])
+        XCTAssertEqual(error, .scriptFailed("first"))
+        XCTAssertEqual(attempted, ["a", "b", "c"])
+    }
+
+    func testOpenAllStopsImmediatelyOnAutomationDenied() async {
+        let (error, attempted) = await runOpenAll(["a", "b", "c"], results: ["b": .automationDenied])
+        XCTAssertEqual(error, .automationDenied)
+        XCTAssertEqual(attempted, ["a", "b"])
+    }
+
+    func testOpenAllAutomationDeniedWinsOverEarlierSoftFailure() async {
+        let (error, attempted) = await runOpenAll(["a", "b", "c"],
+                                                  results: ["a": .profileNotReady, "b": .automationDenied])
+        XCTAssertEqual(error, .automationDenied)
+        XCTAssertEqual(attempted, ["a", "b"])
+    }
+
+    func testOpenAllStopsImmediatelyOnNotInstalled() async {
+        let (error, attempted) = await runOpenAll(["a", "b"], results: ["a": .notInstalled])
+        XCTAssertEqual(error, .notInstalled)
+        XCTAssertEqual(attempted, ["a"])
+    }
+
+    func testOpenAllWithNoScriptsSucceeds() async {
+        let (error, attempted) = await runOpenAll([], results: [:])
+        XCTAssertNil(error)
+        XCTAssertEqual(attempted, [])
+    }
 }
