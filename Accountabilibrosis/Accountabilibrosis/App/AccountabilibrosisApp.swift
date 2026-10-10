@@ -1,13 +1,21 @@
 import SwiftUI
 
-/// Temporary app entry point. Task 13 replaces this file with the real app shell.
+/// App entry point: a single main window ("New Window" is disabled). The AppDelegate owns the model.
 @main
 struct AccountabilibrosisApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var body: some Scene {
-        WindowGroup {
-            Text("Accountabilibrosis")
-                .font(.system(size: 34, weight: .semibold))
-                .frame(minWidth: 480, minHeight: 320)
+        WindowGroup("Accountabilibrosis", id: "main") {
+            if AppDelegate.isRunningTests {
+                Text("Running tests")
+            } else {
+                RootView(model: appDelegate.model)
+            }
+        }
+        .defaultSize(width: 1100, height: 720)
+        .commands {
+            CommandGroup(replacing: .newItem) {}
         }
     }
 }
