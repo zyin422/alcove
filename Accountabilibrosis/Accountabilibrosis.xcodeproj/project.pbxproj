@@ -1,0 +1,436 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */; };
+		6A6DCB66267A9251BDC6061E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA4C85E2CC95A6E3A156B098 /* Assets.xcassets */; };
+		BA198C6A7E1B35DC5FA538EB /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		2D4473B2A0194769E7EAAEEA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D4C4BF4E2D2B707CE79CA2C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 85FFBBBF709133DA4D855A66;
+			remoteInfo = Accountabilibrosis;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0DA2C21E5C3306A97D58F275 /* Accountabilibrosis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Accountabilibrosis.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilibrosisApp.swift; sourceTree = "<group>"; };
+		A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
+		F4EDB831ECA425F1A82FB5D7 /* AccountabilibrosisTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AccountabilibrosisTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA4C85E2CC95A6E3A156B098 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		17B1877E9B5A194C52C2CF1A /* App */ = {
+			isa = PBXGroup;
+			children = (
+				90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		2E6F7EE8EE1072C8B641A74E /* AccountabilibrosisTests */ = {
+			isa = PBXGroup;
+			children = (
+				A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */,
+			);
+			path = AccountabilibrosisTests;
+			sourceTree = "<group>";
+		};
+		32E84B6EB965AD7FEE449652 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0DA2C21E5C3306A97D58F275 /* Accountabilibrosis.app */,
+				F4EDB831ECA425F1A82FB5D7 /* AccountabilibrosisTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		46C5B3DD5570F03419B6D724 = {
+			isa = PBXGroup;
+			children = (
+				54C8862FF169621AC0BCA97E /* Accountabilibrosis */,
+				2E6F7EE8EE1072C8B641A74E /* AccountabilibrosisTests */,
+				32E84B6EB965AD7FEE449652 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		54C8862FF169621AC0BCA97E /* Accountabilibrosis */ = {
+			isa = PBXGroup;
+			children = (
+				17B1877E9B5A194C52C2CF1A /* App */,
+				6E29B61B475AAD889BF034E9 /* Resources */,
+			);
+			path = Accountabilibrosis;
+			sourceTree = "<group>";
+		};
+		6E29B61B475AAD889BF034E9 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				FA4C85E2CC95A6E3A156B098 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		85FFBBBF709133DA4D855A66 /* Accountabilibrosis */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C2539E307B07432E51329883 /* Build configuration list for PBXNativeTarget "Accountabilibrosis" */;
+			buildPhases = (
+				ED306134E2F49E504E6FF85D /* Sources */,
+				321D23F93119647270195034 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Accountabilibrosis;
+			packageProductDependencies = (
+			);
+			productName = Accountabilibrosis;
+			productReference = 0DA2C21E5C3306A97D58F275 /* Accountabilibrosis.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D85A79FB295472FC4938AB58 /* AccountabilibrosisTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A051D0FD18D6DCF40A2F5CBE /* Build configuration list for PBXNativeTarget "AccountabilibrosisTests" */;
+			buildPhases = (
+				72CB4DED5DCA7B19AD1D7838 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				64D532FABF1A70EB7A6330B6 /* PBXTargetDependency */,
+			);
+			name = AccountabilibrosisTests;
+			packageProductDependencies = (
+			);
+			productName = AccountabilibrosisTests;
+			productReference = F4EDB831ECA425F1A82FB5D7 /* AccountabilibrosisTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1D4C4BF4E2D2B707CE79CA2C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					85FFBBBF709133DA4D855A66 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
+					D85A79FB295472FC4938AB58 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 9D884F3422F80100775FD748 /* Build configuration list for PBXProject "Accountabilibrosis" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 46C5B3DD5570F03419B6D724;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 32E84B6EB965AD7FEE449652 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				85FFBBBF709133DA4D855A66 /* Accountabilibrosis */,
+				D85A79FB295472FC4938AB58 /* AccountabilibrosisTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		321D23F93119647270195034 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6A6DCB66267A9251BDC6061E /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		72CB4DED5DCA7B19AD1D7838 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BA198C6A7E1B35DC5FA538EB /* SmokeTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ED306134E2F49E504E6FF85D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		64D532FABF1A70EB7A6330B6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 85FFBBBF709133DA4D855A66 /* Accountabilibrosis */;
+			targetProxy = 2D4473B2A0194769E7EAAEEA /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		5D137EF98E7A34CEDAE67325 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.accountabilibrosis.app.tests;
+				PRODUCT_NAME = AccountabilibrosisTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Accountabilibrosis.app/Contents/MacOS/Accountabilibrosis";
+			};
+			name = Debug;
+		};
+		5D56D27BB0EB879D43F9D895 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		8F7A20EBB92807D3A3B19A46 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Accountabilibrosis;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Accountabilibrosis opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in.";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.accountabilibrosis.app;
+				PRODUCT_NAME = Accountabilibrosis;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		C6D63BD9DACF3E8871FED03E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D6125F9FFE8EF7B35DC44242 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Accountabilibrosis;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Accountabilibrosis opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in.";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.accountabilibrosis.app;
+				PRODUCT_NAME = Accountabilibrosis;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		FA9BF4E2FB3A2A7CD8C5EB24 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.accountabilibrosis.app.tests;
+				PRODUCT_NAME = AccountabilibrosisTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Accountabilibrosis.app/Contents/MacOS/Accountabilibrosis";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9D884F3422F80100775FD748 /* Build configuration list for PBXProject "Accountabilibrosis" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C6D63BD9DACF3E8871FED03E /* Debug */,
+				5D56D27BB0EB879D43F9D895 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A051D0FD18D6DCF40A2F5CBE /* Build configuration list for PBXNativeTarget "AccountabilibrosisTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5D137EF98E7A34CEDAE67325 /* Debug */,
+				FA9BF4E2FB3A2A7CD8C5EB24 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C2539E307B07432E51329883 /* Build configuration list for PBXNativeTarget "Accountabilibrosis" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D6125F9FFE8EF7B35DC44242 /* Debug */,
+				8F7A20EBB92807D3A3B19A46 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1D4C4BF4E2D2B707CE79CA2C /* Project object */;
+}
