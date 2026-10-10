@@ -9,7 +9,9 @@
 /* Begin PBXBuildFile section */
 		2407E40A0F36DD2DBB9F1B8C /* StoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 183F88A178E255D11F6733C5 /* StoreTests.swift */; };
 		25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */; };
+		483FDAE5C49C48ECC84363DD /* KeychainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */; };
 		639FE63C5191A0F2280AE66C /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52AD65B7C2B5AD2E83761B3C /* Subject.swift */; };
+		65C3F0DDB5C05CAE5942B99F /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D23D9E84FC83FF697ECC652B /* Keychain.swift */; };
 		6A6DCB66267A9251BDC6061E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA4C85E2CC95A6E3A156B098 /* Assets.xcassets */; };
 		7E12EA8E58BC078D816B819F /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA93859E6E9956B9532479C /* Store.swift */; };
 		7E4815A44DA323298EF75A4B /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */; };
@@ -32,11 +34,13 @@
 		0CA93859E6E9956B9532479C /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
 		0DA2C21E5C3306A97D58F275 /* Accountabilibrosis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Accountabilibrosis.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		183F88A178E255D11F6733C5 /* StoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreTests.swift; sourceTree = "<group>"; };
+		3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTests.swift; sourceTree = "<group>"; };
 		52AD65B7C2B5AD2E83761B3C /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilibrosisApp.swift; sourceTree = "<group>"; };
 		A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		C4A581497D658574554F5D87 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		C555595552ED9F832CA29195 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		D23D9E84FC83FF697ECC652B /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
 		EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
 		F4EDB831ECA425F1A82FB5D7 /* AccountabilibrosisTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AccountabilibrosisTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA4C85E2CC95A6E3A156B098 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -54,6 +58,7 @@
 		2E6F7EE8EE1072C8B641A74E /* AccountabilibrosisTests */ = {
 			isa = PBXGroup;
 			children = (
+				3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */,
 				EAEF646BD42A2E52BCA075D9 /* ModelsTests.swift */,
 				A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */,
 				183F88A178E255D11F6733C5 /* StoreTests.swift */,
@@ -93,6 +98,7 @@
 		67EFAEA9EF4B88B054C89E37 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
+				D23D9E84FC83FF697ECC652B /* Keychain.swift */,
 				0CA93859E6E9956B9532479C /* Store.swift */,
 			);
 			path = Persistence;
@@ -210,6 +216,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				483FDAE5C49C48ECC84363DD /* KeychainTests.swift in Sources */,
 				7E4815A44DA323298EF75A4B /* ModelsTests.swift in Sources */,
 				BA198C6A7E1B35DC5FA538EB /* SmokeTests.swift in Sources */,
 				2407E40A0F36DD2DBB9F1B8C /* StoreTests.swift in Sources */,
@@ -222,6 +229,7 @@
 			files = (
 				25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */,
 				A87ECA5C972ADF8070E298C6 /* AppSettings.swift in Sources */,
+				65C3F0DDB5C05CAE5942B99F /* Keychain.swift in Sources */,
 				BC8073E2B09755FBEA4A01BE /* Session.swift in Sources */,
 				7E12EA8E58BC078D816B819F /* Store.swift in Sources */,
 				639FE63C5191A0F2280AE66C /* Subject.swift in Sources */,
