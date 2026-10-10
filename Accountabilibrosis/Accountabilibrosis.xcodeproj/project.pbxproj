@@ -11,7 +11,9 @@
 		25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */; };
 		30EF75A225EC524CAD9D3423 /* ScreenGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */; };
 		47924008DF0332891827BD40 /* DomainMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */; };
+		47AAC2D70A3F403890D979A4 /* ChannelPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61E934BCA35925FC559717D9 /* ChannelPicker.swift */; };
 		483FDAE5C49C48ECC84363DD /* KeychainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */; };
+		4DF29D1795B0FE4914454FF5 /* ChannelPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75362484A0E16959169BA12D /* ChannelPickerTests.swift */; };
 		5A709BEBF01679E8F6B5DFE7 /* LayoutEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */; };
 		639FE63C5191A0F2280AE66C /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52AD65B7C2B5AD2E83761B3C /* Subject.swift */; };
 		65C3F0DDB5C05CAE5942B99F /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D23D9E84FC83FF697ECC652B /* Keychain.swift */; };
@@ -53,6 +55,8 @@
 		4EFEB3ADC2476347D7D57F4C /* ScreenGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenGeometryTests.swift; sourceTree = "<group>"; };
 		52AD65B7C2B5AD2E83761B3C /* Subject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subject.swift; sourceTree = "<group>"; };
 		5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatTests.swift; sourceTree = "<group>"; };
+		61E934BCA35925FC559717D9 /* ChannelPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelPicker.swift; sourceTree = "<group>"; };
+		75362484A0E16959169BA12D /* ChannelPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelPickerTests.swift; sourceTree = "<group>"; };
 		90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilibrosisApp.swift; sourceTree = "<group>"; };
 		A503BDD75B6B83C0685C5F88 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		A90AA75750FB3B5D82220DAF /* TimeFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormat.swift; sourceTree = "<group>"; };
@@ -78,6 +82,7 @@
 		25D48661FAA77BADA1284568 /* Discord */ = {
 			isa = PBXGroup;
 			children = (
+				61E934BCA35925FC559717D9 /* ChannelPicker.swift */,
 				303C65C43B4E40C079E7C09B /* DiscordMessages.swift */,
 			);
 			path = Discord;
@@ -86,6 +91,7 @@
 		2E6F7EE8EE1072C8B641A74E /* AccountabilibrosisTests */ = {
 			isa = PBXGroup;
 			children = (
+				75362484A0E16959169BA12D /* ChannelPickerTests.swift */,
 				E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */,
 				1944491B04E00DE299C0C16A /* DomainMatcherTests.swift */,
 				3B250149C0BCB2A9043F9CD2 /* KeychainTests.swift */,
@@ -270,6 +276,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4DF29D1795B0FE4914454FF5 /* ChannelPickerTests.swift in Sources */,
 				9875C553E75D19B5C174305C /* DiscordMessagesTests.swift in Sources */,
 				47924008DF0332891827BD40 /* DomainMatcherTests.swift in Sources */,
 				483FDAE5C49C48ECC84363DD /* KeychainTests.swift in Sources */,
@@ -288,6 +295,7 @@
 			files = (
 				25EAAD79B533D373E2161E4B /* AccountabilibrosisApp.swift in Sources */,
 				A87ECA5C972ADF8070E298C6 /* AppSettings.swift in Sources */,
+				47AAC2D70A3F403890D979A4 /* ChannelPicker.swift in Sources */,
 				9D258440E8A0C0F575E8B448 /* DiscordMessages.swift in Sources */,
 				6CF71183DAFB3ACE9D918971 /* DomainMatcher.swift in Sources */,
 				65C3F0DDB5C05CAE5942B99F /* Keychain.swift in Sources */,
