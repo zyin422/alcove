@@ -5,10 +5,10 @@
 Accountabilibrosis is a native macOS app. One click hides every other app and opens your study sites in Google Chrome, tiled in the layout you picked. Distractions are pushed away the moment they appear, your friends on Discord see that you're locked in, and the app tracks how long you actually stayed focused.
 
 Built for **Code Ada 2026, Off the Clock** track.
-
+ 
 ## How a lock-in works
 
-1. Create a subject, for example `CS128`. Give it one or two study sites, a window layout, and any extra apps or domains it needs.
+1. Create a subject, for example `CS128`. Give it one or two study sites, a window layout, and any extra apps it needs. The subject's name is what the AI judges tabs against.
 2. Click **LOCK IN** and pick a mode:
    - open-ended, which counts up;
    - or a goal of 25, 50, 90 or a custom number of minutes, which counts down.
@@ -18,7 +18,7 @@ Built for **Code Ada 2026, Off the Clock** track.
    - It opens the subject's sites in new Chrome windows, arranged in the chosen layout.
 4. While you're locked in:
    - A disallowed app that launches or comes to the front is hidden right away. A toast appears top-right, and the attempt is counted.
-   - Every 2 seconds, Chrome tabs outside the subject's domains are closed, with a toast.
+   - Every 2 seconds, new Chrome tabs are checked by OpenAI ("is this page relevant to CS128?"). Off-task tabs are closed, with a toast. See Relevance check below.
    - A giant timer, or a small floating one, shows your time.
 5. Ending a goal session early means typing the give-up phrase (by default `I give up on CS128`). Your Discord friends hear about it.
 6. When the session ends:
@@ -28,15 +28,17 @@ Built for **Code Ada 2026, Off the Clock** track.
 
 ## Features
 
-- **Subjects:** a name, a layout preset, one or two study sites, extra allowed apps and extra allowed domains.
+- **Subjects:** a name, a layout preset, one or two study sites and extra allowed apps.
 - **Four layout presets** for the main display. See below.
 - **App blocking:**
   - Chrome, Finder and Accountabilibrosis are always allowed.
   - Every other app is hidden when it launches or activates.
   - An attempt counts at most once every 2 seconds per app.
-- **Site blocking in Chrome:**
-  - A tab is closed when its host isn't one of the subject's domains or a subdomain of one.
-  - Blank new tabs and `chrome://` pages are left alone.
+- **AI relevance check for Chrome tabs:**
+  - Every tab outside the subject's study sites is judged by the OpenAI Decisions API against the subject name.
+  - An off-task tab is closed. A relevant tab stays open and is not checked again.
+  - Study sites, blank new tabs, `chrome://` pages and tabs that were already open before the lock-in are never judged.
+  - When there is no verdict, the app asks you. See Relevance check below.
 - **Session modes:** open-ended, or a goal. A goal counts down, completes on its own, and asks for a give-up phrase if you bail early.
 - **Discord announcements** through your own bot. Lock-in, completion and bail messages go to one text channel per server.
 - **Stats:**
@@ -81,6 +83,7 @@ Thirds (2 sites)                70 / 30 (1 site)
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) 2.46 or later: `brew install xcodegen`. The generated `.xcodeproj` is committed, so you only need XcodeGen after adding or removing source files.
 - Google Chrome. Without it, a lock-in still hides and blocks apps, but no sites open and no tabs are watched.
 - A Discord bot (optional). See Discord setup below.
+- An OpenAI API key (optional) for the tab relevance check. Without one, you are asked about each site instead. See Relevance check above.
 
 ## Build and run
 
@@ -108,7 +111,7 @@ The app needs exactly one permission: **Automation → Google Chrome**.
 
 - **What it's for:**
   - opening and arranging the study windows;
-  - reading tab URLs and closing off-topic tabs;
+  - reading tab URLs and titles, and closing off-topic tabs;
   - minimizing and restoring your own windows.
 - **When macOS asks:** once, with "Accountabilibrosis wants access to control Google Chrome". To get the prompt out of the way early, use **Settings › Chrome › Request access**.
 
@@ -117,6 +120,30 @@ The app does **not** need Accessibility, Screen Recording, Full Disk Access or n
 - **Denied by accident?** Turn it back on in **System Settings › Privacy & Security › Automation › Accountabilibrosis › Google Chrome**. A lock-in without it still hides and blocks apps.
 - **Unsandboxed by design.** Hiding other apps does not work inside the App Sandbox, so the app can't ship on the Mac App Store. It is built locally and signed ad hoc (`CODE_SIGN_IDENTITY = -`).
 - **Rebuilds can bring the prompt back.** An ad-hoc signature changes on every rebuild, so macOS may ask for Chrome access again. To reset the answer, run `tccutil reset AppleEvents com.accountabilibrosis.app`.
+
+## Relevance check (OpenAI)
+
+The old website allowlist and blocklist are gone. While you're locked in, an AI decides which Chrome tabs belong.
+
+- **What is asked.** For each new tab, the app sends the OpenAI Decisions API (`POST https://api.openai.com/v1/decisions`) one yes/no question: is this page off-task for the subject, for example `CS128`? The answer comes back as a probability. At 0.5 or higher the tab is closed, with a toast. Below that it stays.
+- **What is not asked.**
+  - Your study sites (and their subdomains) are never judged.
+  - Blank tabs, `chrome://` pages and unparseable URLs are never judged.
+  - Tabs that were already open before you locked in are never judged. Their windows are minimized and kept minimized.
+- **Once per page.** Each URL is judged once per session. A tab that goes somewhere new is judged again. A URL that was judged off-task is closed straight away if it reappears.
+- **The key.** It resolves like the Discord token:
+  - A key saved in **Settings › Relevance check (OpenAI)** goes to the Keychain (service `com.accountabilibrosis.openai`, account `api-key`) and wins.
+  - Otherwise the team key from the repo-root `.env` is used. Add it next to the Discord token:
+
+    ```
+    OPENAI_API_KEY=<the team OpenAI key>
+    ```
+
+  - The build bundles `.env` into the app, so rebuild after editing it. Settings shows which key is in use: "Using your key from Keychain", "Using the team key from .env" or "No key — you'll be asked about each site".
+- **Privacy.** While locked in, the URL and title of each checked tab (plus a page description, if one can be read) are sent to OpenAI. Nothing is sent when you're not locked in, and nothing is sent for the tabs listed above. Don't lock in with sensitive tabs open that you wouldn't want sent.
+- **Fail-safe prompt.** If a check gives no verdict (no key, offline, timeout, an HTTP error or a refusal), the tab is not closed automatically. The app asks "Is `<host>` needed for `<subject>`?" with **Needed** and **Close tab**.
+  - Only one question is on screen at a time, and each host is asked at most once per session.
+  - **Needed** keeps every tab of that host for the rest of the session. **Close tab** closes every tab of that host, now and for the rest of the session.
 
 ## Discord setup
 
@@ -173,9 +200,11 @@ The name comes from **Settings › Profile › Display name**. Discord problems 
 | Subjects, sessions, settings | `~/Library/Application Support/Accountabilibrosis/store.json`. Writes are atomic. An unreadable file is renamed to `store.corrupt-<timestamp>.json`, and the app starts fresh. |
 | Discord bot token (yours) | The Keychain: a generic password with service `com.accountabilibrosis.discord` and account `bot-token`. It is never written to JSON or logs. It overrides the team token. |
 | Discord bot token (team) | The repo's `.env`, copied into the app bundle as `Resources/discord.env` at build time. |
+| OpenAI API key (yours) | The Keychain: a generic password with service `com.accountabilibrosis.openai` and account `api-key`. It is never written to JSON or logs. It overrides the team key. |
+| OpenAI API key (team) | The repo's `.env` (`OPENAI_API_KEY`), bundled into the app the same way as the Discord token. |
 | Discord Application ID (only used for the invite link) | App preferences, key `discordAppID` |
 
-To start over, quit the app and delete `~/Library/Application Support/Accountabilibrosis/`. To remove your own token, use **Settings › Discord › Remove**.
+To start over, quit the app and delete `~/Library/Application Support/Accountabilibrosis/`. To remove your own token, use **Settings › Discord › Remove**. To remove your own OpenAI key, use **Settings › Relevance check (OpenAI) › Remove**.
 
 ## Known limitations
 
@@ -187,8 +216,9 @@ To start over, quit the app and delete `~/Library/Application Support/Accountabi
   - On ⌘Q, the hidden apps come back and the session is saved as interrupted. Nothing is posted to Discord.
   - After a crash, the next launch closes the session at its last 30-second heartbeat. Hidden apps stay hidden until you open them.
 - **Main display only.** Other displays, Spaces, full-screen apps and Stage Manager are not handled.
-- **Whole domains.** Allowing `youtube.com/watch?v=…` allows all of youtube.com.
-- **Up to 2 seconds of delay.** An off-topic tab can stay open for up to 2 seconds before it is closed.
+- **The AI can be wrong.** A tab is judged from its URL and title, so a borderline page may be kept or closed by mistake. Study sites are never judged, so put your main sites there.
+- **Delay.** An off-topic tab can stay open for up to 2 seconds before it is checked, plus however long the OpenAI call takes.
+- **Needs the network and a key.** Without a key or a connection every tab falls back to the "Is it needed?" question.
 - **Midnight.** A session that crosses midnight counts toward the day it started.
 
 ## Project structure
@@ -196,7 +226,7 @@ To start over, quit the app and delete `~/Library/Application Support/Accountabi
 ```
 accountabilibrosis/
 ├── README.md
-├── .env                     team Discord bot token (DISCORD_BOT_TOKEN), bundled into the app at build time
+├── .env                     team secrets (DISCORD_BOT_TOKEN, OPENAI_API_KEY), bundled into the app at build time
 ├── docs/superpowers/        design spec and implementation plan
 ├── *.pdf                    Code Ada 2026 packet and presentation guidelines
 └── Accountabilibrosis/
@@ -205,11 +235,12 @@ accountabilibrosis/
     ├── Accountabilibrosis/
     │   ├── App/             app entry point, AppDelegate (⌘Q handling), AppModel (root state)
     │   ├── Models/          Subject, Session, AppSettings, StoreData
-    │   ├── Persistence/     Store (JSON file), Keychain (bot token), EnvFile (bundled team token)
+    │   ├── Persistence/     Store (JSON file), Keychain (bot token, OpenAI key), EnvFile (bundled team secrets)
     │   ├── Engine/          pure, unit-tested logic: LayoutEngine, DomainMatcher, TimeFormat, StatsEngine,
     │   │                    DemoData, SettingsStatus, StatsFormatting; SessionEngine (lock-in state machine)
     │   ├── System/          AppKit + AppleScript side effects: WorkspaceController, AppBlocker, BlockPolicy,
-    │   │                    ChromeController, ChromeScripts, ScreenGeometry
+    │   │                    ChromeController, ChromeScripts, TabTriage (pure tab bookkeeping), RelevanceJudge
+    │   │                    (OpenAI Decisions API), ScreenGeometry
     │   ├── Discord/         DiscordClient (REST), DiscordMessages, ChannelPicker, DiscordAnnouncer
     │   ├── UI/              SwiftUI screens and AppKit panels: sidebar, subject editor, lock-in sheet,
     │   │                    locked view, give-up sheet, mini timer, toasts, stats, settings, theme
@@ -217,7 +248,7 @@ accountabilibrosis/
     └── AccountabilibrosisTests/   XCTest suites for every pure unit, plus SessionEngine with fakes
 ```
 
-Side effects sit behind small `@MainActor` protocols: `WorkspaceControlling`, `AppBlocking`, `ChromeControlling`, `Toasting`, `Announcing` and `WindowPresenting`. So the whole lock-in lifecycle is tested without touching real apps, Chrome or Discord.
+Side effects sit behind small `@MainActor` protocols: `WorkspaceControlling`, `AppBlocking`, `ChromeControlling`, `RelevanceJudging`, `NeedPrompting`, `Toasting`, `Announcing` and `WindowPresenting`. So the whole lock-in lifecycle is tested without touching real apps, Chrome, OpenAI or Discord.
 
 ## Tests
 

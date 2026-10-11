@@ -31,9 +31,9 @@ final class ChromeScriptsTests: XCTestCase {
 
     // MARK: other scripts
 
-    func testCloseTabTargetsTabIndexOfWindowID() {
-        XCTAssertEqual(ChromeScripts.closeTab(windowID: 12, tabIndex: 3),
-                       #"tell application "Google Chrome" to close tab 3 of window id "12""#)
+    func testCloseTabTargetsTabByIDInWindowID() {
+        XCTAssertEqual(ChromeScripts.closeTab(windowID: 12, tabID: 345),
+                       #"tell application "Google Chrome" to close (every tab of window id "12" whose id is 345)"#)
     }
 
     func testRestoreUnminimizesEachIDInsideTry() {
@@ -57,10 +57,22 @@ final class ChromeScriptsTests: XCTestCase {
         XCTAssertEqual(ChromeScripts.minimize(windowIDs: []), "")
     }
 
-    func testListTabsUsesTabAndLinefeedCapturedOutsideTell() {
+    func testListTabsUsesUnitSeparatorAndLinefeedCapturedOutsideTell() {
         let script = ChromeScripts.listTabs
-        XCTAssertTrue(script.hasPrefix("set tabChar to tab\nset lineChar to linefeed"))
-        XCTAssertTrue(script.contains("URL of every tab of w"))
+        XCTAssertTrue(script.hasPrefix("set sepChar to ASCII character 31\nset lineChar to linefeed"))
+        XCTAssertEqual(ChromeScripts.fieldSeparator, Character(UnicodeScalar(31)))
+        XCTAssertTrue(script.contains("(id of t) as text"))
+        XCTAssertTrue(script.contains("(title of t) as text"))
+        XCTAssertTrue(script.contains("(URL of t) as text"))
+    }
+
+    func testListTabsPutsTheURLLast() {
+        let script = ChromeScripts.listTabs
+        let title = script.range(of: "(title of t)")
+        let url = script.range(of: "(URL of t)")
+        XCTAssertNotNil(title)
+        XCTAssertNotNil(url)
+        if let title, let url { XCTAssertLessThan(title.lowerBound, url.lowerBound) }
     }
 
     func testMinimizeAllAndPingTargetChrome() {
@@ -71,26 +83,66 @@ final class ChromeScriptsTests: XCTestCase {
 
     // MARK: parseTabs
 
+    /// One `listTabs` output line: fields joined by the unit separator.
+    private func line(_ fields: String...) -> String {
+        fields.joined(separator: String(ChromeScripts.fieldSeparator))
+    }
+
     func testParseTabsMultipleLinesWithTrailingNewline() {
-        let output = "101\t1\thttps://piazza.com/class/x\n101\t2\thttps://www.youtube.com/watch?v=1\n202\t1\tchrome://newtab/\n"
+        let output = [
+            line("101", "1", "11", "Piazza", "https://piazza.com/class/x"),
+            line("101", "2", "12", "YouTube", "https://www.youtube.com/watch?v=1"),
+            line("202", "1", "21", "New Tab", "chrome://newtab/"),
+        ].joined(separator: "\n") + "\n"
         XCTAssertEqual(ChromeScripts.parseTabs(output), [
-            ChromeTab(windowID: 101, tabIndex: 1, url: "https://piazza.com/class/x"),
-            ChromeTab(windowID: 101, tabIndex: 2, url: "https://www.youtube.com/watch?v=1"),
-            ChromeTab(windowID: 202, tabIndex: 1, url: "chrome://newtab/"),
+            ChromeTab(windowID: 101, tabIndex: 1, tabID: 11, title: "Piazza", url: "https://piazza.com/class/x"),
+            ChromeTab(windowID: 101, tabIndex: 2, tabID: 12, title: "YouTube", url: "https://www.youtube.com/watch?v=1"),
+            ChromeTab(windowID: 202, tabIndex: 1, tabID: 21, title: "New Tab", url: "chrome://newtab/"),
         ])
     }
 
     func testParseTabsSkipsMalformedLines() {
-        let output = "garbage\n1\t2\nx\t1\thttps://a.com\n1\ty\thttps://b.com\n\n7\t3\thttps://ok.com\n"
-        XCTAssertEqual(ChromeScripts.parseTabs(output), [ChromeTab(windowID: 7, tabIndex: 3, url: "https://ok.com")])
+        let output = [
+            "garbage",
+            line("1", "2", "3"),                          // too few fields
+            line("1", "2", "3", "t"),                      // still too few: no URL
+            line("x", "1", "5", "t", "https://a.com"),     // window id not an integer
+            line("1", "y", "5", "t", "https://b.com"),     // index not an integer
+            line("1", "2", "z", "t", "https://c.com"),     // tab id not an integer
+            "",
+            line("7", "3", "9", "OK", "https://ok.com"),
+        ].joined(separator: "\n") + "\n"
+        XCTAssertEqual(ChromeScripts.parseTabs(output),
+                       [ChromeTab(windowID: 7, tabIndex: 3, tabID: 9, title: "OK", url: "https://ok.com")])
     }
 
     func testParseTabsKeepsURLWithSpacesAndHandlesCRLF() {
-        let output = "3\t1\tfile:///Users/me/My Notes.pdf\r\n3\t2\thttps://a.com"
+        let output = line("3", "1", "4", "My Notes", "file:///Users/me/My Notes.pdf") + "\r\n"
+            + line("3", "2", "5", "A", "https://a.com")
         XCTAssertEqual(ChromeScripts.parseTabs(output), [
-            ChromeTab(windowID: 3, tabIndex: 1, url: "file:///Users/me/My Notes.pdf"),
-            ChromeTab(windowID: 3, tabIndex: 2, url: "https://a.com"),
+            ChromeTab(windowID: 3, tabIndex: 1, tabID: 4, title: "My Notes", url: "file:///Users/me/My Notes.pdf"),
+            ChromeTab(windowID: 3, tabIndex: 2, tabID: 5, title: "A", url: "https://a.com"),
         ])
+    }
+
+    func testParseTabsKeepsTabsAndEmptyTitles() {
+        let output = line("1", "1", "2", "Col1\tCol2", "https://a.com") + "\n" + line("1", "2", "3", "", "https://b.com")
+        XCTAssertEqual(ChromeScripts.parseTabs(output), [
+            ChromeTab(windowID: 1, tabIndex: 1, tabID: 2, title: "Col1\tCol2", url: "https://a.com"),
+            ChromeTab(windowID: 1, tabIndex: 2, tabID: 3, title: "", url: "https://b.com"),
+        ])
+    }
+
+    func testParseTabsRejoinsATitleThatContainsTheSeparatorAndKeepsTheRealURL() {
+        let output = line("1", "1", "2", "evil", "title", "https://reddit.com/")
+        XCTAssertEqual(ChromeScripts.parseTabs(output),
+                       [ChromeTab(windowID: 1, tabIndex: 1, tabID: 2, title: "evil title", url: "https://reddit.com/")])
+    }
+
+    func testParseTabsOnlySplitsLinesOnCRAndLFNotOnUnicodeLineSeparators() {
+        let output = line("1", "1", "2", "a\u{2028}b", "https://a.com")
+        XCTAssertEqual(ChromeScripts.parseTabs(output),
+                       [ChromeTab(windowID: 1, tabIndex: 1, tabID: 2, title: "a\u{2028}b", url: "https://a.com")])
     }
 
     func testParseTabsEmptyOutput() {
@@ -107,47 +159,16 @@ final class ChromeScriptsTests: XCTestCase {
         XCTAssertEqual(ChromeScripts.parseIDs("1234567890"), [1_234_567_890])
     }
 
-    // MARK: tabsToClose
-
-    func testTabsToCloseKeepsAllowedAndBlankTabsAndOrdersDescendingPerWindow() {
-        let tabs = [
-            ChromeTab(windowID: 1, tabIndex: 1, url: "https://piazza.com/class/x"),
-            ChromeTab(windowID: 1, tabIndex: 2, url: "https://reddit.com/r/all"),
-            ChromeTab(windowID: 1, tabIndex: 3, url: "chrome://newtab/"),
-            ChromeTab(windowID: 1, tabIndex: 4, url: "https://notyoutube.com/"),
-            ChromeTab(windowID: 1, tabIndex: 5, url: "https://m.youtube.com/watch?v=1"),
-            ChromeTab(windowID: 2, tabIndex: 1, url: "https://x.com/home"),
-            ChromeTab(windowID: 2, tabIndex: 2, url: "about:blank"),
-        ]
-        let result = ChromeScripts.tabsToClose(tabs, allowedDomains: ["piazza.com", "youtube.com"])
-        XCTAssertEqual(result, [
-            ChromeTab(windowID: 1, tabIndex: 4, url: "https://notyoutube.com/"),
-            ChromeTab(windowID: 1, tabIndex: 2, url: "https://reddit.com/r/all"),
-            ChromeTab(windowID: 2, tabIndex: 1, url: "https://x.com/home"),
-        ])
-    }
-
-    func testTabsToCloseIsEmptyWhenEverythingAllowed() {
-        let tabs = [ChromeTab(windowID: 1, tabIndex: 1, url: "https://www.Piazza.com/class/x")]
-        XCTAssertEqual(ChromeScripts.tabsToClose(tabs, allowedDomains: ["piazza.com"]), [])
-    }
+    // MARK: protectionKey
 
     func testProtectionKeyIsWindowAndURL() {
-        XCTAssertEqual(ChromeScripts.protectionKey(ChromeTab(windowID: 9, tabIndex: 4, url: "https://a.com")),
+        XCTAssertEqual(ChromeScripts.protectionKey(ChromeTab(windowID: 9, tabIndex: 4, tabID: 77, title: "A", url: "https://a.com")),
                        "9\thttps://a.com")
     }
 
-    func testPreexistingTabsAreProtectedButNewTabsInTheSameWindowAreNot() {
-        let before = [ChromeTab(windowID: 9, tabIndex: 1, url: "https://youtube.com/watch?v=old")]
-        let protected = Set(before.map(ChromeScripts.protectionKey))
-        let now = [
-            ChromeTab(windowID: 9, tabIndex: 1, url: "https://reddit.com/"),                 // new tab, shifted index
-            ChromeTab(windowID: 9, tabIndex: 2, url: "https://youtube.com/watch?v=old"),     // pre-existing
-            ChromeTab(windowID: 50, tabIndex: 1, url: "https://youtube.com/watch?v=old"),    // same URL, new window
-        ]
-        XCTAssertEqual(ChromeScripts.tabsToClose(now, allowedDomains: ["piazza.com"], protected: protected), [
-            ChromeTab(windowID: 9, tabIndex: 1, url: "https://reddit.com/"),
-            ChromeTab(windowID: 50, tabIndex: 1, url: "https://youtube.com/watch?v=old"),
-        ])
+    func testProtectionKeyIgnoresIndexTabIDAndTitle() {
+        let before = ChromeTab(windowID: 9, tabIndex: 1, tabID: 5, title: "Old title", url: "https://a.com")
+        let after = ChromeTab(windowID: 9, tabIndex: 3, tabID: 5, title: "New title", url: "https://a.com")
+        XCTAssertEqual(ChromeScripts.protectionKey(before), ChromeScripts.protectionKey(after))
     }
 }

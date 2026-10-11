@@ -25,6 +25,15 @@ enum TokenSource: Equatable {
         case .none: "No token"
         }
     }
+
+    /// Shown next to the OpenAI key field in Settings (the same three sources as the Discord token).
+    var keyLabel: String {
+        switch self {
+        case .keychain: "Using your key from Keychain"
+        case .teamFile: "Using the team key from .env"
+        case .none: "No key — you'll be asked about each site"
+        }
+    }
 }
 
 /// Root app state: the persisted data, the sidebar selection and the session engine.
@@ -37,27 +46,34 @@ enum TokenSource: Equatable {
     /// Where the two possible bot tokens come from (the Keychain, the bundled `.env`); tests inject fakes.
     private let keychainToken: () -> String?
     private let envToken: () -> String?
+    /// Same two places for the OpenAI API key.
+    private let keychainOpenAIKey: () -> String?
+    private let envOpenAIKey: () -> String?
 
     /// Loads store (shows warning toast if any), builds live engine with real controllers.
     convenience init(store: Store = Store(fileURL: Store.defaultURL())) {
         let (loaded, isFirstLaunch) = Self.load(store)
-        // The announcer needs the model, but the model needs the engine (which needs the announcer).
-        // The announcer's closures read the model through this box, which is filled in after init.
+        // The announcer and the relevance judge need the model, but the model needs the engine (which needs
+        // them). Their closures read the model through this box, which is filled in after init.
         let box = ModelBox()
         let announcer = DiscordAnnouncer(
             token: { box.model?.discordToken },
             settings: { box.model?.data.settings ?? AppSettings(discordEnabled: false) },
             onCacheUpdate: { cache in box.model?.updateSettings { $0.channelCache = cache } },
             toaster: ToastCenter.shared)
+        let judge = RelevanceJudge(apiKey: { [box] in box.model?.openAIKey })
         let engine = SessionEngine(workspace: WorkspaceController(), blocker: AppBlocker(),
-                                   chrome: ChromeController(), toaster: ToastCenter.shared,
+                                   chrome: ChromeController(judge: judge, prompter: NeedPrompt()),
+                                   toaster: ToastCenter.shared,
                                    announcer: announcer,
                                    ownBundleID: Bundle.main.bundleIdentifier ?? "com.accountabilibrosis.app",
                                    visibleFrame: { ScreenGeometry.mainVisibleFrame() },
                                    primaryHeight: { ScreenGeometry.primaryHeight() })
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine,
                   keychainToken: { Keychain.get(service: Secrets.discordService, account: Secrets.discordAccount) },
-                  envToken: { EnvFile.bundledValue(AppModel.envTokenKey) })
+                  envToken: { EnvFile.bundledValue(AppModel.envTokenKey) },
+                  keychainOpenAIKey: { Keychain.get(service: Secrets.openAIService, account: Secrets.openAIAccount) },
+                  envOpenAIKey: { EnvFile.bundledValue(AppModel.envOpenAIKeyName) })
         box.model = self
         if let warning = loaded.warning {
             // After launch, so the toast panel can find the screen.
@@ -65,22 +81,28 @@ enum TokenSource: Equatable {
         }
     }
 
-    /// Test initializer: injected engine. The token sources default to "no token", so tests never
+    /// Test initializer: injected engine. The token and key sources default to "nothing", so tests never
     /// read the real Keychain or the bundled `.env`.
     convenience init(store: Store, engine: SessionEngine,
                      keychainToken: @escaping () -> String? = { nil },
-                     envToken: @escaping () -> String? = { nil }) {
+                     envToken: @escaping () -> String? = { nil },
+                     keychainOpenAIKey: @escaping () -> String? = { nil },
+                     envOpenAIKey: @escaping () -> String? = { nil }) {
         let (loaded, isFirstLaunch) = Self.load(store)
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine,
-                  keychainToken: keychainToken, envToken: envToken)
+                  keychainToken: keychainToken, envToken: envToken,
+                  keychainOpenAIKey: keychainOpenAIKey, envOpenAIKey: envOpenAIKey)
     }
 
     private init(store: Store, loaded: StoreLoadResult, isFirstLaunch: Bool, engine: SessionEngine,
-                 keychainToken: @escaping () -> String?, envToken: @escaping () -> String?) {
+                 keychainToken: @escaping () -> String?, envToken: @escaping () -> String?,
+                 keychainOpenAIKey: @escaping () -> String?, envOpenAIKey: @escaping () -> String?) {
         self.store = store
         self.engine = engine
         self.keychainToken = keychainToken
         self.envToken = envToken
+        self.keychainOpenAIKey = keychainOpenAIKey
+        self.envOpenAIKey = envOpenAIKey
         self.data = loaded.data
         self.selection = loaded.data.subjects.first.map { SidebarItem.subject($0.id) }
         engine.onSessionChanged = { [weak self] session in
@@ -197,6 +219,30 @@ enum TokenSource: Equatable {
             Keychain.delete(service: Secrets.discordService, account: Secrets.discordAccount)
         } else {
             Keychain.set(trimmed, service: Secrets.discordService, account: Secrets.discordAccount)
+        }
+    }
+
+    /// Key of the OpenAI API key in the bundled `.env`.
+    static let envOpenAIKeyName = "OPENAI_API_KEY"
+
+    private var resolvedOpenAIKey: (token: String?, source: TokenSource) {
+        Self.resolveToken(keychain: keychainOpenAIKey(), env: envOpenAIKey())
+    }
+
+    /// The OpenAI key used for the relevance check: the Keychain key, else the team key from `.env`.
+    /// Never stored in store.json. Without one every check gives no verdict and the user is asked instead.
+    var openAIKey: String? { resolvedOpenAIKey.token }
+
+    /// Which of the two keys `openAIKey` is.
+    var openAIKeySource: TokenSource { resolvedOpenAIKey.source }
+
+    /// Saves a trimmed key to the Keychain (it then overrides the team key); nil or blank deletes it.
+    func setOpenAIKey(_ key: String?) {
+        let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            Keychain.delete(service: Secrets.openAIService, account: Secrets.openAIAccount)
+        } else {
+            Keychain.set(trimmed, service: Secrets.openAIService, account: Secrets.openAIAccount)
         }
     }
 

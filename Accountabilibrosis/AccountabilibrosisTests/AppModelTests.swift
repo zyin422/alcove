@@ -276,6 +276,59 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(none.discordTokenSource, .none)
     }
 
+    // MARK: OpenAI key
+
+    func testKeySourceLabels() {
+        XCTAssertEqual(TokenSource.keychain.keyLabel, "Using your key from Keychain")
+        XCTAssertEqual(TokenSource.teamFile.keyLabel, "Using the team key from .env")
+        XCTAssertEqual(TokenSource.none.keyLabel, "No key — you'll be asked about each site")
+    }
+
+    func testOpenAIKeyComesFromItsOwnInjectedSources() throws {
+        let team = AppModel(store: try makeStore(), engine: EngineHarness().engine,
+                            keychainOpenAIKey: { nil }, envOpenAIKey: { "sk-team\n" })
+        XCTAssertEqual(team.openAIKey, "sk-team")
+        XCTAssertEqual(team.openAIKeySource, .teamFile)
+
+        let mine = AppModel(store: try makeStore(), engine: EngineHarness().engine,
+                            keychainOpenAIKey: { " sk-mine " }, envOpenAIKey: { "sk-team" })
+        XCTAssertEqual(mine.openAIKey, "sk-mine", "the Keychain key wins and is trimmed")
+        XCTAssertEqual(mine.openAIKeySource, .keychain)
+
+        let blankKeychain = AppModel(store: try makeStore(), engine: EngineHarness().engine,
+                                     keychainOpenAIKey: { "  " }, envOpenAIKey: { "sk-team" })
+        XCTAssertEqual(blankKeychain.openAIKey, "sk-team")
+        XCTAssertEqual(blankKeychain.openAIKeySource, .teamFile)
+
+        let none = AppModel(store: try makeStore(), engine: EngineHarness().engine)
+        XCTAssertNil(none.openAIKey)
+        XCTAssertEqual(none.openAIKeySource, .none)
+    }
+
+    func testOpenAIKeyDoesNotMixWithTheDiscordToken() throws {
+        let model = AppModel(store: try makeStore(), engine: EngineHarness().engine,
+                             keychainToken: { "discord.token" }, envToken: { "team.token" })
+        XCTAssertEqual(model.discordToken, "discord.token")
+        XCTAssertNil(model.openAIKey)
+        XCTAssertEqual(model.openAIKeySource, .none)
+    }
+
+    func testOpenAIKeyIsReadOnEveryAccessSoASavedKeyAppliesImmediately() throws {
+        var saved: String?
+        let model = AppModel(store: try makeStore(), engine: EngineHarness().engine,
+                             keychainOpenAIKey: { saved })
+        XCTAssertNil(model.openAIKey)
+        saved = "sk-new"
+        XCTAssertEqual(model.openAIKey, "sk-new")
+        XCTAssertEqual(model.openAIKeySource, .keychain)
+    }
+
+    func testOpenAIKeychainCoordinatesDifferFromDiscords() {
+        XCTAssertEqual(Secrets.openAIService, "com.accountabilibrosis.openai")
+        XCTAssertEqual(Secrets.openAIAccount, "api-key")
+        XCTAssertNotEqual(Secrets.openAIService, Secrets.discordService)
+    }
+
     func testFirstLaunchWithATokenTurnsDiscordOnAndSaves() throws {
         let store = try makeStore()
         XCTAssertFalse(FileManager.default.fileExists(atPath: store.fileURL.path))
