@@ -51,7 +51,7 @@ struct TabTriage {
         switch verdict {
         case .relevant: keptURLs.insert(url)
         case .offTask: closeURLs.insert(url)
-        case .unknown: awaitingPromptURLs.insert(url)
+        case .unknown, .unsure: awaitingPromptURLs.insert(url)   // .unsure: interim until the assistant wiring lands
         }
     }
 

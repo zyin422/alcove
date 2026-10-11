@@ -5,7 +5,18 @@ import Foundation
 /// No caching here: the tab watch remembers verdicts.
 @MainActor final class RelevanceJudge: RelevanceJudging {
     /// Close the tab when the off-task probability is at least this.
-    static let threshold = 0.5
+    /// relevance = 1 − off-task probability. Below this the tab is closed.
+    static let closeBelow = 0.4
+    /// Above this the tab is kept. In between, the verdict is `.unsure` and the assistant asks the user.
+    static let keepAbove = 0.7
+
+    /// Maps the Decisions API's off-task probability to a verdict (see `closeBelow` / `keepAbove`).
+    nonisolated static func verdict(offTaskProbability probability: Double) -> RelevanceVerdict {
+        let relevance = 1 - min(max(probability, 0), 1)
+        if relevance < closeBelow { return .offTask }
+        if relevance > keepAbove { return .relevant }
+        return .unsure(relevance: relevance)
+    }
 
     private let apiKey: () -> String?
     private let transport: HTTPTransport
@@ -36,7 +47,7 @@ import Foundation
         do {
             let probability = try await DecisionsClient(apiKey: key, transport: transport)
                 .offTaskProbability(page: page, subject: subject)
-            return probability >= Self.threshold ? .offTask : .relevant
+            return Self.verdict(offTaskProbability: probability)
         } catch {
             return .unknown(String(describing: error))
         }
