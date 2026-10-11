@@ -19,7 +19,6 @@ struct SubjectDetailView: View {
                     VStack(alignment: .leading, spacing: Theme.Space.m) {
                         sitesBlock
                         appsBlock
-                        domainsBlock
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -78,13 +77,6 @@ struct SubjectDetailView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-        }
-    }
-
-    private var domainsBlock: some View {
-        block("Extra allowed sites") {
-            Text(subject.extraDomains.isEmpty ? "None" : subject.extraDomains.joined(separator: ", "))
-                .foregroundStyle(subject.extraDomains.isEmpty ? .secondary : .primary)
         }
     }
 

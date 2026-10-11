@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Settings (spec §11): profile, Discord bot, give-up phrase, Chrome automation, demo data.
+/// Settings (spec §11): profile, Discord bot, give-up phrase, relevance check (OpenAI key), Chrome automation, demo data.
 /// Used both as the sidebar's Settings detail and in the app's Settings scene.
 struct SettingsView: View {
     let model: AppModel
@@ -9,6 +9,8 @@ struct SettingsView: View {
     @AppStorage("discordAppID") private var discordAppID = ""
     @State private var tokenDraft = ""
     @State private var tokenSource = TokenSource.none
+    @State private var openAIKeyDraft = ""
+    @State private var openAIKeySource = TokenSource.none
     @State private var discordStatus = ""
     @State private var isTesting = false
     @State private var chromeStatus = SettingsStatus.chromeUnchecked
@@ -20,6 +22,7 @@ struct SettingsView: View {
             discordSection
             discordSetupSection
             accountabilitySection
+            relevanceSection
             chromeSection
             demoSection
         }
@@ -119,6 +122,30 @@ struct SettingsView: View {
         }
     }
 
+    private var relevanceSection: some View {
+        Section {
+            HStack {
+                SecureField("OpenAI API key", text: $openAIKeyDraft)
+                    .onSubmit(saveOpenAIKey)
+                Button("Save", action: saveOpenAIKey)
+                    .disabled(SettingsStatus.cleanedToken(openAIKeyDraft) == nil)
+            }
+            HStack {
+                Label(openAIKeySource.keyLabel, systemImage: openAIKeyIcon)
+                Spacer()
+                if openAIKeySource == .keychain {
+                    Button("Remove", action: removeOpenAIKey)
+                }
+            }
+        } header: {
+            Text("Relevance check (OpenAI)")
+        } footer: {
+            Text("While locked in, tab URLs and titles are sent to OpenAI to check relevance. Tabs unrelated to your subject are closed; when a page can't be checked you're asked instead. A key you save here overrides the team key bundled from .env.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var chromeSection: some View {
         Section {
             LabeledContent("Automation") {
@@ -182,8 +209,17 @@ struct SettingsView: View {
         }
     }
 
+    private var openAIKeyIcon: String {
+        switch openAIKeySource {
+        case .keychain: "lock.fill"
+        case .teamFile: "doc.text"
+        case .none: "key"
+        }
+    }
+
     private func refresh() {
         tokenSource = model.discordTokenSource
+        openAIKeySource = model.openAIKeySource
         if !ChromeController.isInstalled {
             chromeStatus = SettingsStatus.chromeResult(.notInstalled)
         }
@@ -203,6 +239,20 @@ struct SettingsView: View {
         model.setDiscordToken(nil)
         tokenSource = model.discordTokenSource
         discordStatus = ""
+    }
+
+    /// Saves to the Keychain, which overrides the team key.
+    private func saveOpenAIKey() {
+        guard let key = SettingsStatus.cleanedToken(openAIKeyDraft) else { return }
+        model.setOpenAIKey(key)
+        openAIKeyDraft = ""
+        openAIKeySource = model.openAIKeySource
+    }
+
+    /// Deletes the Keychain key; the team key (if bundled) applies again.
+    private func removeOpenAIKey() {
+        model.setOpenAIKey(nil)
+        openAIKeySource = model.openAIKeySource
     }
 
     /// GET /users/@me then /users/@me/guilds with the saved token; shows the result text.
@@ -235,7 +285,7 @@ struct SettingsView: View {
         Task { @MainActor in
             // Let the waiting text render first: the Apple Event blocks until the prompt is answered.
             try? await Task.sleep(nanoseconds: 150_000_000)
-            chromeStatus = SettingsStatus.chromeResult(ChromeController().requestAccess())
+            chromeStatus = SettingsStatus.chromeResult(ChromeController.requestAccess())
             isRequestingChrome = false
         }
     }
