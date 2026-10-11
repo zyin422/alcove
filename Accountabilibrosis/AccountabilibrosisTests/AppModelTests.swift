@@ -197,6 +197,68 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(model.data.sessions.isEmpty)
     }
 
+    // MARK: Chat assistant wiring
+
+    func testModelHooksTheAssistantIntoTheSessionLifecycle() async throws {
+        let harness = EngineHarness()
+        let model = AppModel(store: try makeStore(), engine: harness.engine)
+        XCTAssertNotNil(harness.engine.onLockedIn)
+        XCTAssertNotNil(harness.engine.onEnded)
+
+        let subject = makeSubject()
+        model.addSubject(subject)
+        await model.lockIn(subjectID: subject.id, mode: .open)
+        XCTAssertTrue(harness.engine.isLocked)
+        await harness.engine.finish()
+
+        XCTAssertFalse(harness.engine.isLocked)
+        XCTAssertEqual(model.data.sessions.count, 1)
+    }
+
+    func testAssistantNeedingAttentionAsksTheWindowToShowTheChat() throws {
+        let model = AppModel(store: try makeStore(), engine: EngineHarness().engine)
+        var shown = 0
+        model.onShowChat = { shown += 1 }
+
+        model.assistant.onNeedsAttention?()
+        model.assistant.onNeedsAttention?()
+
+        XCTAssertEqual(shown, 2)
+    }
+
+    func testAssistantNeedingAttentionWithoutAWindowIsHarmless() throws {
+        let model = AppModel(store: try makeStore(), engine: EngineHarness().engine)
+        XCTAssertNil(model.onShowChat)
+        XCTAssertNotNil(model.assistant.onNeedsAttention)
+        model.assistant.onNeedsAttention?()
+    }
+
+    func testModelUsesTheInjectedAssistant() throws {
+        let assistant = ChatAssistant(apiKey: { nil })
+        let model = AppModel(store: try makeStore(), engine: EngineHarness().engine, assistant: assistant)
+        XCTAssertTrue(model.assistant === assistant)
+    }
+
+    func testConnectLinksTheAssistantAndChromeBothWays() {
+        let assistant = ChatAssistant(apiKey: { nil })
+        let chrome = ChromeController(judge: FakeJudge(), prompter: FakePrompter())
+
+        AppModel.connect(assistant, with: chrome)
+
+        XCTAssertTrue(chrome.asker === assistant, "unsure sites go to the assistant")
+        XCTAssertTrue(assistant.sites === chrome, "allow / close decisions go back to Chrome")
+    }
+
+    func testWakingWhileIdleDoesNotTouchTheAssistant() throws {
+        let model = AppModel(store: try makeStore(), engine: EngineHarness().engine)
+        var shown = 0
+        model.onShowChat = { shown += 1 }
+
+        model.systemDidWake()
+
+        XCTAssertEqual(shown, 0, "no welcome-back chat outside a lock-in")
+    }
+
     // MARK: Settings
 
     func testUpdateSettingsPersists() throws {
