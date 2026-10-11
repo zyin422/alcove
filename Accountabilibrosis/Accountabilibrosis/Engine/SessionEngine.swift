@@ -53,6 +53,15 @@ import Observation
         session?.mode.goalSeconds != nil && !goalReached
     }
 
+    /// When the current break ends. Nil while monitoring is running.
+    private(set) var breakEndsAt: Date?
+    /// Seconds left in the break, nil when there isn't one.
+    var breakRemaining: TimeInterval? {
+        guard let breakEndsAt else { return nil }
+        return max(0, breakEndsAt.timeIntervalSince(now))
+    }
+    var isOnBreak: Bool { breakEndsAt != nil }
+
     @ObservationIgnored weak var presenter: WindowPresenting?
     /// Called on create, every heartbeat, counter changes, and end. AppModel persists it.
     @ObservationIgnored var onSessionChanged: ((Session) -> Void)?
@@ -67,6 +76,8 @@ import Observation
     private let chrome: ChromeControlling
     private let toaster: Toasting
     private let announcer: Announcing
+    /// Opens the setup's apps; nil = app windows are skipped.
+    private let launcher: SetupLaunching?
     private let ownBundleID: String
     private let clock: () -> Date
     private let visibleFrame: () -> CGRect?
@@ -76,12 +87,18 @@ import Observation
     @ObservationIgnored private var displayName = ""
     /// Bundle IDs this session hid at lock-in; unhidden again at the end.
     @ObservationIgnored private var hiddenByUs: [String] = []
+    /// Bundle IDs this session asked to quit at lock-in; opened again at the end.
+    @ObservationIgnored private var quitByUs: [String] = []
+    /// The allowlist from lock-in, so a break can resume blocking with the same set.
+    @ObservationIgnored private var sessionAllowed: Set<String> = []
+    /// True when the tab watch was started, so a break resumes it.
+    @ObservationIgnored private var resumesTabWatch = false
     @ObservationIgnored private var timer: Timer?
     /// Set synchronously when the goal auto-finish is scheduled so it is scheduled only once.
     @ObservationIgnored private var isEnding = false
 
     init(workspace: WorkspaceControlling, blocker: AppBlocking, chrome: ChromeControlling,
-         toaster: Toasting, announcer: Announcing, ownBundleID: String,
+         toaster: Toasting, announcer: Announcing, launcher: SetupLaunching? = nil, ownBundleID: String,
          clock: @escaping () -> Date = Date.init,
          visibleFrame: @escaping () -> CGRect? = { nil },
          primaryHeight: @escaping () -> CGFloat = { 0 },
@@ -91,6 +108,7 @@ import Observation
         self.chrome = chrome
         self.toaster = toaster
         self.announcer = announcer
+        self.launcher = launcher
         self.ownBundleID = ownBundleID
         self.clock = clock
         self.visibleFrame = visibleFrame
@@ -115,31 +133,51 @@ import Observation
         onSessionChanged?(newSession)
 
         let allowed = BlockPolicy.allowedSet(for: subject, ownBundleID: ownBundleID)
-        hiddenByUs = workspace.hideOthers(allowed: allowed)
-
-        var bounds: [ChromeBounds] = []
-        var appFrame: CGRect?
-        if let visible = visibleFrame() {
-            let layout = LayoutEngine.layout(subject.preset, in: visible)
-            let height = primaryHeight()
-            bounds = layout.chromeFrames.map { ScreenGeometry.chromeBounds(for: $0, primaryHeight: height) }
-            appFrame = layout.appFrame
+        switch subject.unusedApps {
+        case .hide:
+            hiddenByUs = workspace.hideOthers(allowed: allowed)
+            quitByUs = []
+        case .quit:
+            (quitByUs, hiddenByUs) = workspace.quitOthers(allowed: allowed)
         }
-        presenter?.enterLocked(appFrame: appFrame)
 
-        let chromeError = await chrome.prepare(sites: subject.sites, bounds: bounds)
-        // The session may have ended (e.g. the app quit) while Chrome was being prepared.
+        let placement = LayoutEngine.placement(for: subject, visible: visibleFrame(), primaryHeight: primaryHeight())
+        presenter?.enterLocked(appFrame: placement.appFrame)
+
+        var browserWindows: [BrowserWindowPlan] = []
+        var appSlots: [(slot: SetupSlot, bounds: ChromeBounds?)] = []
+        for (index, slot) in subject.slots.enumerated() {
+            let bounds = index < placement.slotBounds.count ? placement.slotBounds[index] : nil
+            switch slot.kind {
+            case .website:
+                if !slot.urls.isEmpty { browserWindows.append(BrowserWindowPlan(urls: slot.urls, bounds: bounds)) }
+            case .app:
+                if slot.app != nil { appSlots.append((slot, bounds)) }
+            }
+        }
+
+        let chromeError = await chrome.prepare(browser: subject.browser, windows: browserWindows)
+        // The session may have ended (e.g. the app quit) while the browser was being prepared.
         guard session?.id == sessionID else { return }
         if let chromeError {
-            toaster.show(Self.chromeErrorMessage(chromeError))
+            toaster.show(Self.chromeErrorMessage(chromeError, browser: subject.browser))
+        }
+        for (slot, bounds) in appSlots {
+            guard let app = slot.app, let launcher else { break }
+            let problem = await launcher.open(app, folder: slot.folder, bounds: bounds)
+            guard session?.id == sessionID else { return }
+            if let problem { toaster.show(problem) }
         }
 
         blocker.onBlocked = { [weak self] app in self?.recordBlocked(app) }
+        sessionAllowed = allowed
+        breakEndsAt = nil
         blocker.start(allowed: allowed)
 
         chrome.onTabClosed = { [weak self] host in self?.recordClosedTab(host) }
         // Without Chrome (or without permission to script it) every poll would fail, so skip the watch.
-        if chromeError != .notInstalled && chromeError != .automationDenied {
+        resumesTabWatch = chromeError != .notInstalled && chromeError != .automationDenied
+        if resumesTabWatch {
             chrome.startTabWatch(subject: subject.name, studySites: subject.sites)
         }
 
@@ -148,30 +186,31 @@ import Observation
         onLockedIn?(subject)
     }
 
-    /// Toast text for a Chrome failure during lock-in (spec §12).
-    static func chromeErrorMessage(_ error: ChromeError) -> String {
+    /// Toast text for a browser failure during lock-in (spec §12).
+    static func chromeErrorMessage(_ error: ChromeError, browser: Browser = .chrome) -> String {
+        let name = browser == .chrome ? "Chrome" : browser.title
         switch error {
         case .notInstalled:
-            return "Google Chrome not found — sites not opened"
+            return "\(browser.title) not found — sites not opened"
         case .automationDenied:
-            return "Allow Chrome control in System Settings › Privacy & Security › Automation"
+            return "Allow \(name) control in System Settings › Privacy & Security › Automation"
         case .profileNotReady:
-            return "Chrome wasn't ready — sites not opened"
+            return "\(name) wasn't ready — sites not opened"
         case .scriptFailed(let message):
-            return "Chrome error: \(message)"
+            return "\(name) error: \(message)"
         }
     }
 
     // MARK: Give-up phrase
 
-    /// template with "{subject}" replaced by subject name.
-    func giveUpPhrase(template: String) -> String {
-        template.replacingOccurrences(of: "{subject}", with: subject?.name ?? "")
+    /// template with "{subject}" replaced by `name`, or by the setup name when `name` is nil.
+    func giveUpPhrase(template: String, name: String? = nil) -> String {
+        template.replacingOccurrences(of: "{subject}", with: name ?? subject?.name ?? "")
     }
 
     /// Case-insensitive, whitespace/newline-trimmed comparison.
-    func phraseMatches(_ typed: String, template: String) -> Bool {
-        let expected = giveUpPhrase(template: template).trimmingCharacters(in: .whitespacesAndNewlines)
+    func phraseMatches(_ typed: String, template: String, name: String? = nil) -> Bool {
+        let expected = giveUpPhrase(template: template, name: name).trimmingCharacters(in: .whitespacesAndNewlines)
         let actual = typed.trimmingCharacters(in: .whitespacesAndNewlines)
         return !expected.isEmpty && actual.caseInsensitiveCompare(expected) == .orderedSame
     }
@@ -186,6 +225,9 @@ import Observation
             current.lastHeartbeat = now
             session = current
             onSessionChanged?(current)
+        }
+        if let breakEndsAt, now >= breakEndsAt {
+            resumeMonitoring()
         }
         if goalReached && !isEnding {
             isEnding = true
@@ -222,6 +264,28 @@ import Observation
         session = current
         toaster.show("Closed \(host) — not relevant to \(current.subjectName)")
         onSessionChanged?(current)
+    }
+
+    // MARK: Break
+
+    /// Pauses app blocking and the tab watch for `minutes` (1...15). The session clock keeps running.
+    /// Calling it again restarts the countdown.
+    func beginBreak(minutes: Int) {
+        guard isLocked else { return }
+        let clamped = min(max(minutes, 1), 15)
+        blocker.stop()
+        chrome.stopTabWatch()
+        breakEndsAt = clock().addingTimeInterval(TimeInterval(clamped * 60))
+        now = clock()
+    }
+
+    private func resumeMonitoring() {
+        breakEndsAt = nil
+        guard session != nil else { return }
+        blocker.start(allowed: sessionAllowed)
+        if resumesTabWatch, let subject {
+            chrome.startTabWatch(subject: subject.name, studySites: subject.sites)
+        }
     }
 
     // MARK: End
@@ -267,6 +331,7 @@ import Observation
         guard var final = session else { return nil }
         timer?.invalidate()
         timer = nil
+        breakEndsAt = nil
         blocker.stop()
         chrome.stopTabWatch()
 
@@ -278,7 +343,9 @@ import Observation
 
         workspace.unhide(hiddenByUs)
         hiddenByUs = []
-        chrome.restoreMinimized()
+        workspace.relaunch(quitByUs)
+        quitByUs = []
+        chrome.restoreAfterSession()
 
         session = nil
         subject = nil

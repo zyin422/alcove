@@ -1,11 +1,30 @@
 import Foundation
 
-/// One Chrome tab as reported by `ChromeScripts.listTabs`.
+/// A window or tab id as a script reports it. Chrome's are numbers; Arc's are text. Integer and string
+/// literals both work, and `description` is the raw text put back into scripts.
+struct ScriptID: Hashable, Comparable, CustomStringConvertible, ExpressibleByIntegerLiteral, ExpressibleByStringLiteral {
+    let raw: String
+
+    init(_ raw: String) { self.raw = raw }
+    init(_ value: Int) { raw = String(value) }
+    init(integerLiteral value: Int) { raw = String(value) }
+    init(stringLiteral value: String) { raw = value }
+
+    var description: String { raw }
+
+    /// Numbers in numeric order, otherwise text order.
+    static func < (lhs: ScriptID, rhs: ScriptID) -> Bool {
+        if let left = Int(lhs.raw), let right = Int(rhs.raw) { return left < right }
+        return lhs.raw < rhs.raw
+    }
+}
+
+/// One browser tab as reported by `ChromeScripts.listTabs`.
 struct ChromeTab: Equatable {
-    let windowID: Int
+    let windowID: ScriptID
     let tabIndex: Int   // 1-based AppleScript index
-    /// Chrome's own id for the tab. Unlike `tabIndex` it does not shift when other tabs open or close.
-    let tabID: Int
+    /// The browser's own id for the tab. Unlike `tabIndex` it does not shift when other tabs open or close.
+    let tabID: ScriptID
     let title: String
     let url: String
 }
@@ -17,10 +36,11 @@ enum ChromeError: Error, Equatable {
     case scriptFailed(String)
 }
 
-/// AppleScript source for Google Chrome plus parsers for the scripts' text output. Pure: nothing here runs a script.
-/// Chrome declares window `id` as text, so window ids are quoted when they are put back into a script.
+/// AppleScript source for the setup browsers (Google Chrome, Arc) plus parsers for the scripts' text output.
+/// Pure: nothing here runs a script. Window ids are text in both browsers, so they are quoted when put back
+/// into a script; Chrome's tab ids are integers, Arc's are text.
 enum ChromeScripts {
-    static let bundleID = "com.google.Chrome"
+    static let bundleID = Browser.chrome.bundleID
 
     /// Escapes backslash and double quote for embedding in an AppleScript string literal.
     static func escape(_ s: String) -> String {
@@ -28,27 +48,67 @@ enum ChromeScripts {
             .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
+    private static func tell(_ browser: Browser) -> String { "tell application \"\(browser.scriptName)\"" }
+
     /// Makes a new window, sets active tab URL and bounds; returns the new window id as text.
     static func openWindow(url: String, bounds: ChromeBounds) -> String {
-        openWindowScript(url: url, bounds: bounds)
+        openWindowScript(urls: [url], bounds: bounds, browser: .chrome)
     }
 
     /// Same as `openWindow(url:bounds:)` but leaves the window wherever Chrome puts it (no bounds line).
     static func openWindow(url: String) -> String {
-        openWindowScript(url: url, bounds: nil)
+        openWindowScript(urls: [url], bounds: nil, browser: .chrome)
     }
 
-    private static func openWindowScript(url: String, bounds: ChromeBounds?) -> String {
-        var lines = [
-            "tell application \"Google Chrome\"",
-            "    set w to make new window",
-            "    set URL of active tab of w to \"\(escape(url))\"",
-        ]
-        if let b = bounds {
+    /// A new window showing `urls[0]`, with the other URLs as extra tabs behind it; returns the window id.
+    /// Bounds are only set where the browser supports them (Chrome).
+    static func openWindow(urls: [String], bounds: ChromeBounds?, browser: Browser) -> String {
+        openWindowScript(urls: urls, bounds: bounds, browser: browser)
+    }
+
+    private static func openWindowScript(urls: [String], bounds: ChromeBounds?, browser: Browser) -> String {
+        if browser == .arc { return arcOpenWindowScript(urls: urls) }
+        var lines = [tell(browser), "    set w to make new window"]
+        switch browser {
+        case .chrome:
+            if let first = urls.first {
+                lines.append("    set URL of active tab of w to \"\(escape(first))\"")
+            }
+            for url in urls.dropFirst() {
+                lines.append("    make new tab at end of tabs of w with properties {URL:\"\(escape(url))\"}")
+            }
+            if urls.count > 1 {
+                lines.append("    set active tab index of w to 1")
+            }
+        case .arc:
+            break
+        }
+        if let b = bounds, browser.supportsBounds {
             lines.append("    set bounds of w to {\(b.left), \(b.top), \(b.right), \(b.bottom)}")
         }
         lines.append("    return id of w as text")
         lines.append("end tell")
+        return lines.joined(separator: "\n")
+    }
+
+    /// Arc's `make new window` returns no window, and a stored window reference can't be told anything, so the
+    /// new window is addressed as `front window`. Tabs are made last-to-first: Arc shows the last tab made.
+    /// A URL that is already open is not made again (Arc keeps one tab list per space, so a second `make new tab`
+    /// would duplicate it). Nothing after the window exists can fail, so a retry can't add another window of tabs.
+    private static func arcOpenWindowScript(urls: [String]) -> String {
+        var lines = [tell(.arc), "    make new window", "    delay 0.3", "    try", "        tell front window"]
+        for url in urls.reversed() {
+            let quoted = "\"\(escape(url))\""
+            lines += ["            set already to false",
+                      "            repeat with t in tabs",
+                      "                try",
+                      "                    if ((URL of t) as text) is \(quoted) then set already to true",
+                      "                end try",
+                      "            end repeat",
+                      "            if already is false then make new tab with properties {URL:\(quoted)}"]
+        }
+        lines += ["        end tell", "    end try", "    try", "        return (id of front window) as text",
+                  "    on error", "        return \"opened\"", "    end try", "end tell"]
         return lines.joined(separator: "\n")
     }
 
@@ -60,33 +120,109 @@ enum ChromeScripts {
     /// window (`<US>` is `fieldSeparator`). The URL is last, so it can never be confused with the title.
     /// The separator and `linefeed` are captured before the tell block, because inside it names like `tab` mean
     /// Chrome's own classes.
-    static let listTabs: String = """
-        set sepChar to ASCII character 31
-        set lineChar to linefeed
-        set out to ""
-        tell application "Google Chrome"
-            repeat with w in windows
-                set wid to (id of w) as text
-                set tabList to every tab of w
-                repeat with i from 1 to count of tabList
-                    set t to item i of tabList
-                    set out to out & wid & sepChar & (i as text) & sepChar & ((id of t) as text) & sepChar & ((title of t) as text) & sepChar & ((URL of t) as text) & lineChar
-                end repeat
-            end repeat
-        end tell
-        return out
-        """
+    static let listTabs: String = listTabs(for: .chrome)
 
-    /// Closes the tab with Chrome's id `tabID` in the window. Addressing by id (not index) means a tab whose
+    /// `listTabs` for `browser`. Arc lists only unpinned tabs: pinned and favorite tabs live in the user's
+    /// sidebar, and closing one would delete it.
+    static func listTabs(for browser: Browser) -> String {
+        let line = "set out to out & wid & sepChar & (i as text) & sepChar & ((id of t) as text) & sepChar & ((title of t) as text) & sepChar & ((URL of t) as text) & lineChar"
+        switch browser {
+        case .chrome:
+            return """
+                set sepChar to ASCII character 31
+                set lineChar to linefeed
+                set out to ""
+                tell application "\(browser.scriptName)"
+                    repeat with w in windows
+                        set wid to (id of w) as text
+                        set tabList to every tab of w
+                        repeat with i from 1 to count of tabList
+                            set t to item i of tabList
+                            \(line)
+                        end repeat
+                    end repeat
+                end tell
+                return out
+                """
+        case .arc:
+            // `item i of every tab` makes Arc refuse `location` for the whole script, so nothing would be
+            // remembered or closed. Walk the tabs directly, and skip a tab that still won't answer.
+            return """
+                set sepChar to ASCII character 31
+                set lineChar to linefeed
+                set out to ""
+                tell application "Arc"
+                    repeat with w in windows
+                        try
+                            set wid to (id of w) as text
+                            set i to 0
+                            repeat with t in tabs of w
+                                set i to i + 1
+                                try
+                                    if ((location of t) as text) is "unpinned" then
+                                        \(line)
+                                    end if
+                                end try
+                            end repeat
+                        end try
+                    end repeat
+                end tell
+                return out
+                """
+        }
+    }
+
+    /// Closes the tab with the browser's id `tabID` in the window. Addressing by id (not index) means a tab whose
     /// index shifted, or that has already gone, is never closed by mistake: the script then matches nothing.
-    static func closeTab(windowID: Int, tabID: Int) -> String {
-        "tell application \"Google Chrome\" to close (every tab of window id \"\(windowID)\" whose id is \(tabID))"
+    static func closeTab(windowID: ScriptID, tabID: ScriptID, browser: Browser = .chrome) -> String {
+        let id = browser.hasTextTabIDs ? "\"\(escape(tabID.raw))\"" : tabID.raw
+        return "\(tell(browser)) to close (every tab of window id \"\(escape(windowID.raw))\" whose id is \(id))"
+    }
+
+    /// Closes every window of the browser. Arc can only close its front window by script, and its window count
+    /// includes windows already closed, so it closes the front window that many times (an extra close does nothing).
+    /// Arc keeps a closed window's tabs in its sidebar; only `closeTabs` removes them.
+    static func closeAllWindows(for browser: Browser) -> String {
+        switch browser {
+        case .chrome:
+            return "\(tell(.chrome)) to close every window"
+        case .arc:
+            // Arc's window count counts windows that are already gone, so repeat a fixed number of times.
+            // Closing the front window when none is left does nothing.
+            return """
+                tell application "Arc"
+                    repeat 40 times
+                        try
+                            close front window
+                        end try
+                    end repeat
+                end tell
+                """
+        }
+    }
+
+    /// Closes each of these tabs by id (inside `try`, so one that is already gone does not stop the rest).
+    /// "" (nothing to run) for no tabs.
+    static func closeTabs(_ tabs: [ChromeTab], browser: Browser) -> String {
+        guard !tabs.isEmpty else { return "" }
+        var lines = [tell(browser)]
+        for tab in tabs {
+            let id = browser.hasTextTabIDs ? "\"\(escape(tab.tabID.raw))\"" : tab.tabID.raw
+            lines += ["    try",
+                      "        close (every tab of window id \"\(escape(tab.windowID.raw))\" whose id is \(id))",
+                      "    end try"]
+        }
+        lines.append("end tell")
+        return lines.joined(separator: "\n")
     }
 
     /// Minimizes all non-minimized windows; returns their ids comma-separated ("" if none).
-    static let minimizeAll: String = """
+    static let minimizeAll: String = minimizeAll(for: .chrome)
+
+    static func minimizeAll(for browser: Browser) -> String {
+        """
         set idList to {}
-        tell application "Google Chrome"
+        tell application "\(browser.scriptName)"
             repeat with w in windows
                 if minimized of w is false then
                     set minimized of w to true
@@ -99,26 +235,24 @@ enum ChromeScripts {
         set AppleScript's text item delimiters to ""
         return out
         """
+    }
 
     /// Un-minimizes the given windows; ids that no longer exist are skipped by `try`.
-    static func restore(windowIDs: [Int]) -> String {
-        var lines = ["tell application \"Google Chrome\""]
-        for id in windowIDs {
-            lines.append("    try")
-            lines.append("        set minimized of window id \"\(id)\" to false")
-            lines.append("    end try")
-        }
-        lines.append("end tell")
-        return lines.joined(separator: "\n")
+    static func restore(windowIDs: [ScriptID], browser: Browser = .chrome) -> String {
+        setMinimized(false, windowIDs: windowIDs, browser: browser)
     }
 
     /// Minimizes the given windows; ids that no longer exist are skipped by `try`. "" (nothing to run) for no ids.
-    static func minimize(windowIDs: [Int]) -> String {
+    static func minimize(windowIDs: [ScriptID], browser: Browser = .chrome) -> String {
         guard !windowIDs.isEmpty else { return "" }
-        var lines = ["tell application \"Google Chrome\""]
+        return setMinimized(true, windowIDs: windowIDs, browser: browser)
+    }
+
+    private static func setMinimized(_ minimized: Bool, windowIDs: [ScriptID], browser: Browser) -> String {
+        var lines = [tell(browser)]
         for id in windowIDs {
             lines.append("    try")
-            lines.append("        set minimized of window id \"\(id)\" to true")
+            lines.append("        set minimized of window id \"\(escape(id.raw))\" to \(minimized)")
             lines.append("    end try")
         }
         lines.append("end tell")
@@ -126,32 +260,52 @@ enum ChromeScripts {
     }
 
     /// Harmless call used to trigger/check the Automation permission: returns count of windows.
-    static let ping: String = "tell application \"Google Chrome\" to count windows"
+    static let ping: String = ping(for: .chrome)
 
-    /// Parses `listTabs` output. Lines with fewer than five fields or non-integer ids are skipped.
+    static func ping(for browser: Browser) -> String { "\(tell(browser)) to count windows" }
+
+    /// Parses `listTabs` output. Lines with fewer than five fields are skipped, and so are Chrome lines whose
+    /// ids are not integers (Arc ids are text, so any non-empty id counts there).
     /// The first three fields and the last one (the URL) are fixed; if a title contains the separator itself,
     /// the pieces between them are rejoined with spaces. The URL keeps any spaces.
-    static func parseTabs(_ output: String) -> [ChromeTab] {
+    /// Every Arc window of a space lists the same tabs, so Arc tabs are kept once (in the first window listing them).
+    static func parseTabs(_ output: String, browser: Browser = .chrome) -> [ChromeTab] {
+        let tabs = parseTabLines(output, browser: browser)
+        guard browser == .arc else { return tabs }
+        var seen = Set<ScriptID>()
+        return tabs.filter { seen.insert($0.tabID).inserted }
+    }
+
+    private static func parseTabLines(_ output: String, browser: Browser) -> [ChromeTab] {
         // Only CR/LF end a line: Unicode line separators (U+2028, U+0085) can occur in page titles.
         output.split(whereSeparator: { $0 == "\n" || $0 == "\r" || $0 == "\r\n" }).compactMap { line in
             let parts = line.split(separator: fieldSeparator, omittingEmptySubsequences: false)
             guard parts.count >= 5,
-                  let windowID = Int(parts[0].trimmingCharacters(in: .whitespaces)),
+                  let windowID = id(parts[0], browser: browser),
                   let tabIndex = Int(parts[1].trimmingCharacters(in: .whitespaces)),
-                  let tabID = Int(parts[2].trimmingCharacters(in: .whitespaces)) else { return nil }
+                  let tabID = id(parts[2], browser: browser) else { return nil }
             let title = parts[3..<(parts.count - 1)].joined(separator: " ")
             return ChromeTab(windowID: windowID, tabIndex: tabIndex, tabID: tabID, title: title,
                              url: String(parts[parts.count - 1]))
         }
     }
 
-    /// Parses `minimizeAll` / `openWindow` output: comma-separated integers; junk entries are dropped.
-    static func parseIDs(_ output: String) -> [Int] {
-        output.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+    /// Parses `minimizeAll` / `openWindow` output: comma-separated ids; junk entries are dropped.
+    static func parseIDs(_ output: String, browser: Browser = .chrome) -> [ScriptID] {
+        output.split(separator: ",").compactMap { id($0, browser: browser) }
     }
 
-    /// Identity of a tab that already existed before the session: "windowID<TAB>url" (index-independent).
+    private static func id(_ text: Substring, browser: Browser) -> ScriptID? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch browser {
+        case .chrome: return Int(trimmed).map { ScriptID(String($0)) }
+        case .arc: return trimmed.isEmpty ? nil : ScriptID(trimmed)
+        }
+    }
+
+    /// Identity of a tab that already existed before the session. Chrome: "windowID<TAB>url" (index-independent).
+    /// Arc shows the same tabs in every window of a space, so its stable text tab id is used instead.
     static func protectionKey(_ tab: ChromeTab) -> String {
-        "\(tab.windowID)\t\(tab.url)"
+        Int(tab.tabID.raw) == nil ? "tab\t\(tab.tabID.raw)" : "\(tab.windowID)\t\(tab.url)"
     }
 }

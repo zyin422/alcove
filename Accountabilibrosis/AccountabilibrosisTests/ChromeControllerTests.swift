@@ -99,7 +99,7 @@ import XCTest
                 if let listError { return .failure(listError) }
                 let separator = String(ChromeScripts.fieldSeparator)
                 let lines = tabs.map {
-                    [String($0.windowID), String($0.tabIndex), String($0.tabID), $0.title, $0.url]
+                    [$0.windowID.raw, String($0.tabIndex), $0.tabID.raw, $0.title, $0.url]
                         .joined(separator: separator)
                 }
                 return .success(lines.joined(separator: "\n") + "\n")
@@ -132,7 +132,7 @@ import XCTest
     }
 
     private func tab(_ url: String, id: Int, window: Int = 1, title: String = "") -> ChromeTab {
-        ChromeTab(windowID: window, tabIndex: id, tabID: id, title: title, url: url)
+        ChromeTab(windowID: ScriptID(window), tabIndex: id, tabID: ScriptID(id), title: title, url: url)
     }
 
     /// Lets the tasks the controller spawned (judge calls, prompts) run.

@@ -79,7 +79,7 @@ struct LockInSheet: View {
                      ? "Your Discord servers will see that you locked in."
                      : "Discord announcements are off (turn them on in Settings).")
                 if option != .openEnded {
-                    note("Ending before the goal means typing the give-up phrase.")
+                    note("Ending before the goal means answering the Mirror. With no API key, you type the give-up phrase.")
                 }
             }
 

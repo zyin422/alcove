@@ -394,7 +394,7 @@ final class ChatAssistantTests: XCTestCase {
         XCTAssertEqual(rig.attention.count, 1)
         XCTAssertTrue(rig.transport.requests.isEmpty)
         XCTAssertEqual(rig.timers.items.count, 1)
-        XCTAssertEqual(rig.timers.items[0].delay, 180)
+        XCTAssertEqual(rig.timers.items[0].delay, 60)
     }
 
     func testAskAboutSiteWithoutTitleOmitsTheQuotes() {
@@ -436,6 +436,58 @@ final class ChatAssistantTests: XCTestCase {
         XCTAssertEqual(rig.attention.count, 2)
     }
 
+    // MARK: - Voice popup hooks
+
+    func testOnSiteAskedReplacesTheAttentionRequestAndCarriesTheDeadline() {
+        let start = Date(timeIntervalSince1970: 1_000)
+        let assistant = ChatAssistant(apiKey: { "sk" }, transport: MockTransport { _ in (500, Data()) },
+                                      clock: { start }, scheduleTimeout: { _, _ in })
+        var attention = 0
+        var asked: [ChatAssistant.PendingSite] = []
+        assistant.onNeedsAttention = { attention += 1 }
+        assistant.onSiteAsked = { asked.append($0) }
+        assistant.beginSession(subject: "CS128")
+        assistant.askAboutSite(question("www.youtube.com"), subject: "CS128")
+
+        XCTAssertEqual(attention, 0)
+        XCTAssertEqual(asked.map(\.host), ["youtube.com"])
+        XCTAssertEqual(asked.first?.deadline, start.addingTimeInterval(60))
+        XCTAssertEqual(assistant.pending, asked)
+    }
+
+    func testOnAssistantMessageSeesEveryBotLine() async {
+        let rig = makeRig([(200, chatTextBody("Back to work!"))])
+        var said: [String] = []
+        rig.assistant.onAssistantMessage = { said.append($0) }
+        rig.assistant.beginSession(subject: "CS128")
+        rig.assistant.askAboutSite(question("youtube.com", title: ""), subject: "CS128")
+        await rig.assistant.send("nothing")
+        XCTAssertEqual(said.count, 3)
+        XCTAssertEqual(said[1], "You opened youtube.com. How does it help with CS128?")
+        XCTAssertEqual(said[2], "Back to work!")
+    }
+
+    func testCloseSiteNowClosesClearsPendingAndBeatsTheTimeout() {
+        let rig = makeRig()
+        rig.assistant.beginSession(subject: "CS128")
+        rig.assistant.askAboutSite(question("www.youtube.com"), subject: "CS128")
+        rig.assistant.closeSiteNow("youtube.com")
+
+        XCTAssertEqual(rig.sites.closed, ["youtube.com"])
+        XCTAssertTrue(rig.assistant.pending.isEmpty)
+        XCTAssertEqual(rig.assistant.messages.last?.text, "Closed youtube.com")
+        rig.fire()
+        XCTAssertEqual(rig.sites.closed, ["youtube.com"])
+    }
+
+    func testCloseSiteNowForAHostNotAskedAboutDoesNothing() {
+        let rig = makeRig()
+        rig.assistant.beginSession(subject: "CS128")
+        rig.assistant.closeSiteNow("reddit.com")
+        XCTAssertTrue(rig.sites.closed.isEmpty)
+        XCTAssertEqual(rig.assistant.messages.count, 1)
+    }
+
     // MARK: - Timeout
 
     func testUnansweredQuestionClosesTheHostAfterTheTimeout() {
@@ -448,7 +500,7 @@ final class ChatAssistantTests: XCTestCase {
 
         XCTAssertEqual(rig.sites.closed, ["youtube.com"])
         XCTAssertEqual(rig.assistant.messages.last?.role, .notice)
-        XCTAssertEqual(rig.assistant.messages.last?.text, "Closed youtube.com — no answer in 3 minutes")
+        XCTAssertEqual(rig.assistant.messages.last?.text, "Closed youtube.com — no answer in 1 minute")
     }
 
     func testTimeoutFiringTwiceClosesOnlyOnce() {

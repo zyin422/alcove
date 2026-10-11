@@ -1,19 +1,27 @@
 import AppKit
 
+/// One browser window to open at lock-in: its websites (the first is shown, the rest are extra tabs) and where
+/// it goes (nil = wherever the browser puts it).
+struct BrowserWindowPlan: Equatable {
+    var urls: [String]
+    var bounds: ChromeBounds?
+}
+
 @MainActor protocol ChromeControlling: AnyObject {
     /// Called with the closed tab's host (or URL if no host) after each auto-closed tab.
     var onTabClosed: ((String) -> Void)? { get set }
-    /// Launch/activate Chrome, minimize existing windows, open one window per site (sites normalized with
-    /// DomainMatcher.normalizedURL; unparseable sites skipped). bounds[i] applies to sites[i]; when bounds is
-    /// shorter than sites (e.g. no screen), windows without a matching bounds entry are opened without setting bounds.
-    /// A site that still fails after retries (profileNotReady / scriptFailed) does not stop the others from opening.
-    /// Returns nil when every site opened, otherwise the first error; notInstalled / automationDenied abort at once.
-    func prepare(sites: [String], bounds: [ChromeBounds]) async -> ChromeError?
+    /// Launch/activate `browser`, remember and close its existing windows (Arc: its unpinned tabs too), then open
+    /// one window per plan (URLs normalized with DomainMatcher.normalizedURL; unparseable ones skipped, and a plan
+    /// left with none is skipped). The tab watch and the reopening at the end then work on this browser.
+    /// A window that still fails after retries (profileNotReady / scriptFailed) does not stop the others from opening.
+    /// Returns nil when every window opened, otherwise the first error; notInstalled / automationDenied abort at once.
+    func prepare(browser: Browser, windows: [BrowserWindowPlan]) async -> ChromeError?
     /// Starts the 2 s tab poll. Every tab outside `studySites` is judged for relevance to `subject` (the subject's
     /// name, e.g. "CS128") and closed when it is off-task. Replaces any watch already running.
     func startTabWatch(subject: String, studySites: [String])
     func stopTabWatch()
-    func restoreMinimized()
+    /// Opens again the windows `prepare` closed and the tabs the watch closed.
+    func restoreAfterSession()
 }
 
 /// Drives Google Chrome with NSAppleScript (main thread). Never scripts System Events.
@@ -31,21 +39,23 @@ import AppKit
     var onTabClosed: ((String) -> Void)?
     /// The chat assistant that gets the unsure sites. Weak: AppModel owns both ends.
     weak var asker: SiteAsking?
-    private var minimizedIDs: [Int] = []
-    /// Protection keys of the tabs that existed before `prepare` opened the study windows. The tab watch never
-    /// closes them, so the user's own windows (minimized at lock-in, restored at the end) keep their tabs.
-    private var preexistingTabs: Set<String> = []
-    /// Ids of the windows that existed before `prepare`. The tab watch re-minimizes them whenever the user
-    /// un-minimizes one, so their protected tabs cannot be used as a way around the relevance check.
-    private var preexistingWindowIDs: Set<Int> = []
+    /// The browser of the latest `prepare` (Chrome until then).
+    private(set) var browser: Browser = .chrome
+    /// What to open again at the end; mirrored to `rememberedURL` on every change.
+    private(set) var remembered: ClosedBrowserState?
+    private let rememberedURL: URL?
     private var tabTimer: Timer?
 
     private let judge: RelevanceJudging
     private let prompter: NeedPrompting
+    /// Domains closed without asking the judge (`DistractionList.hosts` in the app).
+    private let alwaysBlocked: [String]
     /// Runs an AppleScript source; tests replace it so no real Chrome is needed.
     private let runScript: (String) -> Result<String, ChromeError>
-    /// True when scripts may be sent (a Chrome process exists); tests replace it.
-    private let chromeIsRunning: () -> Bool
+    /// True when scripts may be sent (a browser process exists); tests replace it. nil = the real check.
+    private let browserIsRunningOverride: (() -> Bool)?
+    /// Moves the browser's front window to bounds, for browsers whose windows take no `bounds` (Arc).
+    private let placeFrontWindow: (Browser, ChromeBounds) async -> Void
 
     /// The subject's name from the latest `startTabWatch`, e.g. "CS128".
     private(set) var subjectName = ""
@@ -72,14 +82,32 @@ import AppKit
         !NSRunningApplication.runningApplications(withBundleIdentifier: ChromeScripts.bundleID).isEmpty
     }
 
-    /// `runScript` and `chromeIsRunning` exist for tests (nil = the real Chrome via NSAppleScript).
-    init(judge: RelevanceJudging, prompter: NeedPrompting,
+    /// `runScript` and `chromeIsRunning` exist for tests (nil = the real browser via NSAppleScript).
+    /// `rememberedURL` is where closed windows and tabs are kept until reopened (nil = memory only); a state left
+    /// there by a crash is loaded and reopened by the next `restoreAfterSession`.
+    init(judge: RelevanceJudging, prompter: NeedPrompting, alwaysBlocked: [String] = [],
+         rememberedURL: URL? = nil,
          runScript: ((String) -> Result<String, ChromeError>)? = nil,
-         chromeIsRunning: (() -> Bool)? = nil) {
+         chromeIsRunning: (() -> Bool)? = nil,
+         placeFrontWindow: ((Browser, ChromeBounds) async -> Void)? = nil) {
         self.judge = judge
         self.prompter = prompter
+        self.alwaysBlocked = alwaysBlocked
+        self.rememberedURL = rememberedURL
+        self.remembered = ClosedBrowserState.load(from: rememberedURL)
         self.runScript = runScript ?? { ChromeController.run($0) }
-        self.chromeIsRunning = chromeIsRunning ?? { ChromeController.isRunning }
+        self.browserIsRunningOverride = chromeIsRunning
+        self.placeFrontWindow = placeFrontWindow ?? { browser, bounds in
+            _ = await WindowPlacer.place(bundleID: browser.bundleID, bounds: bounds)
+        }
+    }
+
+    static func isRunning(_ browser: Browser) -> Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: browser.bundleID).isEmpty
+    }
+
+    private func chromeIsRunning() -> Bool {
+        browserIsRunningOverride?() ?? Self.isRunning(browser)
     }
 
     /// Compiles and runs `source`. Error -1743 maps to .automationDenied, every other error to .scriptFailed(message).
@@ -98,42 +126,77 @@ import AppKit
         return .success(output.stringValue ?? "")
     }
 
+    /// Chrome only, one window per site (`bounds[i]` for `sites[i]`, when present).
     func prepare(sites: [String], bounds: [ChromeBounds]) async -> ChromeError? {
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: ChromeScripts.bundleID) else {
+        await prepare(browser: .chrome, windows: sites.enumerated().map { index, site in
+            BrowserWindowPlan(urls: [site], bounds: index < bounds.count ? bounds[index] : nil)
+        })
+    }
+
+    func prepare(browser: Browser, windows: [BrowserWindowPlan]) async -> ChromeError? {
+        self.browser = browser
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleID) else {
             return .notInstalled
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         _ = try? await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
         var waited: TimeInterval = 0
-        while !Self.isRunning && waited < Self.launchTimeout {
+        while !Self.isRunning(browser) && waited < Self.launchTimeout {
             try? await Task.sleep(nanoseconds: 100_000_000)
             waited += 0.1
         }
 
-        switch Self.run(ChromeScripts.minimizeAll) {
-        case .success(let output): minimizedIDs = ChromeScripts.parseIDs(output)
-        case .failure(.automationDenied): return .automationDenied
-        case .failure: minimizedIDs = []   // not fatal: the new windows still open on top
+        switch Self.run(ChromeScripts.listTabs(for: browser)) {
+        case .success(let output):
+            closeExistingWindows(ChromeScripts.parseTabs(output, browser: browser))
+        case .failure(.automationDenied):
+            return .automationDenied
+        case .failure:
+            break   // not fatal: nothing is closed (it could not be remembered), the new windows open on top
         }
-        if case .success(let output) = Self.run(ChromeScripts.listTabs) {
-            let tabs = ChromeScripts.parseTabs(output)
-            preexistingTabs = Set(tabs.map(ChromeScripts.protectionKey))
-            preexistingWindowIDs = Set(tabs.map(\.windowID))
-        } else {
-            preexistingTabs = []
-            preexistingWindowIDs = []
-        }
-        preexistingWindowIDs.formUnion(minimizedIDs)
 
-        var scripts: [String] = []
-        for (index, site) in sites.enumerated() {
-            guard let url = DomainMatcher.normalizedURL(site) else { continue }
-            scripts.append(index < bounds.count
-                ? ChromeScripts.openWindow(url: url.absoluteString, bounds: bounds[index])
-                : ChromeScripts.openWindow(url: url.absoluteString))
+        let plans = Self.openingPlans(browser: browser, windows: windows).map { window in
+            (script: ChromeScripts.openWindow(urls: window.urls, bounds: window.bounds, browser: browser),
+             bounds: window.bounds)
         }
-        return await Self.openAll(scripts) { await self.openWithRetry($0) }
+        var firstError: ChromeError?
+        for plan in plans {
+            let error = await openWithRetry(plan.script)
+            switch error {
+            case nil:
+                if let bounds = plan.bounds, !browser.supportsBounds { await placeFrontWindow(browser, bounds) }
+            case .automationDenied?, .notInstalled?:
+                return error
+            case .profileNotReady?, .scriptFailed?:
+                firstError = firstError ?? error
+            }
+        }
+        return firstError
+    }
+
+    /// The windows to actually open. URLs are normalized ("cs128.org" -> "https://cs128.org") and de-duplicated.
+    /// Arc shows the same tabs in every window of a space, so every website goes in one window; opening a second
+    /// would create another copy of each tab.
+    nonisolated static func openingPlans(browser: Browser, windows: [BrowserWindowPlan]) -> [BrowserWindowPlan] {
+        func normalized(_ urls: [String]) -> [String] {
+            var seen = Set<String>()
+            return urls.compactMap { DomainMatcher.normalizedURL($0)?.absoluteString }.filter { seen.insert($0).inserted }
+        }
+        if browser == .arc {
+            var seen = Set<String>()
+            var urls: [String] = []
+            var bounds: ChromeBounds?
+            for window in windows {
+                if bounds == nil { bounds = window.bounds }
+                for url in normalized(window.urls) where seen.insert(url).inserted { urls.append(url) }
+            }
+            return urls.isEmpty ? [] : [BrowserWindowPlan(urls: urls, bounds: bounds)]
+        }
+        return windows.compactMap { window in
+            let urls = normalized(window.urls)
+            return urls.isEmpty ? nil : BrowserWindowPlan(urls: urls, bounds: window.bounds)
+        }
     }
 
     /// Opens every script's window in order. automationDenied / notInstalled stop immediately; any other error is
@@ -148,6 +211,28 @@ import AppKit
             }
         }
         return firstError
+    }
+
+    /// Remembers the open windows (saved to disk first, so nothing is lost if the app dies right after), then
+    /// closes them. In Arc a closed window's tabs stay in the sidebar, so its unpinned tabs are closed as well;
+    /// pinned tabs are never listed, so they stay.
+    private func closeExistingWindows(_ tabs: [ChromeTab]) {
+        let windows = ClosedBrowserState.windows(from: tabs, browser: browser)
+        let state = ClosedBrowserState(browser: browser, windows: windows, closedTabs: [])
+        if var existing = remembered, existing.browser == browser {
+            existing.merge(state)
+            remember(existing)
+        } else {
+            if let other = remembered { reopen(other) }   // a different browser's leftovers: give them back first
+            remember(state)
+        }
+        if browser == .arc { _ = Self.run(ChromeScripts.closeTabs(tabs, browser: .arc)) }
+        _ = Self.run(ChromeScripts.closeAllWindows(for: browser))
+    }
+
+    private func remember(_ state: ClosedBrowserState?) {
+        remembered = state
+        ClosedBrowserState.save(state, to: rememberedURL)
     }
 
     /// First attempt plus `openRetries` retries, 1 s apart. `make new window` fails until a profile is loaded.
@@ -166,7 +251,7 @@ import AppKit
     func startTabWatch(subject: String, studySites: [String]) {
         stopTabWatch()
         subjectName = subject
-        triage = TabTriage(studySites: studySites, protected: preexistingTabs)
+        triage = TabTriage(studySites: studySites, protected: [], alwaysBlocked: alwaysBlocked)
         let timer = Timer(timeInterval: Self.tabPollInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.pollTabs() }
         }
@@ -186,22 +271,19 @@ import AppKit
         lastTabs = []
     }
 
-    /// One poll: list every tab, close the ones already known to be off-task (by tab id), start a relevance check
-    /// for every tab that needs a verdict, then minimize again any pre-existing window the user brought back.
+    /// One poll: list every tab, close the ones already known to be off-task (by tab id), and start a relevance
+    /// check for every tab that needs a verdict.
     /// Internal (not private) so tests can drive it without the timer.
     func pollTabs() {
         guard chromeIsRunning() else { return }
-        switch runScript(ChromeScripts.listTabs) {
+        switch runScript(ChromeScripts.listTabs(for: browser)) {
         case .success(let output):
-            let tabs = ChromeScripts.parseTabs(output)
+            let tabs = ChromeScripts.parseTabs(output, browser: browser)
             lastTabs = tabs
             closeKnownOffTask(in: tabs)
             for tab in triage.tabsToCheck(tabs) {
                 check(tab)
             }
-            let liveWindowIDs = Set(tabs.map(\.windowID))
-            let strays = preexistingWindowIDs.filter(liveWindowIDs.contains).sorted()
-            if !strays.isEmpty { _ = runScript(ChromeScripts.minimize(windowIDs: strays)) }
         case .failure(.automationDenied):
             stopTabWatch()   // permission revoked mid-session: stop retrying every 2 s
         case .failure:
@@ -219,10 +301,15 @@ import AppKit
     /// Closes the tab by its id and reports its host. False when the script failed.
     @discardableResult
     private func close(_ tab: ChromeTab) -> Bool {
-        guard case .success = runScript(ChromeScripts.closeTab(windowID: tab.windowID, tabID: tab.tabID)) else {
+        guard case .success = runScript(ChromeScripts.closeTab(windowID: tab.windowID, tabID: tab.tabID, browser: browser)) else {
             return false
         }
         lastTabs.removeAll { $0.windowID == tab.windowID && $0.tabID == tab.tabID }
+        if ClosedBrowserState.isReopenable(tab.url) {
+            var state = remembered ?? ClosedBrowserState(browser: browser, windows: [], closedTabs: [])
+            state.closedTabs.append(tab.url)
+            remember(state)
+        }
         onTabClosed?(DomainMatcher.host(of: tab.url) ?? tab.url)
         return true
     }
@@ -230,8 +317,8 @@ import AppKit
     /// Closes the tab only if it is still open at the same address, so a tab the user already closed (or sent
     /// elsewhere) while the verdict was pending is neither counted nor touched.
     private func closeIfStillOpen(_ tab: ChromeTab) {
-        guard chromeIsRunning(), case .success(let output) = runScript(ChromeScripts.listTabs) else { return }
-        let isOpen = ChromeScripts.parseTabs(output).contains {
+        guard chromeIsRunning(), case .success(let output) = runScript(ChromeScripts.listTabs(for: browser)) else { return }
+        let isOpen = ChromeScripts.parseTabs(output, browser: browser).contains {
             $0.windowID == tab.windowID && $0.tabID == tab.tabID && $0.url == tab.url
         }
         if isOpen { close(tab) }
@@ -313,8 +400,8 @@ import AppKit
     func closeHost(_ host: String) {
         guard tabTimer != nil else { return }
         triage.closeHost(host)
-        guard chromeIsRunning(), case .success(let output) = runScript(ChromeScripts.listTabs) else { return }
-        let tabs = ChromeScripts.parseTabs(output)
+        guard chromeIsRunning(), case .success(let output) = runScript(ChromeScripts.listTabs(for: browser)) else { return }
+        let tabs = ChromeScripts.parseTabs(output, browser: browser)
         lastTabs = tabs
         closeKnownOffTask(in: tabs)
     }
@@ -328,14 +415,28 @@ import AppKit
         }
     }
 
-    /// Un-minimizes the windows `prepare` minimized, and stops the tab watch from minimizing them again.
-    func restoreMinimized() {
-        let ids = minimizedIDs
-        minimizedIDs = []
-        preexistingWindowIDs = []
-        guard !ids.isEmpty, Self.isRunning else { return }
-        _ = Self.run(ChromeScripts.restore(windowIDs: ids))
+    /// Opens again the windows `prepare` closed and the tabs the watch closed (also what a crash left on disk),
+    /// skipping pages that are already open, then forgets them.
+    func restoreAfterSession() {
+        guard let state = remembered else { return }
+        remember(nil)
+        reopen(state)
     }
+
+    private func reopen(_ state: ClosedBrowserState) {
+        guard !state.isEmpty else { return }
+        var open = Set<String>()
+        if browserIsRunningOverride?() ?? Self.isRunning(state.browser),
+           case .success(let output) = runScript(ChromeScripts.listTabs(for: state.browser)) {
+            open = Set(ChromeScripts.parseTabs(output, browser: state.browser).map(\.url))
+        }
+        for urls in state.windowsToReopen(alreadyOpen: open) {
+            _ = runScript(ChromeScripts.openWindow(urls: urls, bounds: nil, browser: state.browser))
+        }
+    }
+
+    /// True when a crash left closed windows or tabs that were never reopened.
+    var hasLeftovers: Bool { !(remembered?.isEmpty ?? true) }
 
     /// Runs ChromeScripts.ping (launching Chrome if needed) to trigger the Automation prompt.
     static func requestAccess() -> ChromeError? {

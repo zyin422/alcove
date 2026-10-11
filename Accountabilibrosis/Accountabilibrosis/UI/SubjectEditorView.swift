@@ -1,28 +1,62 @@
+import AppKit
 import SwiftUI
 
-/// Sheet for creating (`subject == nil`) or editing a subject.
+/// Sheet for creating (`subject == nil`) or editing a subject: its windows (websites or apps), their layout
+/// (a preset or a custom layout captured from the screen), the browser, and what happens to other apps.
 struct SubjectEditorView: View {
     let model: AppModel
     private let original: Subject?
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
     @State private var preset: LayoutPreset
-    /// Always at least 2 slots; only the first `preset.siteCount` are shown and saved.
-    @State private var sites: [String]
+    @State private var usesCustomLayout: Bool
+    /// One per zone; always at least 2, only the first `preset.siteCount` are shown and saved.
+    @State private var zoneSlots: [SetupSlot]
+    /// The captured windows of the custom layout, back to front.
+    @State private var customSlots: [SetupSlot]
+    @State private var browser: Browser
+    @State private var unusedApps: UnusedAppsAction
     @State private var allowedApps: [AllowedApp]
     @State private var isPickingApps = false
+    /// The window whose app is being chosen.
+    @State private var choosingAppFor: SlotRef?
+    @State private var captureNote: String?
+    @State private var hasAccessibility = WindowPlacer.isTrusted
+
+    private struct SlotRef: Identifiable {
+        let id: UUID
+    }
 
     init(model: AppModel, subject: Subject?) {
         self.model = model
         self.original = subject
+        let custom = subject?.usesCustomLayout ?? false
         _name = State(initialValue: subject?.name ?? "")
         _preset = State(initialValue: subject?.preset ?? .split)
-        _sites = State(initialValue: SubjectValidator.siteSlots(subject?.sites ?? []))
+        _usesCustomLayout = State(initialValue: custom)
+        _zoneSlots = State(initialValue: SubjectValidator.zoneSlots((custom ? [] : subject?.slots ?? []).map(Self.editable)))
+        _customSlots = State(initialValue: (custom ? subject?.slots ?? [] : []).map(Self.editable))
+        _browser = State(initialValue: subject?.browser ?? .chrome)
+        _unusedApps = State(initialValue: subject?.unusedApps ?? .hide)
         _allowedApps = State(initialValue: subject?.allowedApps ?? [])
     }
 
-    private var visibleSites: [String] { Array(sites.prefix(preset.siteCount)) }
-    private var errors: [String] { SubjectValidator.errors(name: name, sites: visibleSites, preset: preset) }
+    /// Website windows always show at least one address field.
+    private static func editable(_ slot: SetupSlot) -> SetupSlot {
+        var slot = slot
+        if slot.kind == .website && slot.urls.isEmpty { slot.urls = [""] }
+        return slot
+    }
+
+    private var visibleSlots: [SetupSlot] {
+        usesCustomLayout ? customSlots : Array(zoneSlots.prefix(preset.siteCount))
+    }
+    private var errors: [String] {
+        SubjectValidator.errors(name: name, slots: visibleSlots, customLayout: usesCustomLayout)
+    }
+    private var needsAccessibility: Bool {
+        !hasAccessibility && (usesCustomLayout || browser == .arc || visibleSlots.contains { $0.kind == .app })
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -30,8 +64,10 @@ struct SubjectEditorView: View {
                 VStack(alignment: .leading, spacing: Theme.Space.l) {
                     Text(original == nil ? "New subject" : "Edit subject").font(.title2.weight(.semibold))
                     nameSection
-                    presetSection
-                    sitesSection
+                    layoutSection
+                    windowsSection
+                    browserSection
+                    unusedAppsSection
                     appsSection
                 }
                 .padding(Theme.Space.l)
@@ -39,9 +75,15 @@ struct SubjectEditorView: View {
             Divider()
             footer.padding(Theme.Space.l)
         }
-        .frame(width: 600, height: 680)
+        .frame(width: 660, height: 780)
         .sheet(isPresented: $isPickingApps) {
             AppPickerView(selection: $allowedApps)
+        }
+        .sheet(item: $choosingAppFor) { ref in
+            AppPickerView(choosing: { app in update(ref.id) { $0.app = app } })
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            hasAccessibility = WindowPlacer.isTrusted
         }
     }
 
@@ -52,41 +94,223 @@ struct SubjectEditorView: View {
         }
     }
 
-    private var presetSection: some View {
+    // MARK: Layout
+
+    private var layoutSection: some View {
         section("Layout") {
-            HStack(spacing: Theme.Space.m) {
+            HStack(spacing: Theme.Space.s) {
                 ForEach(LayoutPreset.allCases) { option in
-                    Button {
+                    tile(title: option.title, selected: !usesCustomLayout && preset == option) {
+                        PresetThumbnail(preset: option)
+                    } action: {
                         preset = option
-                    } label: {
-                        VStack(spacing: Theme.Space.s) {
-                            PresetThumbnail(preset: option).frame(width: 100)
-                            Text(option.title).font(.caption)
-                        }
-                        .padding(Theme.Space.s)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Theme.radius)
-                                .stroke(Color.primary.opacity(preset == option ? 1 : 0.15),
-                                        lineWidth: preset == option ? 2 : 1)
-                        )
-                        .contentShape(Rectangle())
+                        usesCustomLayout = false
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(preset == option ? .isSelected : [])
+                }
+                tile(title: "Custom", selected: usesCustomLayout) {
+                    CustomLayoutThumbnail(slots: customSlots)
+                } action: {
+                    usesCustomLayout = true
+                }
+            }
+            if usesCustomLayout {
+                HStack(spacing: Theme.Space.m) {
+                    Button(customSlots.isEmpty ? "Capture current windows" : "Capture again") { capture() }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .fixedSize()
+                    Text("Arrange your windows the way you like to work, then capture. The \(SubjectValidator.maxWindows) frontmost windows on your main screen are copied with their position, websites, or app and folder.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let captureNote {
+                    Text(captureNote).font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
     }
 
-    private var sitesSection: some View {
-        section(preset.siteCount == 1 ? "Site" : "Sites") {
-            ForEach(0..<preset.siteCount, id: \.self) { index in
-                TextField(index == 0 ? "e.g. cs128.org" : "e.g. prairielearn.org", text: $sites[index])
-                    .textFieldStyle(.roundedBorder)
+    private func tile<Thumb: View>(title: String, selected: Bool, @ViewBuilder thumbnail: () -> Thumb,
+                                   action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: Theme.Space.s) {
+                thumbnail().frame(width: 92)
+                Text(title).font(.caption)
             }
-            Text(preset.appHasZone
-                 ? "Each site opens in its own Chrome window; this app takes the remaining zone."
-                 : "Each site opens in its own Chrome window; a mini timer floats on top.")
+            .padding(Theme.Space.s)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.radius)
+                    .stroke(Color.primary.opacity(selected ? 1 : 0.15), lineWidth: selected ? 2 : 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func capture() {
+        let captured = WorkspaceCapture.capture()
+        customSlots = captured.slots.map(Self.editable)
+        if let found = captured.browser { browser = found }
+        if captured.slots.isEmpty {
+            captureNote = "No windows found on the main screen."
+        } else if !WindowPlacer.isTrusted && captured.slots.contains(where: { $0.kind == .app }) {
+            captureNote = "Captured \(captured.slots.count) windows. Allow Accessibility to also capture each app's folder."
+        } else {
+            captureNote = "Captured \(captured.slots.count) windows. Check them below."
+        }
+    }
+
+    // MARK: Windows
+
+    private var windowsSection: some View {
+        section(usesCustomLayout ? "Windows (back to front)" : (preset.siteCount == 1 ? "Window" : "Windows, left to right")) {
+            ForEach(Array(visibleSlots.enumerated()), id: \.element.id) { index, slot in
+                slotEditor(slot, number: index + 1)
+            }
+            Text(usesCustomLayout
+                 ? "Each window opens where it was captured; a mini timer floats on top."
+                 : (preset.appHasZone
+                    ? "Each window fills its zone; this app takes the remaining zone."
+                    : "Each window fills its zone; a mini timer floats on top."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if needsAccessibility {
+                HStack(spacing: Theme.Space.s) {
+                    Image(systemName: "hand.raised")
+                    Text("Placing app\(browser == .arc ? " and Arc" : "") windows needs Accessibility permission.")
+                        .font(.caption)
+                    Spacer()
+                    Button("Allow…") {
+                        WindowPlacer.requestAccess()
+                        hasAccessibility = WindowPlacer.isTrusted
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .fixedSize()
+                }
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func slotEditor(_ slot: SetupSlot, number: Int) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            HStack {
+                Text("Window \(number)").font(.callout.weight(.semibold))
+                Picker("", selection: kindBinding(slot.id)) {
+                    Text("Website").tag(SetupSlot.Kind.website)
+                    Text("App").tag(SetupSlot.Kind.app)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 160)
+                Spacer()
+                if usesCustomLayout {
+                    Button {
+                        customSlots.removeAll { $0.id == slot.id }
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Remove this window")
+                }
+            }
+            switch slot.kind {
+            case .website: websiteFields(slot)
+            case .app: appFields(slot)
+            }
+        }
+        .padding(Theme.Space.m)
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15)))
+    }
+
+    private func websiteFields(_ slot: SetupSlot) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            ForEach(slot.urls.indices, id: \.self) { index in
+                HStack {
+                    TextField(index == 0 ? "e.g. cs128.org" : "Extra tab, e.g. prairielearn.org",
+                              text: urlBinding(slot.id, index))
+                        .textFieldStyle(.roundedBorder)
+                    if index > 0 {
+                        Button {
+                            update(slot.id) { if index < $0.urls.count { $0.urls.remove(at: index) } }
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Remove this tab")
+                    }
+                }
+            }
+            Button("Add tab") { update(slot.id) { $0.urls.append("") } }
+                .buttonStyle(.borderless)
+                .font(.caption)
+        }
+    }
+
+    private func appFields(_ slot: SetupSlot) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            HStack(spacing: Theme.Space.s) {
+                if let app = slot.app {
+                    AppIcon(bundleID: app.bundleID).frame(width: 22, height: 22)
+                    Text(app.name)
+                } else {
+                    Text("No app chosen").foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(slot.app == nil ? "Choose app…" : "Change…") { choosingAppFor = SlotRef(id: slot.id) }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .fixedSize()
+            }
+            HStack(spacing: Theme.Space.s) {
+                TextField("Folder to open (optional), e.g. ~/code/cs128", text: folderBinding(slot.id))
+                    .textFieldStyle(.roundedBorder)
+                Button("Choose…") { chooseFolder(for: slot.id) }
+                    .buttonStyle(.borderless)
+            }
+        }
+    }
+
+    private func chooseFolder(for id: UUID) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose"
+        panel.message = "The folder (or file) the app opens when you lock in"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        update(id) { $0.folder = (url.path as NSString).abbreviatingWithTildeInPath }
+    }
+
+    // MARK: Browser and other apps
+
+    private var browserSection: some View {
+        section("Browser for websites") {
+            Picker("", selection: $browser) {
+                ForEach(Browser.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 280)
+            if NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleID) == nil {
+                Text("\(browser.title) isn't installed on this Mac.").font(.caption).foregroundStyle(.secondary)
+            } else if browser == .arc {
+                Text("Pinned Arc tabs are left alone; new tabs are checked like in Chrome.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var unusedAppsSection: some View {
+        section("Other apps while locked in") {
+            Picker("", selection: $unusedApps) {
+                ForEach(UnusedAppsAction.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 280)
+            Text(unusedApps == .quit
+                 ? "Apps the setup doesn't use are asked to quit (they can ask to save first) and open again when the session ends. Finder, Terminal, Xcode and Cursor are only hidden."
+                 : "Apps the setup doesn't use are hidden and shown again when the session ends.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -95,7 +319,7 @@ struct SubjectEditorView: View {
     private var appsSection: some View {
         section("Allowed apps") {
             if allowedApps.isEmpty {
-                Text("None. Only Google Chrome and Finder stay available.")
+                Text("None. Only \(browser.title), Finder and the setup's own apps stay available.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
@@ -146,15 +370,57 @@ struct SubjectEditorView: View {
         }
     }
 
+    // MARK: Slot bindings
+
+    /// Edits the slot with this id, in whichever list holds it.
+    private func update(_ id: UUID, _ change: (inout SetupSlot) -> Void) {
+        if let index = customSlots.firstIndex(where: { $0.id == id }) {
+            change(&customSlots[index])
+        } else if let index = zoneSlots.firstIndex(where: { $0.id == id }) {
+            change(&zoneSlots[index])
+        }
+    }
+
+    private func slot(_ id: UUID) -> SetupSlot? {
+        customSlots.first { $0.id == id } ?? zoneSlots.first { $0.id == id }
+    }
+
+    private func kindBinding(_ id: UUID) -> Binding<SetupSlot.Kind> {
+        Binding(get: { slot(id)?.kind ?? .website }, set: { kind in
+            update(id) { slot in
+                slot.kind = kind
+                if kind == .website && slot.urls.isEmpty { slot.urls = [""] }
+            }
+        })
+    }
+
+    private func urlBinding(_ id: UUID, _ index: Int) -> Binding<String> {
+        Binding(get: {
+            guard let urls = slot(id)?.urls, index < urls.count else { return "" }
+            return urls[index]
+        }, set: { text in
+            update(id) { if index < $0.urls.count { $0.urls[index] = text } }
+        })
+    }
+
+    private func folderBinding(_ id: UUID) -> Binding<String> {
+        Binding(get: { slot(id)?.folder ?? "" }, set: { text in update(id) { $0.folder = text } })
+    }
+
     private func save() {
         guard errors.isEmpty else { return }
+        let slots = SubjectValidator.slotsForSave(visibleSlots)
         let subject = Subject(id: original?.id ?? UUID(),
                               name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                               preset: preset,
-                              sites: SubjectValidator.sitesForSave(visibleSites, preset: preset),
+                              sites: SubjectValidator.sites(of: slots),
                               allowedApps: allowedApps,
                               extraDomains: original?.extraDomains ?? [],   // deprecated: kept so old data survives
-                              createdAt: original?.createdAt ?? Date())
+                              createdAt: original?.createdAt ?? Date(),
+                              slots: slots,
+                              usesCustomLayout: usesCustomLayout,
+                              browser: browser,
+                              unusedApps: unusedApps)
         if original == nil {
             model.addSubject(subject)
         } else {

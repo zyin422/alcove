@@ -8,6 +8,9 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: $model.selection) {
+            Section {
+                Label("Today", systemImage: "checklist").tag(SidebarItem.today)
+            }
             Section("Subjects") {
                 if model.data.subjects.isEmpty {
                     Text("No subjects yet. Add one to lock in.")

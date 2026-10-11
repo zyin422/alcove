@@ -25,12 +25,18 @@ struct RootView: View {
             }
         }
         .sheet(item: $summary) { ended in
-            SessionSummaryView(session: ended)
+            SessionSummaryView(model: model, session: ended)
+        }
+        .sheet(isPresented: Binding(get: { model.isWrappingUpDay && !model.engine.isLocked && summary == nil },
+                                    set: { if !$0 { model.isWrappingUpDay = false } })) {
+            EndOfDayView(model: model)
         }
     }
 
     @ViewBuilder private var detail: some View {
         switch model.selection {
+        case .today:
+            TodayView(model: model)
         case .subject(let id):
             if let subject = model.subject(id: id) {
                 SubjectDetailView(model: model, subject: subject)

@@ -79,6 +79,12 @@ struct ChatView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, Theme.Space.s)
+                if voice.needsDictation {
+                    Button("Open Dictation settings") { NSWorkspace.shared.open(VoiceInput.dictationSettingsURL) }
+                        .buttonStyle(.link)
+                        .font(.system(size: 11))
+                        .padding(.horizontal, Theme.Space.s)
+                }
             }
             HStack(spacing: Theme.Space.s) {
                 TextField("Message…", text: fieldBinding)

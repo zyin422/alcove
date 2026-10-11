@@ -88,10 +88,27 @@ struct ChatCompletionRequest: Encodable, Equatable {
     var tools: [ChatToolDefinition]?
     var temperature: Double
     var maxTokens: Int
+    /// `"json_object"` when the reply must be one JSON object. Omitted otherwise, so it is not sent as null.
+    var responseFormat: ResponseFormat?
+
+    struct ResponseFormat: Encodable, Equatable {
+        var type = "json_object"
+    }
 
     enum CodingKeys: String, CodingKey {
         case model, messages, tools, temperature
         case maxTokens = "max_tokens"
+        case responseFormat = "response_format"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(model, forKey: .model)
+        try container.encode(messages, forKey: .messages)
+        try container.encodeIfPresent(tools, forKey: .tools)
+        try container.encode(temperature, forKey: .temperature)
+        try container.encode(maxTokens, forKey: .maxTokens)
+        try container.encodeIfPresent(responseFormat, forKey: .responseFormat)
     }
 }
 
@@ -113,12 +130,15 @@ final class OpenAIChatClient {
     }
 
     /// One round trip. Throws `ChatClientError` (http, decoding, transport).
-    func complete(messages: [ChatWireMessage], tools: [ChatToolDefinition]) async throws -> ChatCompletion {
+    /// `json` asks for a single JSON object (`response_format`). The prompt must mention JSON.
+    func complete(messages: [ChatWireMessage], tools: [ChatToolDefinition], maxTokens: Int? = nil,
+                  json: Bool = false) async throws -> ChatCompletion {
         let body: Data
         do {
             body = try JSONEncoder().encode(ChatCompletionRequest(
                 model: Self.model, messages: messages, tools: tools.isEmpty ? nil : tools,
-                temperature: Self.temperature, maxTokens: Self.maxTokens))
+                temperature: Self.temperature, maxTokens: maxTokens ?? Self.maxTokens,
+                responseFormat: json ? .init() : nil))
         } catch {
             throw ChatClientError.decoding
         }

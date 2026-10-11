@@ -3,7 +3,7 @@ import XCTest
 
 final class TabTriageTests: XCTestCase {
     private func tab(_ url: String, window: Int = 1, index: Int = 1, id: Int = 1, title: String = "") -> ChromeTab {
-        ChromeTab(windowID: window, tabIndex: index, tabID: id, title: title, url: url)
+        ChromeTab(windowID: ScriptID(window), tabIndex: index, tabID: ScriptID(id), title: title, url: url)
     }
 
     private func makeTriage(sites: [String] = ["https://cs128.org/schedule"], protected: Set<String> = []) -> TabTriage {
@@ -286,5 +286,59 @@ final class TabTriageTests: XCTestCase {
         triage.record(url: page.url, verdict: .offTask)
         triage.recordAnswer(host: "example.org", needed: true)
         XCTAssertFalse(triage.shouldCloseImmediately(page))
+    }
+
+    // MARK: Always-blocked sites
+
+    private func blockingTriage(sites: [String] = ["https://cs128.org/schedule"], protected: Set<String> = []) -> TabTriage {
+        TabTriage(studySites: sites, protected: protected, alwaysBlocked: DistractionList.hosts)
+    }
+
+    func testGmailAndOtherDistractionsCloseWithoutAVerdict() {
+        var triage = blockingTriage()
+        let tabs = [tab("https://mail.google.com/mail/u/0/#inbox", id: 1), tab("https://www.instagram.com/", id: 2),
+                    tab("https://m.youtube.com/watch?v=1", id: 3), tab("https://www.amazon.com/dp/x", id: 4),
+                    tab("https://www.netflix.com/browse", id: 5)]
+        XCTAssertEqual(triage.tabsToCheck(tabs), [])
+        for page in tabs {
+            XCTAssertTrue(triage.shouldCloseImmediately(page), page.url)
+        }
+    }
+
+    func testPreexistingBlockedTabIsClosedButOtherPreexistingTabsAreLeftAlone() {
+        let gmail = tab("https://mail.google.com/mail/u/0/", id: 1)
+        let docs = tab("https://example.org/notes", id: 2)
+        let triage = blockingTriage(protected: [ChromeScripts.protectionKey(gmail), ChromeScripts.protectionKey(docs)])
+        XCTAssertTrue(triage.shouldCloseImmediately(gmail))
+        XCTAssertFalse(triage.shouldCloseImmediately(docs))
+    }
+
+    func testStudySiteOnABlockedDomainIsKept() {
+        var triage = blockingTriage(sites: ["https://www.youtube.com/@cs128"])
+        let lecture = tab("https://www.youtube.com/watch?v=lecture", id: 1)
+        XCTAssertFalse(triage.shouldCloseImmediately(lecture))
+        XCTAssertEqual(triage.tabsToCheck([lecture]), [])
+    }
+
+    func testHostTheUserSaidIsNeededBeatsTheBlockList() {
+        var triage = blockingTriage()
+        triage.allowHost("youtube.com")
+        XCTAssertFalse(triage.shouldCloseImmediately(tab("https://www.youtube.com/watch?v=1")))
+    }
+
+    func testExceptionsAndLookalikesAreJudgedNormally() {
+        var triage = blockingTriage()
+        let aws = tab("https://aws.amazon.com/s3/", id: 1)
+        let lookalike = tab("https://notyoutube.com/", id: 2)
+        let google = tab("https://docs.google.com/document/d/1", id: 3)
+        XCTAssertFalse(triage.shouldCloseImmediately(aws))
+        XCTAssertFalse(triage.shouldCloseImmediately(lookalike))
+        XCTAssertFalse(triage.shouldCloseImmediately(google))
+        XCTAssertEqual(triage.tabsToCheck([aws, lookalike, google]), [aws, lookalike, google])
+    }
+
+    func testWithoutABlockListNothingIsClosedUpFront() {
+        let triage = makeTriage()
+        XCTAssertFalse(triage.shouldCloseImmediately(tab("https://mail.google.com/", id: 1)))
     }
 }

@@ -75,6 +75,7 @@ struct LockedView: View {
     let model: AppModel
     @State private var isConfirmingEnd = false
     @State private var isShowingGiveUp = false
+    @State private var isShowingMirror = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -107,6 +108,9 @@ struct LockedView: View {
         .sheet(isPresented: $isShowingGiveUp) {
             GiveUpSheet(model: model)
         }
+        .sheet(isPresented: $isShowingMirror) {
+            MirrorSheet(model: model)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .accountabilibrosisRequestEnd)) { _ in
             endTapped()
         }
@@ -120,6 +124,7 @@ struct LockedView: View {
         return VStack(alignment: .leading, spacing: Theme.Space.m) {
             subjectCaption(engine: engine)
             timerText(engine: engine, width: contentWidth)
+            breakLine(engine: engine)
             goalBlock(engine: engine, barWidth: nil)
             countersText(engine: engine)
             Spacer(minLength: Theme.Space.m)
@@ -136,6 +141,7 @@ struct LockedView: View {
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 subjectCaption(engine: engine)
                 timerText(engine: engine, width: max(0, width / 2 - Theme.Space.m))
+                breakLine(engine: engine)
                 goalBlock(engine: engine, barWidth: 160)
             }
             Spacer(minLength: Theme.Space.s)
@@ -203,11 +209,24 @@ struct LockedView: View {
             .buttonStyle(SecondaryButtonStyle())
     }
 
-    /// Goal mode before the goal needs the give-up phrase; everything else just confirms.
+    @ViewBuilder private func breakLine(engine: SessionEngine) -> some View {
+        if let remaining = engine.breakRemaining {
+            Text("Break \(TimeFormat.clockFull(remaining))")
+                .font(Theme.captionFont)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+    }
+
+    /// Goal mode before the goal opens the Mirror when an API key is set, and the give-up phrase otherwise.
     /// Shared by the End button and the mini timer's ✕.
     private func endTapped() {
         if model.engine.needsGiveUpPhrase {
-            isShowingGiveUp = true
+            if model.hasMirror {
+                isShowingMirror = true
+            } else {
+                isShowingGiveUp = true
+            }
         } else {
             isConfirmingEnd = true
         }

@@ -5,7 +5,7 @@ import Observation
 /// and allows/closes sites through tool calls. All local texts (greetings, site questions) cost no API call.
 @Observable @MainActor final class ChatAssistant: SiteAsking {
     /// How long an unsure site waits for the user's answer before it is closed.
-    static let defaultSiteTimeout: TimeInterval = 180
+    static let defaultSiteTimeout: TimeInterval = 60
     /// Tool-call rounds per user message; after that the model is asked for plain text only.
     static let maxToolRounds = 3
     /// Newest history messages sent to the model with each request.
@@ -17,8 +17,16 @@ import Observation
     private(set) var isThinking = false
     /// Chrome, for allow/close tool calls. Set by AppModel.
     @ObservationIgnored weak var sites: SiteVerdictReceiving?
-    /// Called when the assistant needs the user's attention (unsure site, wake greeting): bring up the chat screen.
+    /// Called when the assistant needs the user's attention (wake greeting, and unsure sites when `onSiteAsked`
+    /// is not set): bring up the chat screen.
     @ObservationIgnored var onNeedsAttention: (() -> Void)?
+    /// Called right after the assistant asks about a new site (the voice popup takes over from the chat screen).
+    @ObservationIgnored var onSiteAsked: ((PendingSite) -> Void)?
+    /// Called with the text of every new bot message (the voice popup reads them aloud).
+    @ObservationIgnored var onAssistantMessage: ((String) -> Void)?
+
+    /// Sites waiting for the user's answer, oldest first.
+    private(set) var pending: [PendingSite] = []
 
     @ObservationIgnored private let apiKey: () -> String?
     @ObservationIgnored private let transport: HTTPTransport
@@ -27,16 +35,17 @@ import Observation
     @ObservationIgnored private let scheduleTimeout: (TimeInterval, @escaping @MainActor () -> Void) -> Void
 
     /// A site question waiting for the user's answer.
-    private struct PendingSite {
+    struct PendingSite: Equatable {
         let host: String
         let title: String
         let relevance: Double
+        /// When the site is closed if nobody answered.
+        let deadline: Date
     }
 
     @ObservationIgnored private var subject = ""
     /// What the model sees (no system message): user / assistant (with tool calls) / tool results.
     @ObservationIgnored private var history: [ChatWireMessage] = []
-    @ObservationIgnored private var pending: [PendingSite] = []
     /// Every host asked about or decided this session (pending included): asked at most once.
     @ObservationIgnored private var handledHosts: Set<String> = []
     /// Bumped by beginSession / endSession; late timeouts and late replies of an old session do nothing.
@@ -87,7 +96,9 @@ import Observation
         guard !host.isEmpty, !handledHosts.contains(host) else { return }
         handledHosts.insert(host)
         let title = Self.clean(question.title, limit: 80)
-        pending.append(PendingSite(host: host, title: title, relevance: question.relevance))
+        let site = PendingSite(host: host, title: title, relevance: question.relevance,
+                               deadline: clock().addingTimeInterval(siteAnswerTimeout))
+        pending.append(site)
 
         let shown = title.isEmpty ? host : "\(host) (“\(title)”)"
         appendAssistant("You opened \(shown). How does it help with \(Self.clean(subject))?", remember: true)
@@ -96,7 +107,21 @@ import Observation
         scheduleTimeout(siteAnswerTimeout) { [weak self] in
             self?.expire(host: host, session: session)
         }
-        onNeedsAttention?()
+        if let onSiteAsked {
+            onSiteAsked(site)
+        } else {
+            onNeedsAttention?()
+        }
+    }
+
+    /// The user closed the site from the voice popup without explaining.
+    func closeSiteNow(_ host: String) {
+        let host = Self.normalizeHost(host)
+        guard let index = pending.firstIndex(where: { $0.host == host }) else { return }
+        pending.remove(at: index)
+        sites?.closeHost(host)
+        appendNotice("Closed \(host)")
+        history.append(.assistant("The user closed \(host) themselves."))
     }
 
     /// Nobody answered in time: close the site.
@@ -282,6 +307,7 @@ import Observation
     private func appendAssistant(_ text: String, remember: Bool = false) {
         append(ChatMessage(role: .assistant, text: text, date: clock()))
         if remember { history.append(.assistant(text)) }
+        onAssistantMessage?(text)
     }
 
     private func appendNotice(_ text: String) {

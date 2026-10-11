@@ -10,6 +10,8 @@ struct TabTriage {
     private let studyDomains: [String]
     /// Protection keys (`ChromeScripts.protectionKey`) of tabs that existed before the session started.
     private let protected: Set<String>
+    /// Domains closed without a verdict (`DistractionList.hosts` in production), protected tabs included.
+    private let alwaysBlocked: [String]
 
     /// URLs judged relevant: kept.
     private var keptURLs: Set<String> = []
@@ -26,9 +28,10 @@ struct TabTriage {
     /// Hosts the user answered "Close tab" for (or the assistant closed): every tab on them is closed for the session.
     private var closedHosts: Set<String> = []
 
-    init(studySites: [String], protected: Set<String>) {
+    init(studySites: [String], protected: Set<String>, alwaysBlocked: [String] = []) {
         self.studyDomains = DomainMatcher.allowedDomains(sites: studySites, extra: [])
         self.protected = protected
+        self.alwaysBlocked = alwaysBlocked.map(DomainMatcher.normalize)
     }
 
     /// Tabs that need a relevance verdict now, in the given order. Skips Chrome internals, blank and
@@ -37,7 +40,7 @@ struct TabTriage {
     mutating func tabsToCheck(_ tabs: [ChromeTab]) -> [ChromeTab] {
         var result: [ChromeTab] = []
         for tab in tabs {
-            guard isCandidate(tab),
+            guard isCandidate(tab), !isAlwaysBlocked(tab),
                   !keptURLs.contains(tab.url), !closeURLs.contains(tab.url),
                   !inFlightURLs.contains(tab.url), !awaitingPromptURLs.contains(tab.url),
                   !awaitingAssistantURLs.contains(tab.url), !isHostAnswered(tab) else { continue }
@@ -61,14 +64,24 @@ struct TabTriage {
         }
     }
 
-    /// True when the tab can be closed without another check: its URL was judged off-task, or the user said
-    /// "Close tab" for its host. Never true for study sites, Chrome internals, protected tabs or hosts the
-    /// user said are needed.
+    /// True when the tab can be closed without another check: its host is always blocked, its URL was judged
+    /// off-task, or the user said "Close tab" for its host. Never true for study sites, Chrome internals or hosts
+    /// the user said are needed; protected pre-existing tabs are only closed when always blocked.
     func shouldCloseImmediately(_ tab: ChromeTab) -> Bool {
-        guard isCandidate(tab) else { return false }
         guard let host = DomainMatcher.host(of: tab.url) else { return false }
         if neededHosts.contains(host) { return false }
+        if isAlwaysBlocked(tab) { return true }
+        guard isCandidate(tab) else { return false }
         return closeURLs.contains(tab.url) || closedHosts.contains(host)
+    }
+
+    /// An http(s) tab on an always-blocked domain that is not one of the study sites.
+    func isAlwaysBlocked(_ tab: ChromeTab) -> Bool {
+        guard !alwaysBlocked.isEmpty,
+              !DomainMatcher.isAllowed(tab.url, allowed: studyDomains),
+              let host = DomainMatcher.host(of: tab.url),
+              !DistractionList.matches(host, any: DistractionList.exceptions) else { return false }
+        return DistractionList.matches(host, any: alwaysBlocked)
     }
 
     /// Stores the user's answer for `host`. A newer answer replaces an older one.
