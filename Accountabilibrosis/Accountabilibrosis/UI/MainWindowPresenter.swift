@@ -34,13 +34,17 @@ import AppKit
         }
     }
 
-    /// Mini timer click: shows the main window (900x600, centered) with LockedView in front.
+    /// Brings the locked-in main window (the chat screen) to the front. Does nothing unless a session is locked in,
+    /// so a late assistant message or a wake-up can never pop the window up afterwards.
+    /// Mini timer click (and the assistant needing the user while only the mini timer shows): the window is
+    /// centered at 900x600. When the window already sits in its app zone (no mini timer), it only comes forward.
     func showMainWindow() {
+        guard model.engine.isLocked else { return }
         guard let window = lockedWindow ?? Self.visibleMainWindow() else {
             NSApp.activate()
             return
         }
-        if let visible = ScreenGeometry.mainVisibleFrame() {
+        if panel != nil, let visible = ScreenGeometry.mainVisibleFrame() {
             window.setFrame(LockedLayout.centeredFrame(size: LockedLayout.windowSize, in: visible), display: true)
         }
         bringToFront(window)

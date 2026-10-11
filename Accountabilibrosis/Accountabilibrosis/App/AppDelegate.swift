@@ -6,6 +6,7 @@ import AppKit
 
     private var storedModel: AppModel?
     private var presenter: MainWindowPresenter?
+    private var wakeObserver: NSObjectProtocol?
 
     /// Created lazily on first access (never during tests).
     var model: AppModel {
@@ -15,12 +16,19 @@ import AppKit
         return created
     }
 
-    /// Creates MainWindowPresenter(model:), retains it, assigns model.engine.presenter. No-op under tests.
+    /// Creates MainWindowPresenter(model:), retains it, assigns model.engine.presenter, lets the assistant bring the
+    /// chat screen forward (model.onShowChat) and welcomes the user back when the Mac wakes during a lock-in.
+    /// No-op under tests.
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard !Self.isRunningTests else { return }
         let presenter = MainWindowPresenter(model: model)
         self.presenter = presenter
         model.engine.presenter = presenter
+        model.onShowChat = { [weak presenter] in presenter?.showMainWindow() }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.storedModel?.systemDidWake() }
+        }
     }
 
     /// model.engine.terminateNow() then model.save(). No-op under tests.
