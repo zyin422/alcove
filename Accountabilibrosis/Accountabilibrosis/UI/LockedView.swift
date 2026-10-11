@@ -13,7 +13,26 @@ enum LockedLayout {
     /// Size of the main window when it is brought up from the mini timer.
     static let windowSize = CGSize(width: 900, height: 600)
 
-    /// Giant timer font size for the space it gets: min(width / 5, height * 0.42), never below 1 pt.
+    /// Window width below which the session info stacks on top of the chat instead of sitting beside it.
+    static let stackedBelowWidth: CGFloat = 640
+    /// Width of the session info pane beside the chat.
+    static let sidePaneWidth: CGFloat = 280
+    /// Smallest the chat column may get beside the info pane.
+    static let chatMinWidth: CGFloat = 360
+    /// Largest timer size in the info pane.
+    static let sideTimerMaxFontSize: CGFloat = 44
+
+    /// True when a window of `width` is too narrow for chat and info side by side.
+    static func isStacked(width: CGFloat) -> Bool {
+        width < stackedBelowWidth
+    }
+
+    /// Timer size for an info pane `paneWidth` wide (content width): 44 pt, smaller when the pane is narrow.
+    static func sideTimerFontSize(paneWidth: CGFloat) -> CGFloat {
+        min(sideTimerMaxFontSize, timerFontSize(for: CGSize(width: paneWidth, height: 200)))
+    }
+
+    /// Timer font size for the space it gets: min(width / 5, height * 0.42), never below 1 pt.
     static func timerFontSize(for size: CGSize) -> CGFloat {
         let fitted = min(size.width / 5.0, size.height * 0.42)
         guard fitted.isFinite else { return 1 }
@@ -48,36 +67,33 @@ enum LockedLayout {
     }
 }
 
-/// Giant timer screen shown in the main window while locked: subject, timer, goal progress,
-/// counters and the End button. It re-renders every tick because it reads `engine.now`
-/// (through `elapsed`/`remaining`). The mini timer's ✕ starts the same end flow as the End button.
+/// Chat screen shown in the main window while locked: the conversation with the study buddy on the left, a
+/// compact session pane (subject, timer, goal progress, counters, End) on the right. Below 640 pt of width the
+/// pane stacks on top of the chat. It re-renders every tick because it reads `engine.now` (through
+/// `elapsed`/`remaining`). The mini timer's ✕ starts the same end flow as the End button.
 struct LockedView: View {
     let model: AppModel
     @State private var isConfirmingEnd = false
     @State private var isShowingGiveUp = false
 
     var body: some View {
-        let engine = model.engine
-        VStack(spacing: Theme.Space.l) {
-            Text(engine.session?.subjectName ?? "")
-                .font(Theme.captionFont)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            GeometryReader { proxy in
-                timerBlock(engine: engine, size: proxy.size)
+        GeometryReader { proxy in
+            let stacked = LockedLayout.isStacked(width: proxy.size.width)
+            // AnyLayout keeps the chat's identity (typed text, open microphone) when the window crosses the breakpoint.
+            let layout = stacked ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
+            layout {
+                if stacked {
+                    stackedInfo(engine: model.engine, width: proxy.size.width)
+                    separator(stacked: true)
+                }
+                ChatView(assistant: model.assistant)
+                    .frame(minWidth: stacked ? nil : LockedLayout.chatMinWidth, maxWidth: .infinity, maxHeight: .infinity)
+                if !stacked {
+                    separator(stacked: false)
+                    sideInfo(engine: model.engine)
+                }
             }
-
-            Text(LockedLayout.countersText(blocked: engine.session?.blockedAttempts ?? 0,
-                                           tabs: engine.session?.closedTabs ?? 0))
-                .font(.system(size: 13, weight: .medium))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-
-            Button("End") { endTapped() }
-                .buttonStyle(SecondaryButtonStyle())
         }
-        .padding(Theme.Space.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.lockBackground)
         .confirmationDialog("End this session?", isPresented: $isConfirmingEnd, titleVisibility: .visible) {
@@ -96,28 +112,95 @@ struct LockedView: View {
         }
     }
 
-    /// Timer sized to the available space, plus the goal progress line and caption in goal mode.
-    private func timerBlock(engine: SessionEngine, size: CGSize) -> some View {
-        VStack(spacing: Theme.Space.m) {
-            Text(TimeFormat.clockFull(engine.remaining ?? engine.elapsed))
-                .font(Theme.timerFont(size: LockedLayout.timerFontSize(for: size)))
-                .lineLimit(1)
-                .minimumScaleFactor(0.2)
-            if let goal = engine.session?.mode.goalSeconds {
-                let barWidth = size.width * 0.6
-                ZStack(alignment: .leading) {
-                    Rectangle().fill(Color.primary.opacity(0.15))
-                    Rectangle()
-                        .fill(Color.primary)
-                        .frame(width: barWidth * LockedLayout.progress(elapsed: engine.elapsed, goal: goal))
-                }
-                .frame(width: barWidth, height: 2)
+    // MARK: Session info
+
+    /// Right pane beside the chat: subject, timer, goal progress, counters and End, top to bottom.
+    private func sideInfo(engine: SessionEngine) -> some View {
+        let contentWidth = LockedLayout.sidePaneWidth - 2 * Theme.Space.l
+        return VStack(alignment: .leading, spacing: Theme.Space.m) {
+            subjectCaption(engine: engine)
+            timerText(engine: engine, width: contentWidth)
+            goalBlock(engine: engine, barWidth: nil)
+            countersText(engine: engine)
+            Spacer(minLength: Theme.Space.m)
+            endButton
+        }
+        .padding(Theme.Space.l)
+        .frame(width: LockedLayout.sidePaneWidth)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    /// Narrow window: the same information as a compact band above the chat.
+    private func stackedInfo(engine: SessionEngine, width: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: Theme.Space.m) {
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                subjectCaption(engine: engine)
+                timerText(engine: engine, width: max(0, width / 2 - Theme.Space.m))
+                goalBlock(engine: engine, barWidth: 160)
+            }
+            Spacer(minLength: Theme.Space.s)
+            VStack(alignment: .trailing, spacing: Theme.Space.s) {
+                countersText(engine: engine)
+                endButton
+            }
+        }
+        .padding(Theme.Space.m)
+    }
+
+    private func separator(stacked: Bool) -> some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.12))
+            .frame(width: stacked ? nil : 1, height: stacked ? 1 : nil)
+    }
+
+    private func subjectCaption(engine: SessionEngine) -> some View {
+        Text(engine.session?.subjectName ?? "")
+            .font(Theme.captionFont)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+    }
+
+    private func timerText(engine: SessionEngine, width: CGFloat) -> some View {
+        Text(TimeFormat.clockFull(engine.remaining ?? engine.elapsed))
+            .font(Theme.timerFont(size: LockedLayout.sideTimerFontSize(paneWidth: width)))
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+    }
+
+    /// Goal progress line and "goal 50m" caption, only in goal mode. `barWidth` nil = as wide as the pane.
+    @ViewBuilder private func goalBlock(engine: SessionEngine, barWidth: CGFloat?) -> some View {
+        if let goal = engine.session?.mode.goalSeconds {
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.15))
+                    .frame(width: barWidth, height: 2)
+                    .frame(maxWidth: barWidth == nil ? .infinity : nil)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { bar in
+                            Rectangle()
+                                .fill(Color.primary)
+                                .frame(width: bar.size.width * LockedLayout.progress(elapsed: engine.elapsed, goal: goal))
+                        }
+                    }
                 Text(LockedLayout.goalCaption(goalSeconds: goal))
                     .font(Theme.captionFont)
                     .foregroundStyle(.secondary)
             }
         }
-        .frame(width: size.width, height: size.height)
+    }
+
+    private func countersText(engine: SessionEngine) -> some View {
+        Text(LockedLayout.countersText(blocked: engine.session?.blockedAttempts ?? 0,
+                                       tabs: engine.session?.closedTabs ?? 0))
+            .font(.system(size: 13, weight: .medium))
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var endButton: some View {
+        Button("End") { endTapped() }
+            .buttonStyle(SecondaryButtonStyle())
     }
 
     /// Goal mode before the goal needs the give-up phrase; everything else just confirms.

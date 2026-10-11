@@ -51,6 +51,8 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Accountabilibrosis
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_NSAppleEventsUsageDescription: "Accountabilibrosis opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Accountabilibrosis listens when you press the mic so you can talk to your study buddy."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Your speech is turned into text on this Mac so you can talk to your study buddy."
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         COMBINE_HIDPI_IMAGES: YES
