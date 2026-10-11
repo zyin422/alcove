@@ -46,6 +46,7 @@
 		57550C92769C7A5ED7D876FB /* AppCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4776DA96DF580974B5614122 /* AppCatalogTests.swift */; };
 		5A709BEBF01679E8F6B5DFE7 /* LayoutEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC9D02C81DB9DBE75C64DEB /* LayoutEngineTests.swift */; };
 		5B54E967389C86D4EDB35845 /* LockedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D441ACC6C39537AECDB6B5 /* LockedView.swift */; };
+		5E81AEDFE346C706595CFF9E /* VoiceInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 891A269C09FD03B3B4E6A148 /* VoiceInputTests.swift */; };
 		639FE63C5191A0F2280AE66C /* Subject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52AD65B7C2B5AD2E83761B3C /* Subject.swift */; };
 		65C3F0DDB5C05CAE5942B99F /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D23D9E84FC83FF697ECC652B /* Keychain.swift */; };
 		65FF8795D2BD400804C258DC /* StatsFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC86FC2B606251622D85DFD6 /* StatsFormatting.swift */; };
@@ -65,6 +66,7 @@
 		7F57249986D9791245B646C7 /* DecisionsClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86AF26AD35B959BC95A24A33 /* DecisionsClient.swift */; };
 		7F8D10FAC925A59DFD7A125A /* SubjectEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB624FDDE4DBC3AF5F80E08 /* SubjectEditorView.swift */; };
 		82DF3EBE64DE9CBEC756F002 /* AppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF1AD33BCFE5F9D01CE938B /* AppCatalog.swift */; };
+		886A66ED5689C2BFFC9B3165 /* VoiceInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEEBFCF073ACC48D8DA464C8 /* VoiceInput.swift */; };
 		892A4B4ED85D315F214D8EAB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51AE8606E3A8BA19468D68E /* SettingsView.swift */; };
 		89C1F409DCB1C05C9B243928 /* RelevanceJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6D2F330BF7FEBDB408FA43 /* RelevanceJudge.swift */; };
 		8A29DF36757FF6E6BF75F0B4 /* LayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA73667C3936E7305C6FA6E /* LayoutEngine.swift */; };
@@ -87,10 +89,12 @@
 		BB803C441A49985F2C90FF5C /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60DF854611A87449101835EC /* AppDelegate.swift */; };
 		BC8073E2B09755FBEA4A01BE /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A581497D658574554F5D87 /* Session.swift */; };
 		BD776FEA33ED5869075EF196 /* TimeFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */; };
+		C13A40080AB867CC04C57040 /* BotAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E244E3909F3253AC061397A6 /* BotAvatar.swift */; };
 		C43466E58FA72E6FB5DE41B9 /* ChromeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05933A6F5CD030F74E8AF59B /* ChromeController.swift */; };
 		C7F893F3AEDB961918454967 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B163AA87AE478D7BF3925593 /* SidebarView.swift */; };
 		C84F9EAA33DF884A6037B6A9 /* DiscordClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A9B506EF3A2973B337B0E7 /* DiscordClientTests.swift */; };
 		CCC0F69FDF0F49EFAF145BC6 /* SessionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6116A290C8F1408496892A05 /* SessionEngine.swift */; };
+		CD5A7E737EFDD3D1C525D111 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BFF0A276E21401D170F7881 /* ChatView.swift */; };
 		D6604D4BF4FD9172E4187FB9 /* PageMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 678C7A14698754EE2BD86660 /* PageMetadata.swift */; };
 		D78E8AD4F821A429B7E71933 /* SettingsStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F063BF1E686AD3B5069EC3 /* SettingsStatusTests.swift */; };
 		DC5FE46AF825E2B9923CD5A5 /* DiscordAnnouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACC4DFBAAF469AFE94BB343 /* DiscordAnnouncer.swift */; };
@@ -161,8 +165,10 @@
 		7E2F0F93C625B23507D92878 /* MiniTimerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniTimerPanel.swift; sourceTree = "<group>"; };
 		7E7156EF3D0062C1DB6E380C /* Fakes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fakes.swift; sourceTree = "<group>"; };
 		86AF26AD35B959BC95A24A33 /* DecisionsClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionsClient.swift; sourceTree = "<group>"; };
+		891A269C09FD03B3B4E6A148 /* VoiceInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputTests.swift; sourceTree = "<group>"; };
 		89DD1402ABF15C17DA790F6C /* GiveUpSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiveUpSheet.swift; sourceTree = "<group>"; };
 		8BEF98E2CC163BB3141348B0 /* MainWindowPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowPresenter.swift; sourceTree = "<group>"; };
+		8BFF0A276E21401D170F7881 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		90E74E78BA913B85F6D9C036 /* AccountabilibrosisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountabilibrosisApp.swift; sourceTree = "<group>"; };
 		962EFBB9C31569F219EBA9B5 /* TabTriageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabTriageTests.swift; sourceTree = "<group>"; };
 		9AE82FED4B667D5B68E0FEE0 /* ToastLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastLayoutTests.swift; sourceTree = "<group>"; };
@@ -172,6 +178,7 @@
 		A90AA75750FB3B5D82220DAF /* TimeFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormat.swift; sourceTree = "<group>"; };
 		AABBE488A37859097093B67B /* ChatAssistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAssistant.swift; sourceTree = "<group>"; };
 		ABC42F2ECAE3BDCF25E0B74C /* SessionSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSummaryView.swift; sourceTree = "<group>"; };
+		AEEBFCF073ACC48D8DA464C8 /* VoiceInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInput.swift; sourceTree = "<group>"; };
 		B163AA87AE478D7BF3925593 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		BC6D2F330BF7FEBDB408FA43 /* RelevanceJudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelevanceJudge.swift; sourceTree = "<group>"; };
 		C100C04D3A5EFCEA9D197989 /* SessionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEngineTests.swift; sourceTree = "<group>"; };
@@ -190,6 +197,7 @@
 		DCE8C78AE5BA1166EE89801D /* TabTriage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabTriage.swift; sourceTree = "<group>"; };
 		DFC91DCCFD158B468FE74F62 /* ChromeScriptsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeScriptsTests.swift; sourceTree = "<group>"; };
 		DFF1AD33BCFE5F9D01CE938B /* AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCatalog.swift; sourceTree = "<group>"; };
+		E244E3909F3253AC061397A6 /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
 		E28BFD9D589D9DFABCFF6771 /* DiscordMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordMessagesTests.swift; sourceTree = "<group>"; };
 		E5286F779ABB4F6CE469CECF /* EnvFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvFileTests.swift; sourceTree = "<group>"; };
 		E57320FAB47A775061DF1DC4 /* LockInOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockInOptionTests.swift; sourceTree = "<group>"; };
@@ -270,6 +278,7 @@
 				962EFBB9C31569F219EBA9B5 /* TabTriageTests.swift */,
 				5D1E6D57317D2116A10E0849 /* TimeFormatTests.swift */,
 				9AE82FED4B667D5B68E0FEE0 /* ToastLayoutTests.swift */,
+				891A269C09FD03B3B4E6A148 /* VoiceInputTests.swift */,
 			);
 			path = AccountabilibrosisTests;
 			sourceTree = "<group>";
@@ -350,6 +359,8 @@
 			isa = PBXGroup;
 			children = (
 				CCE0D508A39C3F35893843DF /* AppPickerView.swift */,
+				E244E3909F3253AC061397A6 /* BotAvatar.swift */,
+				8BFF0A276E21401D170F7881 /* ChatView.swift */,
 				89DD1402ABF15C17DA790F6C /* GiveUpSheet.swift */,
 				02D441ACC6C39537AECDB6B5 /* LockedView.swift */,
 				58ECEAE5630275145DF77D26 /* LockInSheet.swift */,
@@ -392,6 +403,7 @@
 				BC6D2F330BF7FEBDB408FA43 /* RelevanceJudge.swift */,
 				DB429F7BCF82ACFD008EECD7 /* ScreenGeometry.swift */,
 				DCE8C78AE5BA1166EE89801D /* TabTriage.swift */,
+				AEEBFCF073ACC48D8DA464C8 /* VoiceInput.swift */,
 				C252D44FBF9AF3AFEAE64EFB /* WorkspaceController.swift */,
 			);
 			path = System;
@@ -551,6 +563,7 @@
 				410EFABEC55E247719A06D03 /* TabTriageTests.swift in Sources */,
 				BD776FEA33ED5869075EF196 /* TimeFormatTests.swift in Sources */,
 				72214357A181C77B4867423F /* ToastLayoutTests.swift in Sources */,
+				5E81AEDFE346C706595CFF9E /* VoiceInputTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -567,8 +580,10 @@
 				A87ECA5C972ADF8070E298C6 /* AppSettings.swift in Sources */,
 				B844B53915A4685DB47A103E /* Assistant.swift in Sources */,
 				70192398AAC294F7E2667DDB /* BlockPolicy.swift in Sources */,
+				C13A40080AB867CC04C57040 /* BotAvatar.swift in Sources */,
 				47AAC2D70A3F403890D979A4 /* ChannelPicker.swift in Sources */,
 				A2AC94E9870967040C3E89B5 /* ChatAssistant.swift in Sources */,
+				CD5A7E737EFDD3D1C525D111 /* ChatView.swift in Sources */,
 				C43466E58FA72E6FB5DE41B9 /* ChromeController.swift in Sources */,
 				9A769BFBF2EFE3E506282957 /* ChromeScripts.swift in Sources */,
 				7F57249986D9791245B646C7 /* DecisionsClient.swift in Sources */,
@@ -611,6 +626,7 @@
 				99740D1840121CE89FDFC207 /* Theme.swift in Sources */,
 				7371BF5AA8703450AE14C133 /* TimeFormat.swift in Sources */,
 				FD7B35B4DB3DB3AAF9984AF7 /* ToastCenter.swift in Sources */,
+				886A66ED5689C2BFFC9B3165 /* VoiceInput.swift in Sources */,
 				1E7370C9F78AD0CF607B21C8 /* WorkspaceController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -715,6 +731,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Accountabilibrosis;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Accountabilibrosis opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Accountabilibrosis listens when you press the mic so you can talk to your study buddy.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Your speech is turned into text on this Mac so you can talk to your study buddy.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.accountabilibrosis.app;
@@ -805,6 +823,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Accountabilibrosis;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Accountabilibrosis opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Accountabilibrosis listens when you press the mic so you can talk to your study buddy.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Your speech is turned into text on this Mac so you can talk to your study buddy.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.accountabilibrosis.app;
