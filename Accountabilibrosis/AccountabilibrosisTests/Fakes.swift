@@ -29,7 +29,8 @@ import Foundation
     var prepareResult: ChromeError?
     var preparedSites: [String] = []
     var preparedBounds: [ChromeBounds] = []
-    var watchedDomains: [String]?
+    var watchedSubject: String?
+    var watchedSites: [String]?
     var stopWatchCount = 0
     var restoreCount = 0
     func prepare(sites: [String], bounds: [ChromeBounds]) async -> ChromeError? {
@@ -37,10 +38,61 @@ import Foundation
         preparedBounds = bounds
         return prepareResult
     }
-    func startTabWatch(allowedDomains: [String]) { watchedDomains = allowedDomains }
+    func startTabWatch(subject: String, studySites: [String]) {
+        watchedSubject = subject
+        watchedSites = studySites
+    }
     func stopTabWatch() { stopWatchCount += 1 }
     func restoreMinimized() { restoreCount += 1 }
     func simulateTabClosed(_ host: String) { onTabClosed?(host) }
+}
+
+/// Answers relevance checks from a table (by URL) and records what it was asked.
+/// With `holds` set, each check waits until the test calls `resolveNext`.
+@MainActor final class FakeJudge: RelevanceJudging {
+    var verdicts: [String: RelevanceVerdict] = [:]
+    var defaultVerdict: RelevanceVerdict = .relevant
+    var holds = false
+    private(set) var judgedPages: [PageInfo] = []
+    private(set) var judgedSubjects: [String] = []
+    private var pending: [CheckedContinuation<RelevanceVerdict, Never>] = []
+
+    var judgedURLs: [String] { judgedPages.map(\.url) }
+    var pendingCount: Int { pending.count }
+
+    func judge(page: PageInfo, subject: String) async -> RelevanceVerdict {
+        judgedPages.append(page)
+        judgedSubjects.append(subject)
+        if holds {
+            return await withCheckedContinuation { pending.append($0) }
+        }
+        return verdicts[page.url] ?? defaultVerdict
+    }
+
+    func resolveNext(_ verdict: RelevanceVerdict) { pending.removeFirst().resume(returning: verdict) }
+}
+
+/// Answers "is it needed?" questions from a table (by host, default Needed) and records them.
+/// With `holds` set, each question waits until the test calls `resolveNext`.
+@MainActor final class FakePrompter: NeedPrompting {
+    var answers: [String: Bool] = [:]
+    var holds = false
+    private(set) var asked: [String] = []
+    private(set) var askedSubjects: [String] = []
+    private var pending: [CheckedContinuation<Bool, Never>] = []
+
+    var pendingCount: Int { pending.count }
+
+    func askIfNeeded(host: String, subject: String) async -> Bool {
+        asked.append(host)
+        askedSubjects.append(subject)
+        if holds {
+            return await withCheckedContinuation { pending.append($0) }
+        }
+        return answers[host] ?? true
+    }
+
+    func resolveNext(_ needed: Bool) { pending.removeFirst().resume(returning: needed) }
 }
 
 @MainActor final class FakeToaster: Toasting {
