@@ -126,6 +126,112 @@ final class TabTriageTests: XCTestCase {
         XCTAssertFalse(triage.shouldCloseImmediately(old))
     }
 
+    // MARK: unsure (waiting for the chat assistant)
+
+    func testUnsureVerdictWaitsForTheAssistantInsteadOfRecheckingOrClosing() {
+        var triage = makeTriage()
+        let page = tab("https://piazza.com/class/x", id: 5)
+        _ = triage.tabsToCheck([page])
+        triage.record(url: page.url, verdict: .unsure(relevance: 0.55))
+
+        XCTAssertFalse(triage.shouldCloseImmediately(page), "the tab stays open while the assistant asks")
+        XCTAssertEqual(triage.tabsToCheck([page]), [], "awaiting the assistant, not re-judged every 2 s")
+    }
+
+    func testUnsureVerdictOnlyHoldsItsOwnURL() {
+        var triage = makeTriage()
+        let page = tab("https://piazza.com/class/x", id: 5)
+        let other = tab("https://piazza.com/class/y", id: 6)
+        _ = triage.tabsToCheck([page])
+        triage.record(url: page.url, verdict: .unsure(relevance: 0.5))
+
+        XCTAssertEqual(triage.tabsToCheck([other]), [other])
+    }
+
+    func testAllowHostKeepsTheWholeHostAfterAnUnsureVerdict() {
+        var triage = makeTriage()
+        let first = tab("https://example.org/one", id: 1)
+        _ = triage.tabsToCheck([first])
+        triage.record(url: first.url, verdict: .unsure(relevance: 0.5))
+        triage.allowHost("example.org")
+
+        let later = tab("https://example.org/two", id: 2)
+        XCTAssertEqual(triage.tabsToCheck([first, later]), [])
+        XCTAssertFalse(triage.shouldCloseImmediately(first))
+        XCTAssertFalse(triage.shouldCloseImmediately(later))
+    }
+
+    func testCloseHostClosesEveryTabOfTheHostAfterAnUnsureVerdict() {
+        var triage = makeTriage()
+        let first = tab("https://example.org/one", id: 1)
+        _ = triage.tabsToCheck([first])
+        triage.record(url: first.url, verdict: .unsure(relevance: 0.5))
+        triage.closeHost("example.org")
+
+        let later = tab("https://example.org/two", id: 2)
+        XCTAssertTrue(triage.shouldCloseImmediately(first))
+        XCTAssertTrue(triage.shouldCloseImmediately(later))
+        XCTAssertEqual(triage.tabsToCheck([first, later]), [], "closing, not judging")
+        XCTAssertFalse(triage.shouldCloseImmediately(tab("https://different.org/")))
+    }
+
+    func testAllowAndCloseHostNormalizeTheHostLikeTabHosts() {
+        var triage = makeTriage()
+        triage.closeHost("WWW.Example.org")
+        XCTAssertTrue(triage.shouldCloseImmediately(tab("https://example.org/a")))
+        XCTAssertTrue(triage.shouldCloseImmediately(tab("https://www.example.org/b")))
+
+        triage.allowHost("www.EXAMPLE.org")
+        XCTAssertFalse(triage.shouldCloseImmediately(tab("https://example.org/a")))
+    }
+
+    func testLaterAssistantDecisionForTheSameHostReplacesTheEarlierOne() {
+        var triage = makeTriage()
+        let page = tab("https://example.org/a")
+        triage.allowHost("example.org")
+        triage.closeHost("example.org")
+        XCTAssertTrue(triage.shouldCloseImmediately(page))
+
+        triage.allowHost("example.org")
+        XCTAssertFalse(triage.shouldCloseImmediately(page))
+        XCTAssertEqual(triage.tabsToCheck([page]), [])
+    }
+
+    func testAllowHostBeatsAnEarlierOffTaskVerdictForAURL() {
+        var triage = makeTriage()
+        let page = tab("https://example.org/a", id: 1)
+        _ = triage.tabsToCheck([page])
+        triage.record(url: page.url, verdict: .offTask)
+        triage.allowHost("example.org")
+        XCTAssertFalse(triage.shouldCloseImmediately(page))
+    }
+
+    func testCloseHostNeverClosesStudySitesProtectedTabsOrChromePages() {
+        let old = tab("https://reddit.com/r/all", window: 9, id: 1)
+        var triage = makeTriage(protected: [ChromeScripts.protectionKey(old)])
+        triage.closeHost("cs128.org")
+        triage.closeHost("reddit.com")
+        triage.closeHost("newtab")
+
+        XCTAssertFalse(triage.shouldCloseImmediately(tab("https://cs128.org/schedule")))
+        XCTAssertFalse(triage.shouldCloseImmediately(old))
+        XCTAssertFalse(triage.shouldCloseImmediately(tab("chrome://newtab/")))
+        XCTAssertTrue(triage.shouldCloseImmediately(tab("https://reddit.com/r/all", window: 50, id: 2)))
+    }
+
+    func testIsHostAnsweredReflectsAllowAndCloseDecisions() {
+        var triage = makeTriage()
+        let page = tab("https://example.org/a")
+        XCTAssertFalse(triage.isHostAnswered(page))
+        triage.allowHost("example.org")
+        XCTAssertTrue(triage.isHostAnswered(page))
+
+        var other = makeTriage()
+        other.closeHost("example.org")
+        XCTAssertTrue(other.isHostAnswered(page))
+        XCTAssertFalse(other.isHostAnswered(tab("https://different.org/")))
+    }
+
     // MARK: recordAnswer
 
     func testNeededAnswerKeepsTheWholeHostForTheSession() {

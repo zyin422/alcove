@@ -19,7 +19,9 @@ import AppKit
 /// Drives Google Chrome with NSAppleScript (main thread). Never scripts System Events.
 /// While the tab watch runs, each new tab URL is judged by a `RelevanceJudging`; off-task tabs are closed by tab id.
 /// When no verdict can be had, the user is asked about the host, one question at a time (`NeedPrompting`).
-@MainActor final class ChromeController: ChromeControlling {
+/// Pages that are only maybe relevant (`.unsure`) go to the chat assistant (`SiteAsking`), which answers later
+/// through `SiteVerdictReceiving` (`allowHost` / `closeHost`).
+@MainActor final class ChromeController: ChromeControlling, SiteVerdictReceiving {
     /// AppleScript error number for "Not authorized to send Apple events" (Automation denied).
     static let automationDeniedErrorNumber = -1743
     static let tabPollInterval: TimeInterval = 2
@@ -27,6 +29,8 @@ import AppKit
     static let launchTimeout: TimeInterval = 5
 
     var onTabClosed: ((String) -> Void)?
+    /// The chat assistant that gets the unsure sites. Weak: AppModel owns both ends.
+    weak var asker: SiteAsking?
     private var minimizedIDs: [Int] = []
     /// Protection keys of the tabs that existed before `prepare` opened the study windows. The tab watch never
     /// closes them, so the user's own windows (minimized at lock-in, restored at the end) keep their tabs.
@@ -43,8 +47,11 @@ import AppKit
     /// True when scripts may be sent (a Chrome process exists); tests replace it.
     private let chromeIsRunning: () -> Bool
 
-    private var subject = ""
+    /// The subject's name from the latest `startTabWatch`, e.g. "CS128".
+    private(set) var subjectName = ""
     private var triage = TabTriage(studySites: [], protected: [])
+    /// Tabs seen by the latest poll (minus the ones closed since), for `openTabsSummary`.
+    private var lastTabs: [ChromeTab] = []
     /// Changes on every start/stop of the watch, so verdicts and answers that arrive late are ignored.
     private var watchToken = UUID()
     /// Hosts waiting for their "Is it needed?" question, oldest first; only one question is on screen at a time.
@@ -52,6 +59,8 @@ import AppKit
     /// Hosts that were queued or asked this watch: a host is asked at most once.
     private var promptedHosts: Set<String> = []
     private var isPrompting = false
+    /// Hosts handed to the assistant this watch: a host is asked about at most once.
+    private var askedAssistantHosts: Set<String> = []
 
     static var isInstalled: Bool {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: ChromeScripts.bundleID) != nil
@@ -156,7 +165,7 @@ import AppKit
 
     func startTabWatch(subject: String, studySites: [String]) {
         stopTabWatch()
-        self.subject = subject
+        subjectName = subject
         triage = TabTriage(studySites: studySites, protected: preexistingTabs)
         let timer = Timer(timeInterval: Self.tabPollInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.pollTabs() }
@@ -172,7 +181,9 @@ import AppKit
         watchToken = UUID()
         promptQueue = []
         promptedHosts = []
+        askedAssistantHosts = []
         isPrompting = false
+        lastTabs = []
     }
 
     /// One poll: list every tab, close the ones already known to be off-task (by tab id), start a relevance check
@@ -183,9 +194,8 @@ import AppKit
         switch runScript(ChromeScripts.listTabs) {
         case .success(let output):
             let tabs = ChromeScripts.parseTabs(output)
-            for tab in tabs where triage.shouldCloseImmediately(tab) {
-                close(tab)
-            }
+            lastTabs = tabs
+            closeKnownOffTask(in: tabs)
             for tab in triage.tabsToCheck(tabs) {
                 check(tab)
             }
@@ -199,12 +209,20 @@ import AppKit
         }
     }
 
+    /// Closes every tab of `tabs` that is already known to be off-task (see `TabTriage.shouldCloseImmediately`).
+    private func closeKnownOffTask(in tabs: [ChromeTab]) {
+        for tab in tabs where triage.shouldCloseImmediately(tab) {
+            close(tab)
+        }
+    }
+
     /// Closes the tab by its id and reports its host. False when the script failed.
     @discardableResult
     private func close(_ tab: ChromeTab) -> Bool {
         guard case .success = runScript(ChromeScripts.closeTab(windowID: tab.windowID, tabID: tab.tabID)) else {
             return false
         }
+        lastTabs.removeAll { $0.windowID == tab.windowID && $0.tabID == tab.tabID }
         onTabClosed?(DomainMatcher.host(of: tab.url) ?? tab.url)
         return true
     }
@@ -223,7 +241,7 @@ import AppKit
     /// or restarted meanwhile.
     private func check(_ tab: ChromeTab) {
         let token = watchToken
-        let subject = subject
+        let subject = subjectName
         let judge = judge
         let page = PageInfo(url: tab.url, title: tab.title, description: nil, siteName: nil)
         Task { @MainActor [weak self] in
@@ -241,9 +259,20 @@ import AppKit
         case .offTask:
             // The user may have answered "Needed" for this host while the check was running.
             if triage.shouldCloseImmediately(tab) { closeIfStillOpen(tab) }
-        case .unknown, .unsure:   // .unsure: interim until the assistant wiring lands
+        case .unknown:
             askIfNeeded(host: DomainMatcher.host(of: tab.url) ?? tab.url)
+        case .unsure(let relevance):
+            // The tab stays open. Unless the chat already settled this host while the check ran, the assistant asks.
+            if !triage.isHostAnswered(tab) { askAssistant(about: tab, relevance: relevance) }
         }
+    }
+
+    /// Hands the tab's host to the chat assistant; each host is asked about at most once per watch.
+    private func askAssistant(about tab: ChromeTab, relevance: Double) {
+        let host = DomainMatcher.host(of: tab.url) ?? tab.url
+        guard askedAssistantHosts.insert(host).inserted else { return }
+        asker?.askAboutSite(SiteQuestion(host: host, url: tab.url, title: tab.title, relevance: relevance),
+                            subject: subjectName)
     }
 
     /// Queues the question for `host`; each host is asked at most once per watch.
@@ -260,7 +289,7 @@ import AppKit
         isPrompting = true
         let host = promptQueue.removeFirst()
         let token = watchToken
-        let subject = subject
+        let subject = subjectName
         let prompter = prompter
         Task { @MainActor [weak self] in
             let needed = await prompter.askIfNeeded(host: host, subject: subject)
@@ -268,6 +297,34 @@ import AppKit
             self.triage.recordAnswer(host: host, needed: needed)
             self.isPrompting = false
             self.askNext()
+        }
+    }
+
+    // MARK: SiteVerdictReceiving
+
+    /// The assistant allowed the site: every tab on `host` stays for the rest of the watch.
+    func allowHost(_ host: String) {
+        guard tabTimer != nil else { return }
+        triage.allowHost(host)
+    }
+
+    /// The assistant closed the site: every open tab on `host` is closed now (from a fresh tab list, so a tab the
+    /// user already closed is not counted), and the host is closed on every later poll too.
+    func closeHost(_ host: String) {
+        guard tabTimer != nil else { return }
+        triage.closeHost(host)
+        guard chromeIsRunning(), case .success(let output) = runScript(ChromeScripts.listTabs) else { return }
+        let tabs = ChromeScripts.parseTabs(output)
+        lastTabs = tabs
+        closeKnownOffTask(in: tabs)
+    }
+
+    /// One "host — title" line per tab of the latest poll (just the host when the title is blank).
+    var openTabsSummary: [String] {
+        lastTabs.map { tab in
+            let host = DomainMatcher.host(of: tab.url) ?? tab.url
+            let title = tab.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return title.isEmpty ? host : "\(host) — \(title)"
         }
     }
 

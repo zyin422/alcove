@@ -56,6 +56,11 @@ import Observation
     @ObservationIgnored weak var presenter: WindowPresenting?
     /// Called on create, every heartbeat, counter changes, and end. AppModel persists it.
     @ObservationIgnored var onSessionChanged: ((Session) -> Void)?
+    /// Called once per lock-in after everything is set up (windows, Chrome, blocker, tab watch, timer, announcement).
+    /// Not called when the session ended while Chrome was being prepared. AppModel starts the chat assistant here.
+    @ObservationIgnored var onLockedIn: ((Subject) -> Void)?
+    /// Called after a session ends, however it ends (finish, bail, goal reached, app quit), once the engine is idle again.
+    @ObservationIgnored var onEnded: (() -> Void)?
 
     private let workspace: WorkspaceControlling
     private let blocker: AppBlocking
@@ -140,6 +145,7 @@ import Observation
 
         if startsTimers { startTimer() }
         announcer.announce(DiscordMessages.start(name: displayName, subject: subject.name, mode: mode))
+        onLockedIn?(subject)
     }
 
     /// Toast text for a Chrome failure during lock-in (spec §12).
@@ -279,6 +285,7 @@ import Observation
         isEnding = false
         lastEnded = final
         onSessionChanged?(final)
+        onEnded?()
         return final
     }
 }
