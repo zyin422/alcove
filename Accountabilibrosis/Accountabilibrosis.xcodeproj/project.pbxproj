@@ -466,7 +466,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "ENV_SRC=\"${SRCROOT}/../.env\"\nENV_DEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/discord.env\"\nif [ -f \"$ENV_SRC\" ]; then\n  mkdir -p \"$(dirname \"$ENV_DEST\")\"\n  cp \"$ENV_SRC\" \"$ENV_DEST\"\nelse\n  rm -f \"$ENV_DEST\"\nfi\nexit 0\n";
+			shellScript = "ENV_DEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/discord.env\"\nrm -f \"$ENV_DEST\"\nfor ENV_SRC in \"${SRCROOT}/../.env\" \"${SRCROOT}/../.env.local\"; do\n  if [ -f \"$ENV_SRC\" ]; then\n    mkdir -p \"$(dirname \"$ENV_DEST\")\"\n    cat \"$ENV_SRC\" >> \"$ENV_DEST\"\n    printf '\\n' >> \"$ENV_DEST\"\n  fi\ndone\nexit 0\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
