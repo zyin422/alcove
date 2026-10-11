@@ -391,6 +391,9 @@ final class SessionEngineTests: XCTestCase {
         await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 25), displayName: "Alex")
 
         XCTAssertEqual(h.engine.giveUpPhrase(template: template), "I give up on CS128")
+        XCTAssertEqual(h.engine.giveUpPhrase(template: template, name: "Calc241"), "I give up on Calc241")
+        XCTAssertTrue(h.engine.phraseMatches("I give up on Calc241", template: template, name: "Calc241"))
+        XCTAssertFalse(h.engine.phraseMatches("I give up on CS128", template: template, name: "Calc241"))
         XCTAssertTrue(h.engine.phraseMatches("  i GIVE up on cs128 \n", template: template))
         XCTAssertTrue(h.engine.phraseMatches("I give up on CS128", template: template))
         XCTAssertFalse(h.engine.phraseMatches("I give up", template: template))

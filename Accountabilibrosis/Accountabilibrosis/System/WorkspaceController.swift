@@ -6,6 +6,11 @@ import AppKit
     /// Unhides running apps with these bundle IDs.
     func unhide(_ bundleIDs: [String])
     func activate(bundleID: String)
+    /// Asks every running .regular app not in `allowed` to quit (it may ask to save first); apps in
+    /// `BlockPolicy.neverQuit` are hidden instead. Returns the bundle IDs asked to quit and those hidden.
+    func quitOthers(allowed: Set<String>) -> (quit: [String], hidden: [String])
+    /// Opens these apps again in the background (skipping ones already running).
+    func relaunch(_ bundleIDs: [String])
 }
 
 extension RunningAppInfo {
@@ -18,8 +23,37 @@ extension RunningAppInfo {
     }
 }
 
-/// Hides and unhides other apps through NSWorkspace / NSRunningApplication. Never quits anything.
+/// Hides, unhides, quits and relaunches other apps through NSWorkspace / NSRunningApplication.
+/// Quitting is a normal quit request (never a force quit), so apps can ask to save.
 @MainActor final class WorkspaceController: WorkspaceControlling {
+    func quitOthers(allowed: Set<String>) -> (quit: [String], hidden: [String]) {
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        var quit: [String] = []
+        var hidden: [String] = []
+        for app in NSWorkspace.shared.runningApplications where app.processIdentifier != ownPID {
+            let info = RunningAppInfo(app)
+            guard BlockPolicy.shouldBlock(info, allowed: allowed) else { continue }
+            if BlockPolicy.neverQuit.contains(info.bundleID) {
+                if !app.isHidden, app.hide(), !hidden.contains(info.bundleID) { hidden.append(info.bundleID) }
+            } else {
+                app.hide()
+                if app.terminate(), !quit.contains(info.bundleID) { quit.append(info.bundleID) }
+            }
+        }
+        return (quit, hidden)
+    }
+
+    func relaunch(_ bundleIDs: [String]) {
+        var seen = Set<String>()
+        for bundleID in bundleIDs where seen.insert(bundleID).inserted {
+            guard NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty,
+                  let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { continue }
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = false
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration, completionHandler: nil)
+        }
+    }
+
     init() {}
 
     func hideOthers(allowed: Set<String>) -> [String] {

@@ -13,8 +13,13 @@ struct SubjectDetailView: View {
                 header
                 HStack(alignment: .top, spacing: Theme.Space.l) {
                     VStack(alignment: .leading, spacing: Theme.Space.s) {
-                        PresetThumbnail(preset: subject.preset).frame(width: 140)
-                        Text(subject.preset.title).font(.callout).foregroundStyle(.secondary)
+                        if subject.usesCustomLayout {
+                            CustomLayoutThumbnail(slots: subject.slots).frame(width: 140)
+                            Text("Custom").font(.callout).foregroundStyle(.secondary)
+                        } else {
+                            PresetThumbnail(preset: subject.preset).frame(width: 140)
+                            Text(subject.preset.title).font(.callout).foregroundStyle(.secondary)
+                        }
                     }
                     VStack(alignment: .leading, spacing: Theme.Space.m) {
                         sitesBlock
@@ -58,10 +63,30 @@ struct SubjectDetailView: View {
     }
 
     private var sitesBlock: some View {
-        block(subject.sites.count == 1 ? "Site" : "Sites") {
-            ForEach(subject.sites, id: \.self) { site in
-                Text(site).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+        block(subject.slots.count == 1 ? "Window" : "Windows") {
+            ForEach(subject.slots) { slot in
+                HStack(spacing: Theme.Space.s) {
+                    switch slot.kind {
+                    case .website:
+                        Image(systemName: "globe").frame(width: 20)
+                        Text(slot.urls.first ?? "").lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                        if slot.urls.count > 1 {
+                            Text("+\(slot.urls.count - 1) tab\(slot.urls.count == 2 ? "" : "s")")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    case .app:
+                        AppIcon(bundleID: slot.app?.bundleID ?? "").frame(width: 20, height: 20)
+                        Text(slot.app?.name ?? "App")
+                        if let folder = slot.folder {
+                            Text(folder).font(.caption).foregroundStyle(.secondary)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                    }
+                }
             }
+            Text("Websites open in \(subject.browser.title). Other apps: \(subject.unusedApps == .quit ? "quit" : "hidden").")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -73,7 +98,8 @@ struct SubjectDetailView: View {
                         .frame(width: 28, height: 28)
                         .help(app.name)
                 }
-                Text(subject.allowedApps.isEmpty ? "Chrome and Finder only" : "+ Chrome and Finder")
+                let browserName = subject.browser == .chrome ? "Chrome" : subject.browser.title
+                Text(subject.allowedApps.isEmpty ? "\(browserName) and Finder only" : "+ \(browserName) and Finder")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

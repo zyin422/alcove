@@ -12,10 +12,21 @@ enum BlockPolicy {
     /// Chrome, Finder and System Settings (so Chrome Automation can be granted mid-session).
     static let alwaysAllowed: Set<String> = ["com.google.Chrome", "com.apple.finder", "com.apple.systempreferences"]
 
-    /// alwaysAllowed ∪ {ownBundleID} ∪ subject.allowedApps bundle IDs.
+    /// Never quit by a "Quit them" setup, only hidden: developer tools that may be running this app (or the
+    /// assistant the user is coding with), where quitting would lose work or end the session.
+    static let neverQuit: Set<String> = [
+        "com.apple.finder", "com.apple.dt.Xcode", "com.apple.Terminal", "com.googlecode.iterm2",
+        "com.todesktop.230313mzl4w4u92", "com.apple.ActivityMonitor", "com.apple.systempreferences",
+    ]
+
+    /// alwaysAllowed ∪ {ownBundleID} ∪ the setup's browser and window apps ∪ subject.allowedApps bundle IDs.
+    /// Chrome is only allowed when it is the setup's browser.
     static func allowedSet(for subject: Subject, ownBundleID: String) -> Set<String> {
         var allowed = alwaysAllowed
+        if subject.browser != .chrome { allowed.remove(Browser.chrome.bundleID) }
+        allowed.insert(subject.browser.bundleID)
         allowed.insert(ownBundleID)
+        allowed.formUnion(subject.slotApps.map(\.bundleID))
         allowed.formUnion(subject.allowedApps.map(\.bundleID))
         return allowed
     }

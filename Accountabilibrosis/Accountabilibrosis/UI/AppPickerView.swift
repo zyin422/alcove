@@ -2,22 +2,36 @@ import AppKit
 import SwiftUI
 
 /// Sheet that edits a subject's allowed apps: installed apps with icon, name, search and checkmarks.
+/// With `onChoose` (the `choosing:` init) it picks a single app instead and closes on the first tap.
 struct AppPickerView: View {
     @Binding var selection: [AllowedApp]
+    private var onChoose: ((AllowedApp) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @State private var apps: [AllowedApp] = []
     @State private var query = ""
     @State private var isLoading = true
 
-    /// Always allowed during every session, so never offered here.
+    init(selection: Binding<[AllowedApp]>) {
+        _selection = selection
+    }
+
+    /// Picks one app (e.g. the app a setup window opens); every installed app is offered.
+    init(choosing onChoose: @escaping (AllowedApp) -> Void) {
+        _selection = .constant([])
+        self.onChoose = onChoose
+    }
+
+    /// Always allowed during every session, so never offered as an allowed app.
     private var excluded: Set<String> {
-        BlockPolicy.alwaysAllowed.union([Bundle.main.bundleIdentifier ?? "com.accountabilibrosis.app"])
+        let own: Set<String> = [Bundle.main.bundleIdentifier ?? "com.accountabilibrosis.app"]
+        return onChoose == nil ? BlockPolicy.alwaysAllowed.union(own) : own
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
-            Text("Allowed apps").font(.title2.weight(.semibold))
-            Text("Google Chrome and Finder are always allowed, so they are not listed.")
+            Text(onChoose == nil ? "Allowed apps" : "Choose an app").font(.title2.weight(.semibold))
+            Text(onChoose == nil ? "Google Chrome and Finder are always allowed, so they are not listed."
+                                 : "It opens in this window of the setup when you lock in.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
             TextField("Search apps", text: $query)
@@ -44,9 +58,11 @@ struct AppPickerView: View {
                 }
             }
             HStack {
-                Text("\(selection.count) selected").foregroundStyle(.secondary)
+                if onChoose == nil {
+                    Text("\(selection.count) selected").foregroundStyle(.secondary)
+                }
                 Spacer()
-                Button("Done") { dismiss() }
+                Button(onChoose == nil ? "Done" : "Cancel") { dismiss() }
                     .buttonStyle(PrimaryButtonStyle())
                     .frame(width: 120)
                     .keyboardShortcut(.defaultAction)
@@ -62,7 +78,10 @@ struct AppPickerView: View {
     }
 
     private func toggle(_ app: AllowedApp) {
-        if isSelected(app) {
+        if let onChoose {
+            onChoose(app)
+            dismiss()
+        } else if isSelected(app) {
             selection.removeAll { $0.bundleID == app.bundleID }
         } else {
             selection.append(app)

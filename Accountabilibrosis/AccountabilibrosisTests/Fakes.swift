@@ -9,8 +9,34 @@ import Foundation
     var unhideCalls: [[String]] = []
     var activated: [String] = []
     func hideOthers(allowed: Set<String>) -> [String] { hideCalls.append(allowed); return hideResult }
+    var quitResult: (quit: [String], hidden: [String]) = ([], [])
+    var quitCalls: [Set<String>] = []
+    var relaunchCalls: [[String]] = []
     func unhide(_ bundleIDs: [String]) { unhideCalls.append(bundleIDs) }
     func activate(bundleID: String) { activated.append(bundleID) }
+    func quitOthers(allowed: Set<String>) -> (quit: [String], hidden: [String]) {
+        quitCalls.append(allowed)
+        return quitResult
+    }
+    func relaunch(_ bundleIDs: [String]) { relaunchCalls.append(bundleIDs) }
+}
+
+/// Records the apps a setup opens; `problems[bundleID]` is returned as the toast text.
+@MainActor final class FakeLauncher: SetupLaunching {
+    struct Opened: Equatable {
+        var bundleID: String
+        var folder: String?
+        var bounds: ChromeBounds?
+    }
+    var opened: [Opened] = []
+    var problems: [String: String] = [:]
+    /// Runs inside `open`, e.g. to end the session while an app is opening.
+    var onOpen: (() -> Void)?
+    func open(_ app: AllowedApp, folder: String?, bounds: ChromeBounds?) async -> String? {
+        onOpen?()
+        opened.append(Opened(bundleID: app.bundleID, folder: folder, bounds: bounds))
+        return problems[app.bundleID]
+    }
 }
 
 @MainActor final class FakeBlocker: AppBlocking {
@@ -27,18 +53,24 @@ import Foundation
 @MainActor final class FakeChrome: ChromeControlling {
     var onTabClosed: ((String) -> Void)?
     var prepareResult: ChromeError?
+    /// The first URL of each prepared window.
     var preparedSites: [String] = []
+    /// The bounds of the prepared windows that have one.
     var preparedBounds: [ChromeBounds] = []
+    var preparedWindows: [BrowserWindowPlan] = []
+    var preparedBrowser: Browser?
     var watchedSubject: String?
     var watchedSites: [String]?
     var stopWatchCount = 0
     var restoreCount = 0
     /// Runs inside `prepare`, e.g. to end the session while Chrome is being prepared.
     var onPrepare: (() -> Void)?
-    func prepare(sites: [String], bounds: [ChromeBounds]) async -> ChromeError? {
+    func prepare(browser: Browser, windows: [BrowserWindowPlan]) async -> ChromeError? {
         onPrepare?()
-        preparedSites = sites
-        preparedBounds = bounds
+        preparedBrowser = browser
+        preparedWindows = windows
+        preparedSites = windows.compactMap(\.urls.first)
+        preparedBounds = windows.compactMap(\.bounds)
         return prepareResult
     }
     func startTabWatch(subject: String, studySites: [String]) {
@@ -46,7 +78,7 @@ import Foundation
         watchedSites = studySites
     }
     func stopTabWatch() { stopWatchCount += 1 }
-    func restoreMinimized() { restoreCount += 1 }
+    func restoreAfterSession() { restoreCount += 1 }
     func simulateTabClosed(_ host: String) { onTabClosed?(host) }
 }
 
@@ -140,13 +172,14 @@ final class TestClock {
     let toaster = FakeToaster()
     let announcer = FakeAnnouncer()
     let presenter = FakePresenter()
+    let launcher = FakeLauncher()
     let clock = TestClock()
     let engine: SessionEngine
 
     init() {
         let clock = self.clock
         engine = SessionEngine(workspace: workspace, blocker: blocker, chrome: chrome, toaster: toaster,
-                               announcer: announcer, ownBundleID: "com.accountabilibrosis.app",
+                               announcer: announcer, launcher: launcher, ownBundleID: "com.accountabilibrosis.app",
                                clock: { clock.now },
                                visibleFrame: { CGRect(x: 0, y: 0, width: 1000, height: 800) },
                                primaryHeight: { 800 }, startsTimers: false)

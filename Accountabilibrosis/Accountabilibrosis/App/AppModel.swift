@@ -4,6 +4,7 @@ import Observation
 
 /// What the main window's sidebar has selected.
 enum SidebarItem: Hashable {
+    case today
     case subject(UUID)
     case stats
     case settings
@@ -48,6 +49,26 @@ enum TokenSource: Equatable {
     /// Brings the chat screen to the front while locked in (the assistant needs the user; the Mac woke up).
     /// AppDelegate connects it to the window presenter.
     @ObservationIgnored var onShowChat: (() -> Void)?
+    /// Runs after a session ends (AppDelegate hides the voice popup).
+    @ObservationIgnored var onSessionEnded: (() -> Void)?
+    /// Brings the main window forward when the end-of-day wrap-up opens on its own.
+    @ObservationIgnored var onShowMainWindow: (() -> Void)?
+    /// True while the end-of-day wrap-up sheet is up.
+    var isWrappingUpDay = false
+    /// True while the morning screen is up.
+    var isShowingMorning = false
+    /// Days added to the real clock. “Start my day” after wrap-up increments this so the spoken
+    /// tomorrow list becomes today’s plan without waiting until 4 AM.
+    private(set) var dayShift = 0
+    /// Puts the morning screen up / takes it down (AppDelegate connects the full-screen window).
+    @ObservationIgnored var onShowMorning: (() -> Void)?
+    @ObservationIgnored var onHideMorning: (() -> Void)?
+    /// Posts to the group chat (the same announcer the session engine uses).
+    let announcer: Announcing
+    /// Turns tomorrow's spoken priorities into a list.
+    let priorityExtractor: PriorityExtractor
+    /// The interrogation that runs when a goal is ended early.
+    let mirror: MirrorInterrogator
     /// Where the two possible bot tokens come from (the Keychain, the bundled `.env`); tests inject fakes.
     private let keychainToken: () -> String?
     private let envToken: () -> String?
@@ -68,16 +89,25 @@ enum TokenSource: Equatable {
             toaster: ToastCenter.shared)
         let judge = RelevanceJudge(apiKey: { [box] in box.model?.openAIKey })
         let assistant = ChatAssistant(apiKey: { [box] in box.model?.openAIKey })
-        let chrome = ChromeController(judge: judge, prompter: NeedPrompt())
+        let chrome = ChromeController(judge: judge, prompter: NeedPrompt(), alwaysBlocked: DistractionList.hosts,
+                                      rememberedURL: ClosedBrowserState.defaultURL())
+        if chrome.hasLeftovers {
+            // The app quit without ending a session cleanly: give back the windows and tabs it had closed.
+            DispatchQueue.main.async { chrome.restoreAfterSession() }
+        }
         Self.connect(assistant, with: chrome)
         let engine = SessionEngine(workspace: WorkspaceController(), blocker: AppBlocker(),
                                    chrome: chrome,
                                    toaster: ToastCenter.shared,
                                    announcer: announcer,
+                                   launcher: SetupLauncher(),
                                    ownBundleID: Bundle.main.bundleIdentifier ?? "com.accountabilibrosis.app",
                                    visibleFrame: { ScreenGeometry.mainVisibleFrame() },
                                    primaryHeight: { ScreenGeometry.primaryHeight() })
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine, assistant: assistant,
+                  announcer: announcer,
+                  priorityExtractor: PriorityExtractor(apiKey: { [box] in box.model?.openAIKey }),
+                  mirror: MirrorInterrogator(apiKey: { [box] in box.model?.openAIKey }),
                   keychainToken: { Keychain.get(service: Secrets.discordService, account: Secrets.discordAccount) },
                   envToken: { EnvFile.bundledValue(AppModel.envTokenKey) },
                   keychainOpenAIKey: { Keychain.get(service: Secrets.openAIService, account: Secrets.openAIAccount) },
@@ -96,21 +126,31 @@ enum TokenSource: Equatable {
                      envToken: @escaping () -> String? = { nil },
                      keychainOpenAIKey: @escaping () -> String? = { nil },
                      envOpenAIKey: @escaping () -> String? = { nil },
-                     assistant: ChatAssistant? = nil) {
+                     assistant: ChatAssistant? = nil,
+                     announcer: Announcing? = nil,
+                     priorityExtractor: PriorityExtractor? = nil,
+                     mirror: MirrorInterrogator? = nil) {
         let (loaded, isFirstLaunch) = Self.load(store)
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine,
                   assistant: assistant ?? ChatAssistant(apiKey: { nil }),
+                  announcer: announcer ?? SilentAnnouncer(),
+                  priorityExtractor: priorityExtractor ?? PriorityExtractor(apiKey: { nil }),
+                  mirror: mirror ?? MirrorInterrogator(apiKey: { nil }),
                   keychainToken: keychainToken, envToken: envToken,
                   keychainOpenAIKey: keychainOpenAIKey, envOpenAIKey: envOpenAIKey)
     }
 
     private init(store: Store, loaded: StoreLoadResult, isFirstLaunch: Bool, engine: SessionEngine,
-                 assistant: ChatAssistant,
+                 assistant: ChatAssistant, announcer: Announcing, priorityExtractor: PriorityExtractor,
+                 mirror: MirrorInterrogator,
                  keychainToken: @escaping () -> String?, envToken: @escaping () -> String?,
                  keychainOpenAIKey: @escaping () -> String?, envOpenAIKey: @escaping () -> String?) {
         self.store = store
         self.engine = engine
         self.assistant = assistant
+        self.announcer = announcer
+        self.priorityExtractor = priorityExtractor
+        self.mirror = mirror
         self.keychainToken = keychainToken
         self.envToken = envToken
         self.keychainOpenAIKey = keychainOpenAIKey
@@ -122,7 +162,10 @@ enum TokenSource: Equatable {
         }
         // The chat lives and dies with the lock-in, and can pull the chat screen forward.
         engine.onLockedIn = { [weak self] subject in self?.assistant.beginSession(subject: subject.name) }
-        engine.onEnded = { [weak self] in self?.assistant.endSession() }
+        engine.onEnded = { [weak self] in
+            self?.assistant.endSession()
+            self?.onSessionEnded?()
+        }
         assistant.onNeedsAttention = { [weak self] in self?.onShowChat?() }
         // First launch with a token already available (team .env or Keychain): start posting to Discord.
         if isFirstLaunch, discordToken != nil {
@@ -191,12 +234,174 @@ enum TokenSource: Equatable {
         save()
     }
 
+    /// True when an OpenAI key is available, so ending a goal early goes through the Mirror.
+    var hasMirror: Bool {
+        !(openAIKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// What the Mirror and the give-up phrase both name: the unfinished priority for this setup, else the setup.
+    var mirrorTaskName: String {
+        let setup = engine.subject?.name ?? engine.session?.subjectName ?? ""
+        let title = todayPlan().priorities.first { !$0.isDone && $0.subjectID == engine.subject?.id }?
+            .title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return title.isEmpty ? setup : title
+    }
+
+    /// The facts for an interrogation. The priority is the first unfinished one tied to the running setup.
+    func mirrorContext(reason: String) -> MirrorContext {
+        let setup = engine.subject?.name ?? engine.session?.subjectName ?? ""
+        return MirrorContext(priority: mirrorTaskName, setup: setup,
+                             elapsedSeconds: Int(engine.elapsed.rounded()),
+                             goalMinutes: engine.session?.mode.goalMinutes ?? 0,
+                             reason: reason)
+    }
+
     /// Starts a session on the subject using the display name from settings.
     func lockIn(subjectID: UUID, mode: SessionMode) async {
         guard let subject = subject(id: subjectID) else { return }
         let trimmed = data.settings.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayName = trimmed.isEmpty ? NSFullUserName() : trimmed
         await engine.start(subject: subject, mode: mode, displayName: displayName)
+    }
+
+    // MARK: Day plan
+
+    func plan(for day: String) -> DayPlan? {
+        data.dayPlans.first { $0.day == day }
+    }
+
+    /// Real time plus `dayShift` days — the clock Start my day advances after wrap-up.
+    func clockNow(_ now: Date = Date()) -> Date {
+        Calendar.current.date(byAdding: .day, value: dayShift, to: now)
+            ?? now.addingTimeInterval(TimeInterval(dayShift) * 86_400)
+    }
+
+    /// Today's plan (`DayKey`), empty when nothing was planned. Uses the shifted clock.
+    func todayPlan(now: Date = Date()) -> DayPlan {
+        let today = DayKey.key(for: clockNow(now))
+        return plan(for: today) ?? DayPlan(day: today)
+    }
+
+    /// The plan Start my day / Today should edit: tomorrow's list once today has been wrapped up.
+    func workingPlan(now: Date = Date()) -> DayPlan {
+        let day = DayPlanner.workingDay(now: clockNow(now), plans: data.dayPlans)
+        return plan(for: day) ?? DayPlan(day: day)
+    }
+
+    /// Changes the plan of `day` (creating it when missing) and saves.
+    func updatePlan(day: String, _ mutate: (inout DayPlan) -> Void) {
+        if let index = data.dayPlans.firstIndex(where: { $0.day == day }) {
+            mutate(&data.dayPlans[index])
+        } else {
+            var plan = DayPlan(day: day)
+            mutate(&plan)
+            data.dayPlans.append(plan)
+        }
+        save()
+    }
+
+    /// Ticks (or unticks) a priority of `day`.
+    func setPriority(_ id: UUID, done: Bool, day: String) {
+        updatePlan(day: day) { plan in
+            guard let index = plan.priorities.firstIndex(where: { $0.id == id }) else { return }
+            plan.priorities[index].isDone = done
+        }
+    }
+
+    /// The unfinished priority of today that `session` (just ended) worked on, for "Did you finish …?".
+    func priorityToConfirm(after session: Session, now: Date = Date()) -> Priority? {
+        DayPlanner.priorityToConfirm(after: session, in: plan(for: DayKey.key(for: session.start)) ?? todayPlan(now: now))
+    }
+
+    /// Opens the wrap-up when its time has come (called every minute). Marks the day as prompted.
+    func checkEndOfDay(now: Date = Date()) {
+        guard !isWrappingUpDay, !isShowingMorning,
+              DayPlanner.shouldPromptEndOfDay(now: now, settings: data.settings, plans: data.dayPlans,
+                                              isLocked: engine.isLocked) else { return }
+        updateSettings { $0.lastDayPromptKey = DayKey.key(for: now) }
+        isWrappingUpDay = true
+        onShowMainWindow?()
+    }
+
+    // MARK: Morning
+
+    /// Shows the morning screen if this is the first use of the Mac today (launch, wake, unlock).
+    func checkMorning(now: Date = Date()) {
+        guard DayPlanner.shouldShowMorning(now: now, settings: data.settings, isLocked: engine.isLocked,
+                                           isBusy: isShowingMorning || isWrappingUpDay) else { return }
+        showMorning(now: now)
+    }
+
+    /// After wrap-up, moves the clock to tomorrow (the spoken list) and opens the morning screen.
+    func startMyDay(now: Date = Date()) {
+        if todayPlan(now: now).wrappedUp {
+            dayShift += 1
+        }
+        showMorning(now: now)
+    }
+
+    /// Shows the morning screen now (also from "Start my day"); it then counts as shown today.
+    func showMorning(now: Date = Date()) {
+        guard !engine.isLocked else { return }
+        let now = clockNow(now)
+        updateSettings { $0.lastMorningKey = DayKey.key(for: now) }
+        isShowingMorning = true
+        onShowMorning?()
+    }
+
+    func dismissMorning() {
+        guard isShowingMorning else { return }
+        isShowingMorning = false
+        onHideMorning?()
+    }
+
+    /// From the morning screen: ties the priority to `subjectID` (when it had another or none), closes the
+    /// screen and locks in on that setup.
+    func start(priority: Priority, subjectID: UUID, mode: SessionMode, now: Date = Date()) async {
+        let now = clockNow(now)
+        let day = data.dayPlans.first { $0.priorities.contains { $0.id == priority.id } }?.day
+            ?? DayKey.key(for: now)
+        if priority.subjectID != subjectID {
+            updatePlan(day: day) { plan in
+                guard let index = plan.priorities.firstIndex(where: { $0.id == priority.id }) else { return }
+                plan.priorities[index].subjectID = subjectID
+            }
+        }
+        dismissMorning()
+        await lockIn(subjectID: subjectID, mode: mode)
+    }
+
+    /// Ends the day: stores today's ticks, saves tomorrow's priorities, and posts the recap to the group chat.
+    func wrapUpDay(today: [Priority], tomorrow: [Priority], now: Date = Date()) {
+        let now = clockNow(now)
+        let todayKey = DayKey.key(for: now)
+        updatePlan(day: todayKey) { plan in
+            plan.priorities = today
+            plan.wrappedUp = true
+        }
+        let kept = tomorrow.filter { !$0.title.trimmingCharacters(in: .whitespaces).isEmpty }
+        updatePlan(day: DayKey.tomorrow(from: now)) { $0.priorities = kept }
+        let summary = DaySummary.summarize(day: todayKey, sessions: data.sessions, priorities: today)
+        announcer.announce(DiscordMessages.dayRecap(
+            name: displayName,
+            done: today.filter(\.isDone).map(\.title),
+            notDone: today.filter { !$0.isDone }.map(\.title),
+            tomorrow: kept.map(\.title),
+            summary: summary))
+        isWrappingUpDay = false
+    }
+
+    /// Posts the same Discord recap as wrapping up, using today's ticks and tomorrow's saved priorities.
+    func postDayRecap(now: Date = Date()) {
+        let today = todayPlan(now: now).priorities
+        let tomorrow = plan(for: DayKey.tomorrow(from: clockNow(now)))?.priorities ?? []
+        wrapUpDay(today: today, tomorrow: tomorrow, now: now)
+    }
+
+    /// The display name from Settings, else the macOS user name.
+    var displayName: String {
+        let trimmed = data.settings.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? NSFullUserName() : trimmed
     }
 
     // MARK: Settings
@@ -297,6 +502,11 @@ enum TokenSource: Equatable {
         data.sessions.removeAll { $0.isDemo }
         save()
     }
+}
+
+/// Posts nowhere (tests that don't care about Discord).
+@MainActor private final class SilentAnnouncer: Announcing {
+    func announce(_ content: String) {}
 }
 
 /// Weak link from the live DiscordAnnouncer's closures back to the model (see `AppModel.init(store:)`).

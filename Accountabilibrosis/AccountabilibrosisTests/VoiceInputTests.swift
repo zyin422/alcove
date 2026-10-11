@@ -39,6 +39,21 @@ final class VoiceInputTests: XCTestCase {
         XCTAssertNotNil(VoiceInput.message(forMicrophone: AVAuthorizationStatus.notDetermined))
     }
 
+    // MARK: Dictation off
+
+    func testSiriAndDictationDisabledErrorsAreRecognized() {
+        XCTAssertTrue(VoiceInput.isDictationOff(NSError(domain: "kLSRErrorDomain", code: 201)))
+        XCTAssertTrue(VoiceInput.isDictationOff(NSError(domain: "kAFAssistantErrorDomain", code: 1101)))
+        XCTAssertTrue(VoiceInput.isDictationOff(NSError(domain: "kAFAssistantErrorDomain", code: 1700)))
+        XCTAssertFalse(VoiceInput.isDictationOff(NSError(domain: "kAFAssistantErrorDomain", code: 1110)))
+        XCTAssertFalse(VoiceInput.isDictationOff(URLError(.notConnectedToInternet)))
+    }
+
+    func testDictationOffMessagePointsToKeyboardSettings() {
+        XCTAssertTrue(VoiceInput.dictationOffMessage.contains("Keyboard > Dictation"))
+        XCTAssertEqual(VoiceInput.dictationSettingsURL.scheme, "x-apple.systempreferences")
+    }
+
     // MARK: Transcript merging
 
     func testMergedAppendsTranscriptToTypedText() {
@@ -58,6 +73,21 @@ final class VoiceInputTests: XCTestCase {
         XCTAssertEqual(VoiceInput.merged(base: "can I ", transcript: ""), "can I ")
         XCTAssertEqual(VoiceInput.merged(base: "can I ", transcript: "  "), "can I ")
         XCTAssertEqual(VoiceInput.merged(base: "", transcript: ""), "")
+    }
+
+    func testUtteranceRevisionIsNotARestart() {
+        XCTAssertFalse(VoiceInput.utteranceRestarted(previous: "I need to finish", incoming: "I need to finish the lab"))
+        XCTAssertFalse(VoiceInput.utteranceRestarted(previous: "I need to finish the lab", incoming: "I need to finish"))
+        XCTAssertFalse(VoiceInput.utteranceRestarted(previous: "", incoming: "read some books"))
+        XCTAssertFalse(VoiceInput.utteranceRestarted(previous: "read some books", incoming: ""))
+    }
+
+    func testUtteranceRestartKeepsTheFirstWords() {
+        XCTAssertTrue(VoiceInput.utteranceRestarted(previous: "I need to finish the lab", incoming: "then review chapter 4"))
+        XCTAssertEqual(
+            VoiceInput.merged(base: "I need to finish the lab", transcript: "then review chapter 4"),
+            "I need to finish the lab then review chapter 4"
+        )
     }
 
     // MARK: Limits and initial state

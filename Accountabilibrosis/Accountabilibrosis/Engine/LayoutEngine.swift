@@ -59,4 +59,19 @@ enum LayoutEngine {
         }
         return result
     }
+
+    /// Where each of the subject's windows goes (index-aligned with `subject.slots`; nil = wherever it opens)
+    /// and our own window's zone. A custom layout uses the slots' frames and has no app zone.
+    static func placement(for subject: Subject, visible: CGRect?, primaryHeight: CGFloat)
+        -> (slotBounds: [ChromeBounds?], appFrame: CGRect?) {
+        guard let visible else { return (subject.slots.map { _ in nil }, nil) }
+        if subject.usesCustomLayout {
+            return (subject.slots.map { slot in
+                slot.frame.map { ScreenGeometry.bounds(for: $0, visible: visible, primaryHeight: primaryHeight) }
+            }, nil)
+        }
+        let result = layout(subject.preset, in: visible)
+        let zones = result.chromeFrames.map { ScreenGeometry.chromeBounds(for: $0, primaryHeight: primaryHeight) }
+        return (subject.slots.indices.map { $0 < zones.count ? zones[$0] : nil }, result.appFrame)
+    }
 }
