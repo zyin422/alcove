@@ -10,7 +10,6 @@ struct SubjectEditorView: View {
     /// Always at least 2 slots; only the first `preset.siteCount` are shown and saved.
     @State private var sites: [String]
     @State private var allowedApps: [AllowedApp]
-    @State private var extraDomainsText: String
     @State private var isPickingApps = false
 
     init(model: AppModel, subject: Subject?) {
@@ -20,12 +19,10 @@ struct SubjectEditorView: View {
         _preset = State(initialValue: subject?.preset ?? .split)
         _sites = State(initialValue: SubjectValidator.siteSlots(subject?.sites ?? []))
         _allowedApps = State(initialValue: subject?.allowedApps ?? [])
-        _extraDomainsText = State(initialValue: (subject?.extraDomains ?? []).joined(separator: ", "))
     }
 
     private var visibleSites: [String] { Array(sites.prefix(preset.siteCount)) }
     private var errors: [String] { SubjectValidator.errors(name: name, sites: visibleSites, preset: preset) }
-    private var parsedDomains: [String] { SubjectValidator.parseDomains(extraDomainsText) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -36,7 +33,6 @@ struct SubjectEditorView: View {
                     presetSection
                     sitesSection
                     appsSection
-                    domainsSection
                 }
                 .padding(Theme.Space.l)
             }
@@ -123,18 +119,6 @@ struct SubjectEditorView: View {
         }
     }
 
-    private var domainsSection: some View {
-        section("Extra allowed sites") {
-            TextField("e.g. piazza.com, stackoverflow.com", text: $extraDomainsText)
-                .textFieldStyle(.roundedBorder)
-            Text(parsedDomains.isEmpty
-                 ? "Comma-separated. Subdomains are included."
-                 : "Allows: " + parsedDomains.joined(separator: ", "))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private var footer: some View {
         HStack(alignment: .top, spacing: Theme.Space.m) {
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
@@ -169,7 +153,7 @@ struct SubjectEditorView: View {
                               preset: preset,
                               sites: SubjectValidator.sitesForSave(visibleSites, preset: preset),
                               allowedApps: allowedApps,
-                              extraDomains: parsedDomains,
+                              extraDomains: original?.extraDomains ?? [],   // deprecated: kept so old data survives
                               createdAt: original?.createdAt ?? Date())
         if original == nil {
             model.addSubject(subject)

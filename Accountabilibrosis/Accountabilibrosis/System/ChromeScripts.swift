@@ -4,6 +4,9 @@ import Foundation
 struct ChromeTab: Equatable {
     let windowID: Int
     let tabIndex: Int   // 1-based AppleScript index
+    /// Chrome's own id for the tab. Unlike `tabIndex` it does not shift when other tabs open or close.
+    let tabID: Int
+    let title: String
     let url: String
 }
 
@@ -49,26 +52,35 @@ enum ChromeScripts {
         return lines.joined(separator: "\n")
     }
 
-    /// Returns lines "windowID<TAB>tabIndex<TAB>url" separated by linefeed, for every tab of every window.
-    /// `tab` and `linefeed` are captured before the tell block because inside it `tab` means Chrome's tab class.
+    /// ASCII 31 (unit separator): splits the fields of a `listTabs` line. Unlike a tab it practically never
+    /// appears in a page title, and it cannot appear in a URL.
+    static let fieldSeparator: Character = "\u{1F}"
+
+    /// Returns lines "windowID<US>tabIndex<US>tabID<US>title<US>url" separated by linefeed, for every tab of every
+    /// window (`<US>` is `fieldSeparator`). The URL is last, so it can never be confused with the title.
+    /// The separator and `linefeed` are captured before the tell block, because inside it names like `tab` mean
+    /// Chrome's own classes.
     static let listTabs: String = """
-        set tabChar to tab
+        set sepChar to ASCII character 31
         set lineChar to linefeed
         set out to ""
         tell application "Google Chrome"
             repeat with w in windows
                 set wid to (id of w) as text
-                set urls to URL of every tab of w
-                repeat with i from 1 to count of urls
-                    set out to out & wid & tabChar & (i as text) & tabChar & (item i of urls) & lineChar
+                set tabList to every tab of w
+                repeat with i from 1 to count of tabList
+                    set t to item i of tabList
+                    set out to out & wid & sepChar & (i as text) & sepChar & ((id of t) as text) & sepChar & ((title of t) as text) & sepChar & ((URL of t) as text) & lineChar
                 end repeat
             end repeat
         end tell
         return out
         """
 
-    static func closeTab(windowID: Int, tabIndex: Int) -> String {
-        "tell application \"Google Chrome\" to close tab \(tabIndex) of window id \"\(windowID)\""
+    /// Closes the tab with Chrome's id `tabID` in the window. Addressing by id (not index) means a tab whose
+    /// index shifted, or that has already gone, is never closed by mistake: the script then matches nothing.
+    static func closeTab(windowID: Int, tabID: Int) -> String {
+        "tell application \"Google Chrome\" to close (every tab of window id \"\(windowID)\" whose id is \(tabID))"
     }
 
     /// Minimizes all non-minimized windows; returns their ids comma-separated ("" if none).
@@ -116,14 +128,20 @@ enum ChromeScripts {
     /// Harmless call used to trigger/check the Automation permission: returns count of windows.
     static let ping: String = "tell application \"Google Chrome\" to count windows"
 
-    /// Parses `listTabs` output. Lines that are not "Int<TAB>Int<TAB>url" are skipped; the URL keeps any spaces.
+    /// Parses `listTabs` output. Lines with fewer than five fields or non-integer ids are skipped.
+    /// The first three fields and the last one (the URL) are fixed; if a title contains the separator itself,
+    /// the pieces between them are rejoined with spaces. The URL keeps any spaces.
     static func parseTabs(_ output: String) -> [ChromeTab] {
-        output.split(whereSeparator: \.isNewline).compactMap { line in
-            let parts = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
-            guard parts.count == 3,
+        // Only CR/LF end a line: Unicode line separators (U+2028, U+0085) can occur in page titles.
+        output.split(whereSeparator: { $0 == "\n" || $0 == "\r" || $0 == "\r\n" }).compactMap { line in
+            let parts = line.split(separator: fieldSeparator, omittingEmptySubsequences: false)
+            guard parts.count >= 5,
                   let windowID = Int(parts[0].trimmingCharacters(in: .whitespaces)),
-                  let tabIndex = Int(parts[1].trimmingCharacters(in: .whitespaces)) else { return nil }
-            return ChromeTab(windowID: windowID, tabIndex: tabIndex, url: String(parts[2]))
+                  let tabIndex = Int(parts[1].trimmingCharacters(in: .whitespaces)),
+                  let tabID = Int(parts[2].trimmingCharacters(in: .whitespaces)) else { return nil }
+            let title = parts[3..<(parts.count - 1)].joined(separator: " ")
+            return ChromeTab(windowID: windowID, tabIndex: tabIndex, tabID: tabID, title: title,
+                             url: String(parts[parts.count - 1]))
         }
     }
 
@@ -135,16 +153,5 @@ enum ChromeScripts {
     /// Identity of a tab that already existed before the session: "windowID<TAB>url" (index-independent).
     static func protectionKey(_ tab: ChromeTab) -> String {
         "\(tab.windowID)\t\(tab.url)"
-    }
-
-    /// Tabs to auto-close: URL not allowed and not `protected` (see `protectionKey`), ordered by window and then by
-    /// descending tab index, so closing them one by one never shifts the index of a tab still to be closed.
-    static func tabsToClose(_ tabs: [ChromeTab], allowedDomains: [String], protected: Set<String> = []) -> [ChromeTab] {
-        tabs.filter { tab in
-            !protected.contains(protectionKey(tab)) && !DomainMatcher.isAllowed(tab.url, allowed: allowedDomains)
-        }
-        .sorted { lhs, rhs in
-            lhs.windowID != rhs.windowID ? lhs.windowID < rhs.windowID : lhs.tabIndex > rhs.tabIndex
-        }
     }
 }

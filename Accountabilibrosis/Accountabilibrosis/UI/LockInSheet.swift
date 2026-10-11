@@ -74,6 +74,7 @@ struct LockInSheet: View {
 
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 note("Other apps will be hidden. Google Chrome, Finder\(subject.allowedApps.isEmpty ? "" : " and your allowed apps") stay available.")
+                note("Tabs unrelated to \(subject.name) are closed automatically (checked by AI).")
                 note(model.data.settings.discordEnabled
                      ? "Your Discord servers will see that you locked in."
                      : "Discord announcements are off (turn them on in Settings).")

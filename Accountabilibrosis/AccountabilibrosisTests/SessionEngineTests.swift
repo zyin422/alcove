@@ -6,7 +6,8 @@ final class SessionEngineTests: XCTestCase {
     private let ownID = "com.accountabilibrosis.app"
     private let template = "I give up on {subject}"
 
-    /// CS128 with one extra allowed app and one extra domain; site count follows the preset.
+    /// CS128 with one extra allowed app and a deprecated extra domain (the tab watch must ignore it);
+    /// site count follows the preset.
     private func makeSubject(_ preset: LayoutPreset = .split) -> Subject {
         let sites = preset.siteCount == 2
             ? ["https://cs128.org/schedule", "https://docs.python.org/3/"]
@@ -99,7 +100,8 @@ final class SessionEngineTests: XCTestCase {
 
         XCTAssertEqual(h.blocker.startedWith,
                        [ownID, "com.google.Chrome", "com.apple.finder", "com.apple.systempreferences", "com.microsoft.VSCode"])
-        XCTAssertEqual(h.chrome.watchedDomains, ["cs128.org", "docs.python.org", "piazza.com"])
+        XCTAssertEqual(h.chrome.watchedSubject, "CS128")
+        XCTAssertEqual(h.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/"])
         XCTAssertEqual(h.announcer.messages, ["🔒 **Alex** is locked in on **CS128**"])
         XCTAssertEqual(h.toaster.messages, [])
     }
@@ -150,17 +152,18 @@ final class SessionEngineTests: XCTestCase {
         let denied = EngineHarness()
         denied.chrome.prepareResult = .automationDenied
         await denied.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
-        XCTAssertNil(denied.chrome.watchedDomains)
+        XCTAssertNil(denied.chrome.watchedSubject)
 
         let missing = EngineHarness()
         missing.chrome.prepareResult = .notInstalled
         await missing.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
-        XCTAssertNil(missing.chrome.watchedDomains)
+        XCTAssertNil(missing.chrome.watchedSubject)
 
         let slow = EngineHarness()
         slow.chrome.prepareResult = .profileNotReady
         await slow.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
-        XCTAssertEqual(slow.chrome.watchedDomains, ["cs128.org", "docs.python.org", "piazza.com"])
+        XCTAssertEqual(slow.chrome.watchedSubject, "CS128")
+        XCTAssertEqual(slow.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/"])
     }
 
     // MARK: During the session
@@ -188,7 +191,7 @@ final class SessionEngineTests: XCTestCase {
         h.chrome.simulateTabClosed("youtube.com")
 
         XCTAssertEqual(h.engine.session?.closedTabs, 1)
-        XCTAssertEqual(h.toaster.messages, ["Closed youtube.com — not part of CS128"])
+        XCTAssertEqual(h.toaster.messages, ["Closed youtube.com — not relevant to CS128"])
         XCTAssertEqual(changes.last?.closedTabs, 1)
     }
 

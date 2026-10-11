@@ -135,8 +135,7 @@ import Observation
         chrome.onTabClosed = { [weak self] host in self?.recordClosedTab(host) }
         // Without Chrome (or without permission to script it) every poll would fail, so skip the watch.
         if chromeError != .notInstalled && chromeError != .automationDenied {
-            chrome.startTabWatch(allowedDomains: DomainMatcher.allowedDomains(sites: subject.sites,
-                                                                              extra: subject.extraDomains))
+            chrome.startTabWatch(subject: subject.name, studySites: subject.sites)
         }
 
         if startsTimers { startTimer() }
@@ -215,7 +214,7 @@ import Observation
         guard var current = session else { return }
         current.closedTabs += 1
         session = current
-        toaster.show("Closed \(host) — not part of \(current.subjectName)")
+        toaster.show("Closed \(host) — not relevant to \(current.subjectName)")
         onSessionChanged?(current)
     }
 

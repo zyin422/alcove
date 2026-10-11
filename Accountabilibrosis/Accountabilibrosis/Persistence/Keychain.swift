@@ -1,10 +1,12 @@
 import Foundation
 import Security
 
-/// Keychain coordinates for secrets. The Discord bot token lives only here, never in store.json.
+/// Keychain coordinates for secrets. The Discord bot token and the OpenAI API key live only here, never in store.json.
 enum Secrets {
     static let discordService = "com.accountabilibrosis.discord"
     static let discordAccount = "bot-token"
+    static let openAIService = "com.accountabilibrosis.openai"
+    static let openAIAccount = "api-key"
 }
 
 /// Minimal generic-password wrapper around the login keychain.
