@@ -14,8 +14,10 @@ struct PageInfo: Equatable {
 enum RelevanceVerdict: Equatable {
     /// The page supports the subject: keep the tab.
     case relevant
-    /// The page is off-task (probability >= threshold): close the tab.
+    /// The page is off-task (relevance below `RelevanceJudge.closeBelow`): close the tab.
     case offTask
+    /// Relevance between `RelevanceJudge.closeBelow` and `keepAbove`: the chat assistant asks the user about it.
+    case unsure(relevance: Double)
     /// No verdict (no API key, network error, timeout, HTTP error, refusal). The reason is for logs/toasts only.
     case unknown(String)
 }

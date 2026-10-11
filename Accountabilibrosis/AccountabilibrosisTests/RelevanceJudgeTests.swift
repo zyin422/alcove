@@ -68,16 +68,25 @@ final class RelevanceJudgeTests: XCTestCase {
 
     // MARK: - Threshold
 
-    func testProbabilityAtThresholdIsOffTask() async {
+    func testMiddleProbabilityIsUnsure() async {
         let page = PageInfo(url: "https://example.edu", title: "T", description: "D", siteName: nil)
         let verdict = await makeJudge(transport: routedTransport(probability: 0.5)).judge(page: page, subject: "CS128")
-        XCTAssertEqual(verdict, .offTask)
+        XCTAssertEqual(verdict, .unsure(relevance: 0.5))
     }
 
-    func testProbabilityJustBelowThresholdIsRelevant() async {
+    func testLowProbabilityIsRelevant() async {
         let page = PageInfo(url: "https://example.edu", title: "T", description: "D", siteName: nil)
-        let verdict = await makeJudge(transport: routedTransport(probability: 0.49)).judge(page: page, subject: "CS128")
+        let verdict = await makeJudge(transport: routedTransport(probability: 0.1)).judge(page: page, subject: "CS128")
         XCTAssertEqual(verdict, .relevant)
+    }
+
+    func testVerdictBands() {
+        XCTAssertEqual(RelevanceJudge.verdict(offTaskProbability: 0.61), .offTask)        // relevance 0.39
+        XCTAssertEqual(RelevanceJudge.verdict(offTaskProbability: 0.6), .unsure(relevance: 1 - 0.6))
+        XCTAssertEqual(RelevanceJudge.verdict(offTaskProbability: 0.3), .unsure(relevance: 1 - 0.3))
+        XCTAssertEqual(RelevanceJudge.verdict(offTaskProbability: 0.29), .relevant)       // relevance 0.71
+        XCTAssertEqual(RelevanceJudge.verdict(offTaskProbability: 1.4), .offTask)
+        XCTAssertEqual(RelevanceJudge.verdict(offTaskProbability: -1), .relevant)
     }
 
     func testHighProbabilityIsOffTask() async {

@@ -241,7 +241,7 @@ import AppKit
         case .offTask:
             // The user may have answered "Needed" for this host while the check was running.
             if triage.shouldCloseImmediately(tab) { closeIfStillOpen(tab) }
-        case .unknown:
+        case .unknown, .unsure:   // .unsure: interim until the assistant wiring lands
             askIfNeeded(host: DomainMatcher.host(of: tab.url) ?? tab.url)
         }
     }

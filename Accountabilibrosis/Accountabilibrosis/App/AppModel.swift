@@ -43,6 +43,8 @@ enum TokenSource: Equatable {
     var selection: SidebarItem?
     let store: Store
     let engine: SessionEngine
+    /// The chat screen's assistant (gpt-4.1-mini). Wired to Chrome and the session by AppModel.
+    let assistant: ChatAssistant
     /// Where the two possible bot tokens come from (the Keychain, the bundled `.env`); tests inject fakes.
     private let keychainToken: () -> String?
     private let envToken: () -> String?
@@ -99,6 +101,7 @@ enum TokenSource: Equatable {
                  keychainOpenAIKey: @escaping () -> String?, envOpenAIKey: @escaping () -> String?) {
         self.store = store
         self.engine = engine
+        self.assistant = ChatAssistant(apiKey: { nil })
         self.keychainToken = keychainToken
         self.envToken = envToken
         self.keychainOpenAIKey = keychainOpenAIKey
