@@ -2,7 +2,8 @@ import Foundation
 
 /// Bookkeeping for the relevance-checked tab watch (pure; the controller owns the I/O).
 /// Decides, poll after poll, which tabs still need a verdict, which can be closed without asking again,
-/// and remembers the user's "Needed" / "Close tab" answers per host for the rest of the session.
+/// and remembers the user's "Needed" / "Close tab" answers (and the chat assistant's allow / close decisions)
+/// per host for the rest of the session.
 /// Tabs are tracked by exact URL, so a tab that navigates somewhere new is judged again.
 struct TabTriage {
     /// Normalized hosts of the subject's study sites. These (and their subdomains) are never judged or closed.
@@ -18,9 +19,11 @@ struct TabTriage {
     private var inFlightURLs: Set<String> = []
     /// URLs whose check gave no verdict; the user is asked about their host instead.
     private var awaitingPromptURLs: Set<String> = []
-    /// Hosts the user answered "Needed" for: kept for the session.
+    /// URLs judged "unsure": kept open while the chat assistant asks the user about their host.
+    private var awaitingAssistantURLs: Set<String> = []
+    /// Hosts the user answered "Needed" for (or the assistant allowed): kept for the session.
     private var neededHosts: Set<String> = []
-    /// Hosts the user answered "Close tab" for: every tab on them is closed for the session.
+    /// Hosts the user answered "Close tab" for (or the assistant closed): every tab on them is closed for the session.
     private var closedHosts: Set<String> = []
 
     init(studySites: [String], protected: Set<String>) {
@@ -30,14 +33,14 @@ struct TabTriage {
 
     /// Tabs that need a relevance verdict now, in the given order. Skips Chrome internals, blank and
     /// unparseable URLs, study sites, protected pre-existing tabs, URLs already decided / in flight / awaiting the
-    /// user, and hosts the user has answered for. Every returned URL is marked in flight, so it is returned once.
+    /// user or the assistant, and hosts that have an answer. Every returned URL is marked in flight, so it is returned once.
     mutating func tabsToCheck(_ tabs: [ChromeTab]) -> [ChromeTab] {
         var result: [ChromeTab] = []
         for tab in tabs {
             guard isCandidate(tab),
                   !keptURLs.contains(tab.url), !closeURLs.contains(tab.url),
                   !inFlightURLs.contains(tab.url), !awaitingPromptURLs.contains(tab.url),
-                  !isAnsweredHost(tab) else { continue }
+                  !awaitingAssistantURLs.contains(tab.url), !isHostAnswered(tab) else { continue }
             inFlightURLs.insert(tab.url)
             result.append(tab)
         }
@@ -46,12 +49,15 @@ struct TabTriage {
 
     /// Stores the outcome of one check. Relevant: keep. Off-task: close now and whenever the URL reappears.
     /// Unknown: the check no longer runs for this URL; the controller asks the user about the host.
+    /// Unsure: the tab stays open and is not checked again; the controller hands the host to the chat assistant,
+    /// whose `allowHost` / `closeHost` decision settles it.
     mutating func record(url: String, verdict: RelevanceVerdict) {
         inFlightURLs.remove(url)
         switch verdict {
         case .relevant: keptURLs.insert(url)
         case .offTask: closeURLs.insert(url)
-        case .unknown, .unsure: awaitingPromptURLs.insert(url)   // .unsure: interim until the assistant wiring lands
+        case .unknown: awaitingPromptURLs.insert(url)
+        case .unsure: awaitingAssistantURLs.insert(url)
         }
     }
 
@@ -78,14 +84,25 @@ struct TabTriage {
         }
     }
 
+    /// Keeps every tab on `host` for the rest of the session (the chat assistant allowed the site).
+    mutating func allowHost(_ host: String) {
+        recordAnswer(host: host, needed: true)
+    }
+
+    /// Closes every tab on `host`, now and whenever it is opened again this session (the chat assistant closed the site).
+    mutating func closeHost(_ host: String) {
+        recordAnswer(host: host, needed: false)
+    }
+
+    /// True when the tab's host has an answer (kept or closed), so its URLs need no verdict.
+    func isHostAnswered(_ tab: ChromeTab) -> Bool {
+        guard let host = DomainMatcher.host(of: tab.url) else { return false }
+        return neededHosts.contains(host) || closedHosts.contains(host)
+    }
+
     /// Not a Chrome internal / blank / unparseable page, not a study site, not a protected pre-existing tab.
     private func isCandidate(_ tab: ChromeTab) -> Bool {
         !protected.contains(ChromeScripts.protectionKey(tab))
             && !DomainMatcher.isAllowed(tab.url, allowed: studyDomains)
-    }
-
-    private func isAnsweredHost(_ tab: ChromeTab) -> Bool {
-        guard let host = DomainMatcher.host(of: tab.url) else { return false }
-        return neededHosts.contains(host) || closedHosts.contains(host)
     }
 }

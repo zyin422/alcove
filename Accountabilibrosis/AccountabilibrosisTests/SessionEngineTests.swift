@@ -127,6 +127,118 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(h.announcer.messages.count, 1)
     }
 
+    // MARK: Lock-in / ended hooks
+
+    func testOnLockedInRunsOnceAfterEverythingIsSetUp() async {
+        let h = EngineHarness()
+        var subjects: [String] = []
+        var watched: [String?] = []
+        var blocking: [Bool] = []
+        var announced: [Int] = []
+        h.engine.onLockedIn = { subject in
+            subjects.append(subject.name)
+            watched.append(h.chrome.watchedSubject)
+            blocking.append(h.blocker.startedWith != nil)
+            announced.append(h.announcer.messages.count)
+        }
+
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 25), displayName: "Alex")
+
+        XCTAssertEqual(subjects, ["CS128"])
+        XCTAssertEqual(watched, ["CS128"], "the tab watch is already running")
+        XCTAssertEqual(blocking, [true])
+        XCTAssertEqual(announced, [1], "the start announcement is already out")
+        XCTAssertTrue(h.engine.isLocked)
+    }
+
+    func testOnLockedInIsNotRepeatedByAnIgnoredSecondStart() async {
+        let h = EngineHarness()
+        var count = 0
+        h.engine.onLockedIn = { _ in count += 1 }
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+
+        XCTAssertEqual(count, 1)
+    }
+
+    func testOnLockedInStillRunsWhenChromeCannotBeScripted() async {
+        let h = EngineHarness()
+        h.chrome.prepareResult = .automationDenied
+        var count = 0
+        h.engine.onLockedIn = { _ in count += 1 }
+
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+
+        XCTAssertEqual(count, 1)
+    }
+
+    func testOnLockedInDoesNotRunWhenTheSessionEndedWhileChromeWasPrepared() async {
+        let h = EngineHarness()
+        h.chrome.onPrepare = { h.engine.terminateNow() }
+        var lockedIn = 0
+        var ended = 0
+        h.engine.onLockedIn = { _ in lockedIn += 1 }
+        h.engine.onEnded = { ended += 1 }
+
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+
+        XCTAssertEqual(lockedIn, 0)
+        XCTAssertEqual(ended, 1)
+    }
+
+    func testOnEndedRunsAfterFinishBailAndTerminate() async {
+        let h = EngineHarness()
+        var ended: [Bool] = []   // isLocked at the time of each call
+        h.engine.onEnded = { ended.append(h.engine.isLocked) }
+
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        await h.engine.finish()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 25), displayName: "Alex")
+        await h.engine.bail()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        h.engine.terminateNow()
+
+        XCTAssertEqual(ended, [false, false, false], "each end reports once, with the engine already idle")
+    }
+
+    func testOnEndedRunsWhenTheGoalIsReached() async {
+        let h = EngineHarness()
+        var ended = 0
+        h.engine.onEnded = { ended += 1 }
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 1), displayName: "Alex")
+
+        h.clock.advance(61)
+        h.engine.tick()
+        await settle()
+
+        XCTAssertEqual(ended, 1)
+    }
+
+    func testOnEndedDoesNotRunWhileIdle() async {
+        let h = EngineHarness()
+        var ended = 0
+        h.engine.onEnded = { ended += 1 }
+
+        h.engine.terminateNow()
+        await h.engine.finish()
+        await h.engine.bail()
+
+        XCTAssertEqual(ended, 0)
+    }
+
+    func testOnEndedRunsOnlyOncePerSession() async {
+        let h = EngineHarness()
+        var ended = 0
+        h.engine.onEnded = { ended += 1 }
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+
+        await h.engine.finish()
+        await h.engine.finish()
+        h.engine.terminateNow()
+
+        XCTAssertEqual(ended, 1)
+    }
+
     // MARK: Chrome failures
 
     func testChromeErrorsShowToastAndSessionContinues() async {

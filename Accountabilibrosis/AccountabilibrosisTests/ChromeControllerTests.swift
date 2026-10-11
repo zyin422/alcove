@@ -112,6 +112,7 @@ import XCTest
     @MainActor private final class WatchHarness {
         let judge = FakeJudge()
         let prompter = FakePrompter()
+        let asker = FakeAsker()
         let log = ScriptLog()
         let controller: ChromeController
         private(set) var closedHosts: [String] = []
@@ -122,6 +123,7 @@ import XCTest
             controller = ChromeController(judge: judge, prompter: prompter,
                                           runScript: { log.run($0) }, chromeIsRunning: { log.isRunning })
             controller.onTabClosed = { [unowned self] host in self.closedHosts.append(host) }
+            controller.asker = asker
         }
 
         func start() {
@@ -364,6 +366,279 @@ import XCTest
         await settle()
         XCTAssertEqual(h.judge.judgedURLs, [page.url])
         XCTAssertEqual(h.judge.judgedSubjects, ["MATH241"])
+    }
+
+    // MARK: unsure verdicts (chat assistant)
+
+    func testUnsureVerdictAsksTheAssistantOncePerHostAndLeavesTheTabsOpen() async {
+        let a = tab("https://example.org/one", id: 5, title: "One")
+        let b = tab("https://example.org/two", id: 6, title: "Two")
+        let h = WatchHarness(tabs: [a, b])
+        h.judge.defaultVerdict = .unsure(relevance: 0.55)
+        h.start()
+        defer { h.controller.stopTabWatch() }
+
+        h.controller.pollTabs()
+        await settle()
+        h.controller.pollTabs()
+        await settle()
+
+        XCTAssertEqual(h.asker.questions, [SiteQuestion(host: "example.org", url: a.url, title: "One", relevance: 0.55)])
+        XCTAssertEqual(h.asker.subjects, ["CS128"])
+        XCTAssertEqual(h.prompter.asked, [], "unsure sites go to the assistant, never to the NSAlert prompt")
+        XCTAssertEqual(h.judge.judgedURLs, [a.url, b.url], "no re-checks while the assistant asks")
+        XCTAssertEqual(h.log.closeScripts, [])
+        XCTAssertEqual(h.closedHosts, [])
+    }
+
+    func testUnsureVerdictsOnDifferentHostsAreAskedSeparately() async {
+        let a = tab("https://a.org/", id: 5)
+        let b = tab("https://b.org/", id: 6)
+        let h = WatchHarness(tabs: [a, b])
+        h.judge.verdicts[a.url] = .unsure(relevance: 0.45)
+        h.judge.verdicts[b.url] = .unsure(relevance: 0.65)
+        h.start()
+        defer { h.controller.stopTabWatch() }
+
+        h.controller.pollTabs()
+        await settle()
+
+        XCTAssertEqual(h.asker.questions.map(\.host), ["a.org", "b.org"])
+        XCTAssertEqual(h.asker.questions.map(\.relevance), [0.45, 0.65])
+    }
+
+    func testUnsureVerdictWithoutAnAskerChangesNothing() async {
+        let page = tab("https://example.org/one", id: 5)
+        let h = WatchHarness(tabs: [page])
+        h.controller.asker = nil
+        h.judge.defaultVerdict = .unsure(relevance: 0.5)
+        h.start()
+        defer { h.controller.stopTabWatch() }
+
+        h.controller.pollTabs()
+        await settle()
+        h.controller.pollTabs()
+        await settle()
+
+        XCTAssertEqual(h.prompter.asked, [])
+        XCTAssertEqual(h.log.closeScripts, [])
+        XCTAssertEqual(h.judge.judgedURLs, [page.url])
+    }
+
+    func testUnknownVerdictStillUsesThePromptAndNeverTheAssistant() async {
+        let page = tab("https://example.org/one", id: 5)
+        let h = WatchHarness(tabs: [page])
+        h.judge.defaultVerdict = .unknown("no key")
+        h.start()
+        defer { h.controller.stopTabWatch() }
+
+        h.controller.pollTabs()
+        await settle()
+
+        XCTAssertEqual(h.prompter.asked, ["example.org"])
+        XCTAssertEqual(h.asker.questions, [])
+    }
+
+    func testUnsureVerdictThatArrivesAfterTheWatchStoppedIsIgnored() async {
+        let page = tab("https://example.org/one", id: 5)
+        let h = WatchHarness(tabs: [page])
+        h.judge.holds = true
+        h.start()
+        h.controller.pollTabs()
+        await settle()
+
+        h.controller.stopTabWatch()
+        h.judge.resolveNext(.unsure(relevance: 0.5))
+        await settle()
+
+        XCTAssertEqual(h.asker.questions, [])
+    }
+
+    func testUnsureVerdictForAHostTheAssistantAlreadyDecidedIsNotAsked() async {
+        let page = tab("https://example.org/one", id: 5)
+        let h = WatchHarness(tabs: [page])
+        h.judge.holds = true
+        h.start()
+        defer { h.controller.stopTabWatch() }
+        h.controller.pollTabs()
+        await settle()
+
+        h.controller.allowHost("example.org")   // the user got an answer in the chat while the check ran
+        h.judge.resolveNext(.unsure(relevance: 0.5))
+        await settle()
+
+        XCTAssertEqual(h.asker.questions, [])
+    }
+
+    func testAskedHostsStartOverWithANewWatch() async {
+        let page = tab("https://example.org/one", id: 5)
+        let h = WatchHarness(tabs: [page])
+        h.judge.defaultVerdict = .unsure(relevance: 0.5)
+        h.start()
+        h.controller.pollTabs()
+        await settle()
+        h.controller.stopTabWatch()
+
+        h.start()
+        defer { h.controller.stopTabWatch() }
+        h.controller.pollTabs()
+        await settle()
+
+        XCTAssertEqual(h.asker.questions.count, 2)
+    }
+
+    // MARK: assistant decisions (SiteVerdictReceiving)
+
+    func testAllowHostKeepsTheHostFromNowOn() async {
+        let a = tab("https://example.org/one", id: 5)
+        let h = WatchHarness(tabs: [a])
+        h.judge.defaultVerdict = .unsure(relevance: 0.5)
+        h.start()
+        defer { h.controller.stopTabWatch() }
+        h.controller.pollTabs()
+        await settle()
+
+        h.controller.allowHost("example.org")
+        let b = tab("https://example.org/two", id: 6)
+        h.log.tabs = [a, b]
+        h.controller.pollTabs()
+        await settle()
+
+        XCTAssertEqual(h.judge.judgedURLs, [a.url], "an allowed host is never judged again")
+        XCTAssertEqual(h.log.closeScripts, [])
+        XCTAssertEqual(h.asker.questions.count, 1)
+    }
+
+    func testCloseHostClosesItsOpenTabsRightAwayAndReportsEach() async {
+        let study = tab("https://cs128.org/schedule", id: 1)
+        let a = tab("https://example.org/one", id: 5)
+        let b = tab("https://www.example.org/two", id: 6, window: 2)
+        let other = tab("https://other.org/", id: 7)
+        let h = WatchHarness(tabs: [study, a, b, other])
+        h.judge.defaultVerdict = .relevant
+        h.start()
+        defer { h.controller.stopTabWatch() }
+        h.controller.pollTabs()
+        await settle()
+
+        h.controller.closeHost("example.org")
+
+        XCTAssertEqual(h.log.closeScripts, [ChromeScripts.closeTab(windowID: 1, tabID: 5),
+                                            ChromeScripts.closeTab(windowID: 2, tabID: 6)])
+        XCTAssertEqual(h.closedHosts, ["example.org", "example.org"])
+        XCTAssertEqual(h.log.tabs.map(\.tabID), [1, 7])
+    }
+
+    func testCloseHostAlsoClosesTheHostWhenItIsOpenedAgain() async {
+        let h = WatchHarness(tabs: [])
+        h.judge.defaultVerdict = .relevant
+        h.start()
+        defer { h.controller.stopTabWatch() }
+
+        h.controller.closeHost("example.org")
+        h.log.tabs = [tab("https://example.org/again", id: 9)]
+        h.controller.pollTabs()
+
+        XCTAssertEqual(h.log.closeScripts, [ChromeScripts.closeTab(windowID: 1, tabID: 9)])
+        XCTAssertEqual(h.judge.judgedURLs, [], "closing, not judging")
+    }
+
+    func testCloseHostNeverTouchesStudySites() async {
+        let study = tab("https://cs128.org/schedule", id: 1)
+        let h = WatchHarness(tabs: [study])
+        h.start()
+        defer { h.controller.stopTabWatch() }
+
+        h.controller.closeHost("cs128.org")
+
+        XCTAssertEqual(h.log.closeScripts, [])
+        XCTAssertEqual(h.closedHosts, [])
+    }
+
+    func testCloseHostDoesNothingWhenNoWatchIsRunning() async {
+        let page = tab("https://example.org/one", id: 5)
+        let h = WatchHarness(tabs: [page])
+
+        h.controller.closeHost("example.org")   // never started
+        XCTAssertEqual(h.log.scripts, [])
+
+        h.start()
+        h.controller.stopTabWatch()
+        h.controller.closeHost("example.org")   // session over: a late tool call must not touch Chrome
+
+        XCTAssertEqual(h.log.scripts, [])
+        XCTAssertEqual(h.closedHosts, [])
+    }
+
+    func testCloseHostDoesNothingWhileChromeIsNotRunning() async {
+        let h = WatchHarness(tabs: [tab("https://example.org/one", id: 5)])
+        h.start()
+        defer { h.controller.stopTabWatch() }
+        h.log.isRunning = false
+
+        h.controller.closeHost("example.org")
+
+        XCTAssertEqual(h.log.scripts, [])
+    }
+
+    func testCloseHostWithAFailedListingStillClosesOnTheNextPoll() async {
+        let page = tab("https://example.org/one", id: 5)
+        let h = WatchHarness(tabs: [page])
+        h.judge.defaultVerdict = .relevant
+        h.start()
+        defer { h.controller.stopTabWatch() }
+        h.log.listError = .scriptFailed("busy")
+
+        h.controller.closeHost("example.org")
+        XCTAssertEqual(h.log.closeScripts, [])
+
+        h.log.listError = nil
+        h.controller.pollTabs()
+        XCTAssertEqual(h.log.closeScripts, [ChromeScripts.closeTab(windowID: 1, tabID: 5)])
+    }
+
+    // MARK: open tabs summary
+
+    func testOpenTabsSummaryListsTheLastPolledTabsAsHostAndTitle() async {
+        let study = tab("https://www.cs128.org/schedule", id: 1, title: "Schedule")
+        let video = tab("https://youtube.com/watch?v=x", id: 2, title: "Lecture 4")
+        let untitled = tab("https://example.org/", id: 3)
+        let newTab = tab("chrome://newtab/", id: 4, title: "New Tab")
+        let h = WatchHarness(tabs: [study, video, untitled, newTab])
+        h.judge.defaultVerdict = .relevant
+        h.start()
+        defer { h.controller.stopTabWatch() }
+        XCTAssertEqual(h.controller.openTabsSummary, [])
+
+        h.controller.pollTabs()
+        await settle()
+
+        XCTAssertEqual(h.controller.openTabsSummary,
+                       ["cs128.org — Schedule", "youtube.com — Lecture 4", "example.org", "newtab — New Tab"])
+    }
+
+    func testOpenTabsSummaryDropsClosedTabsAndClearsWhenTheWatchStops() async {
+        let a = tab("https://example.org/one", id: 5, title: "One")
+        let b = tab("https://other.org/", id: 6, title: "Other")
+        let h = WatchHarness(tabs: [a, b])
+        h.judge.defaultVerdict = .relevant
+        h.start()
+        h.controller.pollTabs()
+        await settle()
+
+        h.controller.closeHost("example.org")
+        XCTAssertEqual(h.controller.openTabsSummary, ["other.org — Other"])
+
+        h.controller.stopTabWatch()
+        XCTAssertEqual(h.controller.openTabsSummary, [])
+    }
+
+    func testStartTabWatchSetsTheSubjectName() {
+        let h = WatchHarness(tabs: [])
+        XCTAssertEqual(h.controller.subjectName, "")
+        h.controller.startTabWatch(subject: "MATH241", studySites: [])
+        defer { h.controller.stopTabWatch() }
+        XCTAssertEqual(h.controller.subjectName, "MATH241")
     }
 
     func testNothingRunsWhileChromeIsNotRunning() async {

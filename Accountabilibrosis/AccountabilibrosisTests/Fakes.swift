@@ -33,7 +33,10 @@ import Foundation
     var watchedSites: [String]?
     var stopWatchCount = 0
     var restoreCount = 0
+    /// Runs inside `prepare`, e.g. to end the session while Chrome is being prepared.
+    var onPrepare: (() -> Void)?
     func prepare(sites: [String], bounds: [ChromeBounds]) async -> ChromeError? {
+        onPrepare?()
         preparedSites = sites
         preparedBounds = bounds
         return prepareResult
@@ -93,6 +96,17 @@ import Foundation
     }
 
     func resolveNext(_ needed: Bool) { pending.removeFirst().resume(returning: needed) }
+}
+
+/// Records the unsure-site questions the tab watch hands to the chat assistant.
+@MainActor final class FakeAsker: SiteAsking {
+    private(set) var questions: [SiteQuestion] = []
+    private(set) var subjects: [String] = []
+
+    func askAboutSite(_ question: SiteQuestion, subject: String) {
+        questions.append(question)
+        subjects.append(subject)
+    }
 }
 
 @MainActor final class FakeToaster: Toasting {

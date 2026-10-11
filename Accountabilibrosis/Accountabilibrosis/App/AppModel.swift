@@ -45,6 +45,9 @@ enum TokenSource: Equatable {
     let engine: SessionEngine
     /// The chat screen's assistant (gpt-4.1-mini). Wired to Chrome and the session by AppModel.
     let assistant: ChatAssistant
+    /// Brings the chat screen to the front while locked in (the assistant needs the user; the Mac woke up).
+    /// AppDelegate connects it to the window presenter.
+    @ObservationIgnored var onShowChat: (() -> Void)?
     /// Where the two possible bot tokens come from (the Keychain, the bundled `.env`); tests inject fakes.
     private let keychainToken: () -> String?
     private let envToken: () -> String?
@@ -64,14 +67,17 @@ enum TokenSource: Equatable {
             onCacheUpdate: { cache in box.model?.updateSettings { $0.channelCache = cache } },
             toaster: ToastCenter.shared)
         let judge = RelevanceJudge(apiKey: { [box] in box.model?.openAIKey })
+        let assistant = ChatAssistant(apiKey: { [box] in box.model?.openAIKey })
+        let chrome = ChromeController(judge: judge, prompter: NeedPrompt())
+        Self.connect(assistant, with: chrome)
         let engine = SessionEngine(workspace: WorkspaceController(), blocker: AppBlocker(),
-                                   chrome: ChromeController(judge: judge, prompter: NeedPrompt()),
+                                   chrome: chrome,
                                    toaster: ToastCenter.shared,
                                    announcer: announcer,
                                    ownBundleID: Bundle.main.bundleIdentifier ?? "com.accountabilibrosis.app",
                                    visibleFrame: { ScreenGeometry.mainVisibleFrame() },
                                    primaryHeight: { ScreenGeometry.primaryHeight() })
-        self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine,
+        self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine, assistant: assistant,
                   keychainToken: { Keychain.get(service: Secrets.discordService, account: Secrets.discordAccount) },
                   envToken: { EnvFile.bundledValue(AppModel.envTokenKey) },
                   keychainOpenAIKey: { Keychain.get(service: Secrets.openAIService, account: Secrets.openAIAccount) },
@@ -84,24 +90,27 @@ enum TokenSource: Equatable {
     }
 
     /// Test initializer: injected engine. The token and key sources default to "nothing", so tests never
-    /// read the real Keychain or the bundled `.env`.
+    /// read the real Keychain or the bundled `.env`; the assistant defaults to one without an API key.
     convenience init(store: Store, engine: SessionEngine,
                      keychainToken: @escaping () -> String? = { nil },
                      envToken: @escaping () -> String? = { nil },
                      keychainOpenAIKey: @escaping () -> String? = { nil },
-                     envOpenAIKey: @escaping () -> String? = { nil }) {
+                     envOpenAIKey: @escaping () -> String? = { nil },
+                     assistant: ChatAssistant? = nil) {
         let (loaded, isFirstLaunch) = Self.load(store)
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine,
+                  assistant: assistant ?? ChatAssistant(apiKey: { nil }),
                   keychainToken: keychainToken, envToken: envToken,
                   keychainOpenAIKey: keychainOpenAIKey, envOpenAIKey: envOpenAIKey)
     }
 
     private init(store: Store, loaded: StoreLoadResult, isFirstLaunch: Bool, engine: SessionEngine,
+                 assistant: ChatAssistant,
                  keychainToken: @escaping () -> String?, envToken: @escaping () -> String?,
                  keychainOpenAIKey: @escaping () -> String?, envOpenAIKey: @escaping () -> String?) {
         self.store = store
         self.engine = engine
-        self.assistant = ChatAssistant(apiKey: { nil })
+        self.assistant = assistant
         self.keychainToken = keychainToken
         self.envToken = envToken
         self.keychainOpenAIKey = keychainOpenAIKey
@@ -111,11 +120,28 @@ enum TokenSource: Equatable {
         engine.onSessionChanged = { [weak self] session in
             self?.upsertSession(session)
         }
+        // The chat lives and dies with the lock-in, and can pull the chat screen forward.
+        engine.onLockedIn = { [weak self] subject in self?.assistant.beginSession(subject: subject.name) }
+        engine.onEnded = { [weak self] in self?.assistant.endSession() }
+        assistant.onNeedsAttention = { [weak self] in self?.onShowChat?() }
         // First launch with a token already available (team .env or Keychain): start posting to Discord.
         if isFirstLaunch, discordToken != nil {
             data.settings.discordEnabled = true
             save()
         }
+    }
+
+    /// Connects the assistant and Chrome both ways: the tab watch hands unsure sites to the assistant, and the
+    /// assistant's allow / close decisions go back to the tab watch. Both links are weak.
+    static func connect(_ assistant: ChatAssistant, with chrome: ChromeController) {
+        chrome.asker = assistant
+        assistant.sites = chrome
+    }
+
+    /// The Mac woke from sleep: while locked in, the assistant welcomes the user back (which brings up the chat).
+    func systemDidWake() {
+        guard engine.isLocked else { return }
+        assistant.greetAfterWake()
     }
 
     /// Loads the store and reports whether there was no store file before (a first launch).
