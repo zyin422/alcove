@@ -7,13 +7,13 @@ Run from a Mac with Xcode 16.3+, XcodeGen (`brew install xcodegen`) and Google C
 Merge the last branch:
 
 ```bash
-cd /Users/axion66/coding/accountabilibrosis && git merge --no-edit worktree-wf_23a89029-2f2-4
+cd /Users/axion66/coding/tofu && git merge --no-edit worktree-wf_23a89029-2f2-4
 ```
 
 Only if `project.pbxproj` conflicts (both branches regenerated it; regenerating fixes it):
 
 ```bash
-cd /Users/axion66/coding/accountabilibrosis/Accountabilibrosis && xcodegen generate && git add Accountabilibrosis.xcodeproj && git commit --no-edit
+cd /Users/axion66/coding/tofu/Tofu && xcodegen generate && git add Tofu.xcodeproj && git commit --no-edit
 ```
 
 ## 2. Test
@@ -21,19 +21,19 @@ cd /Users/axion66/coding/accountabilibrosis/Accountabilibrosis && xcodegen gener
 Must end with `** TEST SUCCEEDED **`:
 
 ```bash
-cd /Users/axion66/coding/accountabilibrosis/Accountabilibrosis && xcodegen generate && xcodebuild -project Accountabilibrosis.xcodeproj -scheme Accountabilibrosis -destination 'platform=macOS' -derivedDataPath build/DerivedData test 2>&1 | grep -E "Executed [0-9]+ tests.*seconds$|TEST (SUCCEEDED|FAILED)" | tail -2
+cd /Users/axion66/coding/tofu/Tofu && xcodegen generate && xcodebuild -project Tofu.xcodeproj -scheme Tofu -destination 'platform=macOS' -derivedDataPath build/DerivedData test 2>&1 | grep -E "Executed [0-9]+ tests.*seconds$|TEST (SUCCEEDED|FAILED)" | tail -2
 ```
 
 ## 3. Push
 
 ```bash
-cd /Users/axion66/coding/accountabilibrosis && git push origin main
+cd /Users/axion66/coding/tofu && git push origin main
 ```
 
 ## 4. Build & launch
 
 ```bash
-cd /Users/axion66/coding/accountabilibrosis/Accountabilibrosis && xcodebuild -project Accountabilibrosis.xcodeproj -scheme Accountabilibrosis -derivedDataPath build/DerivedData build | tail -1 && open build/DerivedData/Build/Products/Debug/Accountabilibrosis.app
+cd /Users/axion66/coding/tofu/Tofu && xcodebuild -project Tofu.xcodeproj -scheme Tofu -derivedDataPath build/DerivedData build | tail -1 && open build/DerivedData/Build/Products/Debug/Tofu.app
 ```
 
 ## 5. Demo checklist (~15 min)
@@ -66,5 +66,5 @@ cd /Users/axion66/coding/accountabilibrosis/Accountabilibrosis && xcodebuild -pr
 If you denied Chrome control, reset it and lock in again:
 
 ```bash
-tccutil reset AppleEvents com.accountabilibrosis.app
+tccutil reset AppleEvents com.tofu.app
 ```

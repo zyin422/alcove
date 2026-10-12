@@ -1,8 +1,8 @@
-# Accountabilibrosis
+# Tofu
 
 **Lock in on a subject, and your Mac turns into a study room.**
 
-Accountabilibrosis is a native macOS app. One click hides every other app and opens your study sites in Google Chrome, tiled in the layout you picked. Distractions are pushed away the moment they appear, your friends on Discord see that you're locked in, and the app tracks how long you actually stayed focused.
+Tofu is a native macOS app. One click hides every other app and opens your study sites in Google Chrome, tiled in the layout you picked. Distractions are pushed away the moment they appear, your friends on Discord see that you're locked in, and the app tracks how long you actually stayed focused.
 
 Built for **Code Ada 2026, Off the Clock** track.
  
@@ -13,17 +13,18 @@ Built for **Code Ada 2026, Off the Clock** track.
    - open-ended, which counts up;
    - or a goal of 25, 50, 90 or a custom number of minutes, which counts down.
 3. The app sets up the session:
-   - It hides every other app. It never quits them.
-   - It minimizes your existing Chrome windows.
-   - It opens the subject's sites in new Chrome windows, arranged in the chosen layout.
+   - It hides every other app, or asks them to quit if the setup says so.
+   - It closes your existing browser windows and remembers their tabs. In Arc it also closes the unpinned tabs; pinned tabs stay.
+   - It opens the setup's websites and apps, arranged in the chosen layout.
 4. While you're locked in:
    - A disallowed app that launches or comes to the front is hidden right away. A toast appears top-right, and the attempt is counted.
    - Every 2 seconds, new Chrome tabs are checked by OpenAI ("is this page relevant to CS128?"). Off-task tabs are closed, with a toast. See Relevance check below.
    - A giant timer, or a small floating one, shows your time.
-5. Ending a goal session early means typing the give-up phrase (by default `I give up on CS128`). Your Discord friends hear about it.
+5. Ending a goal session early opens the Mirror: a short interrogation. The session stops only if you confirm a forfeit, and Discord hears about it. You can also take a timed break, which pauses blocking until the timer ends. With no API key, you type the give-up phrase instead (by default `I give up on CS128`).
 6. When the session ends:
-   - Everything that was hidden comes back.
-   - Your old Chrome windows are restored.
+   - Everything that was hidden or quit comes back.
+   - Your old browser windows open again with their tabs. So do the off-task tabs that were closed during the session. Pages that are already open are skipped.
+   - The closed windows and tabs are saved to `closed-browser-tabs.json` next to `store.json`. If the app crashes, they reopen on the next launch.
    - The session shows up in your stats.
 
 ## Features
@@ -31,7 +32,7 @@ Built for **Code Ada 2026, Off the Clock** track.
 - **Subjects:** a name, a layout preset, one or two study sites and extra allowed apps.
 - **Four layout presets** for the main display. See below.
 - **App blocking:**
-  - Chrome, Finder and Accountabilibrosis are always allowed.
+  - Chrome, Finder and Tofu are always allowed.
   - Every other app is hidden when it launches or activates.
   - An attempt counts at most once every 2 seconds per app.
 - **AI relevance check for Chrome tabs:**
@@ -39,7 +40,7 @@ Built for **Code Ada 2026, Off the Clock** track.
   - An off-task tab is closed. A relevant tab stays open and is not checked again.
   - Study sites, blank new tabs, `chrome://` pages and tabs that were already open before the lock-in are never judged.
   - When there is no verdict, the app asks you. See Relevance check below.
-- **Session modes:** open-ended, or a goal. A goal counts down, completes on its own, and asks for a give-up phrase if you bail early.
+- **Session modes:** open-ended, or a goal. A goal counts down and completes on its own. Ending it early opens the Mirror; a forfeit is posted as a bail.
 - **Discord announcements** through your own bot. Lock-in, completion and bail messages go to one text channel per server.
 - **Stats:**
   - Day, Week and Month bar charts, stacked by subject.
@@ -76,6 +77,22 @@ Thirds (2 sites)                70 / 30 (1 site)
 - In Thirds and 70 / 30, the app window holds the giant timer.
 - In Left / Right and Full, a small timer floats at the top center of the screen.
 
+## Custom setups
+
+Each zone of a setup is a **window**: either a website window or an app.
+
+- **Website windows** open the first address, with any extra addresses as tabs behind it.
+- **App windows** open an app, and optionally a folder or file in it. For example, Visual Studio Code on `~/code/cs128`.
+- **Custom layout.** Pick the **Custom** tile and click **Capture current windows**. Every normal window on the main screen is copied with its position:
+  - Chrome and Arc windows keep their open web pages.
+  - Other apps keep the project folder of the file they show. This needs Accessibility.
+  - You can edit or remove any captured window before saving.
+- **Browser.** Choose Google Chrome or Arc per setup. Arc's pinned tabs are never listed or closed. Arc has no window bounds, so its windows are placed with Accessibility.
+- **Other apps while locked in:**
+  - **Hide them:** the default.
+  - **Quit them:** apps are asked to quit normally, so they can ask to save. When the session ends they are opened again in the background. Finder, Terminal, iTerm, Xcode, Cursor, Activity Monitor and System Settings are only hidden.
+- **Other desktops.** macOS has no public API to move windows to another desktop (Space), so "Quit them" is the stronger option.
+
 ## Requirements
 
 - macOS 14 Sonoma or later.
@@ -89,37 +106,57 @@ Thirds (2 sites)                70 / 30 (1 site)
 
 ```bash
 git clone https://github.com/zyin422/accountabilibrosis.git
-cd accountabilibrosis/Accountabilibrosis
+cd accountabilibrosis/Tofu
 xcodegen generate
-open Accountabilibrosis.xcodeproj    # then press ⌘R in Xcode
+open Tofu.xcodeproj    # then press ⌘R in Xcode
 ```
 
 From the command line:
 
 ```bash
-cd Accountabilibrosis
-xcodebuild -project Accountabilibrosis.xcodeproj -scheme Accountabilibrosis -configuration Release \
+cd Tofu
+xcodebuild -project Tofu.xcodeproj -scheme Tofu -configuration Release \
   -destination 'platform=macOS' -derivedDataPath build/DerivedData build
-open build/DerivedData/Build/Products/Release/Accountabilibrosis.app
+open build/DerivedData/Build/Products/Release/Tofu.app
 ```
 
 > **While developing:** a lock-in hides Xcode and Terminal too. It never quits them. Add them to a test subject's allowed apps, or end the session from the mini timer.
 
 ## Permissions
 
-The app needs exactly one permission: **Automation → Google Chrome**.
+The main permission is **Automation → Google Chrome**.
 
 - **What it's for:**
   - opening and arranging the study windows;
   - reading tab URLs and titles, and closing off-topic tabs;
   - minimizing and restoring your own windows.
-- **When macOS asks:** once, with "Accountabilibrosis wants access to control Google Chrome". To get the prompt out of the way early, use **Settings › Chrome › Request access**.
+- **When macOS asks:** once, with "Tofu wants access to control Google Chrome". To get the prompt out of the way early, use **Settings › Chrome › Request access**.
 
-The app does **not** need Accessibility, Screen Recording, Full Disk Access or notification permission. It never scripts System Events.
+**Automation → Arc** is asked the same way the first time a setup uses Arc.
 
-- **Denied by accident?** Turn it back on in **System Settings › Privacy & Security › Automation › Accountabilibrosis › Google Chrome**. A lock-in without it still hides and blocks apps.
+**Accessibility** is only needed to:
+
+- place app windows and Arc windows;
+- use custom layouts;
+- capture each app's folder.
+
+Grant it in **Settings › Window placement**. Chrome-only preset setups work without it. Rebuilds can make macOS forget the grant: remove the app from the Accessibility list and allow it again.
+
+The app does **not** need Screen Recording, Full Disk Access or notification permission. It never scripts System Events.
+
+- **Denied by accident?** Turn it back on in **System Settings › Privacy & Security › Automation › Tofu › Google Chrome**. A lock-in without it still hides and blocks apps.
 - **Unsandboxed by design.** Hiding other apps does not work inside the App Sandbox, so the app can't ship on the Mac App Store. It is built locally and signed ad hoc (`CODE_SIGN_IDENTITY = -`).
-- **Rebuilds can bring the prompt back.** An ad-hoc signature changes on every rebuild, so macOS may ask for Chrome access again. To reset the answer, run `tccutil reset AppleEvents com.accountabilibrosis.app`.
+- **Rebuilds can bring the prompt back.** An ad-hoc signature changes on every rebuild, so macOS may ask for Chrome access again. To reset the answer, run `tccutil reset AppleEvents com.tofu.app`.
+
+## Daily priorities and the end-of-day recap
+
+- **Morning screen.** A full-screen "Good morning" shows the first time you use the Mac each day, on launch, wake or unlock, after 4 AM and before the end-of-day time. Pick one of today's priorities, give it a setup if it has none, choose a length and **LOCK IN**. Open it any time with **Start my day** on the Today page; turn it off in **Settings › End of day**.
+- **Today page** (top of the sidebar). Lists today's priorities. You can tick them off, add one (with the setup it belongs to), or start a lock-in on one.
+- **After a lock-in.** The session summary asks "Did you finish …?" about the first open priority tied to that setup. This also happens if you end early. You can change the ticks later on the Today page or in the recap.
+- **End of the day.** Starts from **End my day** on the Today page, or on its own at the time set in **Settings › End of day** (default 10 PM, once a day). If you're locked in, it waits until the session ends. A day runs from 4 AM to 4 AM, so wrapping up after midnight still counts for the evening before. It has three steps:
+  1. confirm what you finished;
+  2. say tomorrow's priorities out loud (or type them). gpt-4.1-mini splits them into a list and matches each to a setup. Without a key, the list is split locally.
+  3. review the list and post one message to the group chat: the day's score, done, not done, and tomorrow's plan. The score is out of 100: 50 for the share of priorities finished, 30 for focus time (full marks at 90 minutes), and 20 for finishing the day without a bail.
 
 ## Relevance check (OpenAI)
 
@@ -129,10 +166,12 @@ The old website allowlist and blocklist are gone. While you're locked in, an AI 
 - **What is not asked.**
   - Your study sites (and their subdomains) are never judged.
   - Blank tabs, `chrome://` pages and unparseable URLs are never judged.
-  - Tabs that were already open before you locked in are never judged. Their windows are minimized and kept minimized.
+  - Tabs that were already open before you locked in are never judged. Their windows are minimized and kept minimized. The exception is tabs on the always-closed list below: those are closed too.
+- **Always closed, no AI needed.** Social media, email and messaging (Gmail, Outlook, WhatsApp Web, Discord and others), streaming, YouTube and shopping sites are closed as soon as they show up. The full list is in `Engine/DistractionList.swift`. A study site on one of those domains (for example a YouTube channel you added) is still kept, and so is a site you told the buddy you need. `aws.amazon.com` and `developer.amazon.com` are exempt.
+- **Not sure? The buddy asks, out loud.** When the AI can't decide, a small popup appears bottom-right. It reads the question aloud with a built-in macOS voice, shows a countdown, and you answer by holding **Hold to talk**. Your speech is transcribed on this Mac and shown live. **Close it** closes the site right away. With no answer in 1 minute, the site is closed. Voice is only used for these new-tab questions.
 - **Once per page.** Each URL is judged once per session. A tab that goes somewhere new is judged again. A URL that was judged off-task is closed straight away if it reappears.
 - **The key.** It resolves like the Discord token:
-  - A key saved in **Settings › Relevance check (OpenAI)** goes to the Keychain (service `com.accountabilibrosis.openai`, account `api-key`) and wins.
+  - A key saved in **Settings › Relevance check (OpenAI)** goes to the Keychain (service `com.tofu.openai`, account `api-key`) and wins.
   - Otherwise the team key from the repo-root `.env` is used. Add it next to the Discord token:
 
     ```
@@ -168,7 +207,7 @@ To run your own bot instead of the team's, follow the steps below.
 
 1. Create an application at <https://discord.com/developers/applications> (**New Application**).
 2. Open **Bot**, click **Reset Token**, and copy the token.
-3. In Accountabilibrosis, open **Settings › Discord**:
+3. In Tofu, open **Settings › Discord**:
    1. Paste the token and click **Save**. It is stored in the Keychain.
    2. Turn on **Post lock-ins to Discord**.
 4. Invite the bot to your server:
@@ -197,14 +236,14 @@ The name comes from **Settings › Profile › Display name**. Discord problems 
 
 | Data | Location |
 |---|---|
-| Subjects, sessions, settings | `~/Library/Application Support/Accountabilibrosis/store.json`. Writes are atomic. An unreadable file is renamed to `store.corrupt-<timestamp>.json`, and the app starts fresh. |
-| Discord bot token (yours) | The Keychain: a generic password with service `com.accountabilibrosis.discord` and account `bot-token`. It is never written to JSON or logs. It overrides the team token. |
+| Subjects, sessions, settings | `~/Library/Application Support/Tofu/store.json`. Writes are atomic. An unreadable file is renamed to `store.corrupt-<timestamp>.json`, and the app starts fresh. |
+| Discord bot token (yours) | The Keychain: a generic password with service `com.tofu.discord` and account `bot-token`. It is never written to JSON or logs. It overrides the team token. |
 | Discord bot token (team) | The repo's `.env`, copied into the app bundle as `Resources/discord.env` at build time. |
-| OpenAI API key (yours) | The Keychain: a generic password with service `com.accountabilibrosis.openai` and account `api-key`. It is never written to JSON or logs. It overrides the team key. |
+| OpenAI API key (yours) | The Keychain: a generic password with service `com.tofu.openai` and account `api-key`. It is never written to JSON or logs. It overrides the team key. |
 | OpenAI API key (team) | The repo's `.env` (`OPENAI_API_KEY`), bundled into the app the same way as the Discord token. |
 | Discord Application ID (only used for the invite link) | App preferences, key `discordAppID` |
 
-To start over, quit the app and delete `~/Library/Application Support/Accountabilibrosis/`. To remove your own token, use **Settings › Discord › Remove**. To remove your own OpenAI key, use **Settings › Relevance check (OpenAI) › Remove**.
+To start over, quit the app and delete `~/Library/Application Support/Tofu/`. To remove your own token, use **Settings › Discord › Remove**. To remove your own OpenAI key, use **Settings › Relevance check (OpenAI) › Remove**.
 
 ## Known limitations
 
@@ -229,10 +268,10 @@ accountabilibrosis/
 ├── .env                     team secrets (DISCORD_BOT_TOKEN, OPENAI_API_KEY), bundled into the app at build time
 ├── docs/superpowers/        design spec and implementation plan
 ├── *.pdf                    Code Ada 2026 packet and presentation guidelines
-└── Accountabilibrosis/
+└── Tofu/
     ├── project.yml          XcodeGen spec (source of truth for the Xcode project)
-    ├── Accountabilibrosis.xcodeproj/
-    ├── Accountabilibrosis/
+    ├── Tofu.xcodeproj/
+    ├── Tofu/
     │   ├── App/             app entry point, AppDelegate (⌘Q handling), AppModel (root state)
     │   ├── Models/          Subject, Session, AppSettings, StoreData
     │   ├── Persistence/     Store (JSON file), Keychain (bot token, OpenAI key), EnvFile (bundled team secrets)
@@ -245,7 +284,7 @@ accountabilibrosis/
     │   ├── UI/              SwiftUI screens and AppKit panels: sidebar, subject editor, lock-in sheet,
     │   │                    locked view, give-up sheet, mini timer, toasts, stats, settings, theme
     │   └── Resources/       Assets.xcassets (monochrome accent color)
-    └── AccountabilibrosisTests/   XCTest suites for every pure unit, plus SessionEngine with fakes
+    └── TofuTests/   XCTest suites for every pure unit, plus SessionEngine with fakes
 ```
 
 Side effects sit behind small `@MainActor` protocols: `WorkspaceControlling`, `AppBlocking`, `ChromeControlling`, `RelevanceJudging`, `NeedPrompting`, `Toasting`, `Announcing` and `WindowPresenting`. So the whole lock-in lifecycle is tested without touching real apps, Chrome, OpenAI or Discord.
@@ -253,10 +292,10 @@ Side effects sit behind small `@MainActor` protocols: `WorkspaceControlling`, `A
 ## Tests
 
 ```bash
-cd Accountabilibrosis && xcodegen generate && \
-  xcodebuild -project Accountabilibrosis.xcodeproj -scheme Accountabilibrosis -destination 'platform=macOS' test 2>&1 | tail -30
+cd Tofu && xcodegen generate && \
+  xcodebuild -project Tofu.xcodeproj -scheme Tofu -destination 'platform=macOS' test 2>&1 | tail -30
 ```
 
 The run ends with `** TEST SUCCEEDED **`. No test touches the network, Chrome, other apps or your real data:
 - store tests write to a temporary folder;
-- Keychain tests use their own service, `com.accountabilibrosis.tests`.
+- Keychain tests use their own service, `com.tofu.tests`.
