@@ -25,6 +25,8 @@ struct TodayView: View {
     /// A wrapped-up mark belongs to a day that was actually closed. It does not belong on the current day
     /// while an earlier day is still open, even if this date was marked during an older session.
     private var showsWrappedUp: Bool { plan.wrappedUp && !currentDayIsBlocked }
+    /// "Again" only after this day on screen was wrapped up. The previous day's wrap-up does not count.
+    private var wrapUpButtonTitle: String { plan.wrappedUp ? "Wrap up again" : "Wrap up" }
     private var canGoForward: Bool { shownDay < todayKey }
     private var month: (year: Int, month: Int) {
         if let shownMonth { return shownMonth }
@@ -131,9 +133,7 @@ struct TodayView: View {
                 } else {
                     Button("Start my day") { model.startMyDay() }
                         .buttonStyle(SecondaryButtonStyle())
-                    Button(plan.wrappedUp ? "Wrap up again" : "End my day") { model.isWrappingUpDay = true }
-                        .buttonStyle(SecondaryButtonStyle())
-                    Button("Post day recap") { model.postDayRecap() }
+                    Button(wrapUpButtonTitle) { model.isWrappingUpDay = true }
                         .buttonStyle(SecondaryButtonStyle())
                 }
             }

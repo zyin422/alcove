@@ -298,7 +298,10 @@ import Observation
         if !pending.isEmpty {
             let questions = pending.map { site -> String in
                 let title = site.title.isEmpty ? "" : " “\(site.title)”"
-                return "- \(site.host)\(title), \(Int((site.relevance * 100).rounded()))% related to the subject"
+                let score = site.relevance < 0
+                    ? "the automatic check could not decide"
+                    : "\(Int((site.relevance * 100).rounded()))% related to the subject"
+                return "- \(site.host)\(title), \(score)"
             }
             lines.append("")
             lines.append("Sites waiting for the user's answer (you asked how each one helps; decide once they explain):")

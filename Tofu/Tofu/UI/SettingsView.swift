@@ -78,7 +78,7 @@ struct SettingsView: View {
         } header: {
             Text("Discord")
         } footer: {
-            Text("The bot posts when you lock in, finish, or bail. Bots can't join group DMs, so it posts in one text channel per server it is in. A token you save here overrides the team token bundled from .env.")
+            Text("The bot posts when you lock in, finish, or bail. It uses #locked-in when that channel exists (#lock-in, #lockin and #accountability also work), including after it has been posting in #general. Bots can't join group DMs. A token you save here overrides the team token bundled from .env.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -136,7 +136,7 @@ struct SettingsView: View {
         } header: {
             Text("End of day")
         } footer: {
-            Text("The morning screen shows the first time you use the Mac each day (after 4 AM): pick one of today's priorities and lock in on its setup. At the end-of-day time the app asks what you finished, posts it to the group chat, and has you say tomorrow's priorities. If you're locked in, it waits until the session ends. You can also use “End my day” on the Today page.")
+            Text("The morning screen shows the first time you use the Mac each day (after 4 AM): pick one of today's priorities and lock in on its setup. At the end-of-day time the app asks what you finished, posts it to the group chat, and has you say tomorrow's priorities. If you're locked in, it waits until the session ends. You can also use “Wrap up” on the Today page.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -12,8 +12,9 @@ struct DiscordChannel: Decodable, Equatable {
 enum ChannelPicker {
     static let preferredNames = ["lock-in", "locked-in", "lockin", "accountability"]
 
-    /// Text channels only (type == 0). Order: cached id (if present & text), preferred names in list order,
-    /// then remaining text channels by position (nil last), ties by id. No duplicates.
+    /// Text channels only (type == 0). Order: preferred names in list order, then the cached id (if it is still
+    /// a text channel), then remaining text channels by position (nil last), ties by id. No duplicates.
+    /// A named channel such as #locked-in wins over a cache that still points at #general.
     static func candidates(from channels: [DiscordChannel], cachedID: String?) -> [String] {
         let textChannels = channels.filter { $0.type == 0 }.sorted(by: positionOrder)
         var result: [String] = []
@@ -22,13 +23,13 @@ enum ChannelPicker {
             if seen.insert(id).inserted { result.append(id) }
         }
 
-        if let cachedID, textChannels.contains(where: { $0.id == cachedID }) {
-            add(cachedID)
-        }
         for preferred in preferredNames {
             for channel in textChannels where channel.name?.lowercased() == preferred {
                 add(channel.id)
             }
+        }
+        if let cachedID, textChannels.contains(where: { $0.id == cachedID }) {
+            add(cachedID)
         }
         for channel in textChannels {
             add(channel.id)

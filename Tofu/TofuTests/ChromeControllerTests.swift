@@ -26,6 +26,26 @@ import XCTest
         XCTAssertFalse(message.isEmpty)
     }
 
+    func testTabPollRunsTheScriptOffTheMainThread() async {
+        let finished = expectation(description: "poll script finished")
+        final class Probe: @unchecked Sendable {
+            var wasMain: Bool?
+        }
+        let probe = Probe()
+        let controller = ChromeController(judge: FakeJudge(), prompter: FakePrompter(),
+                                          runScript: { _ in
+                                              probe.wasMain = Thread.isMainThread
+                                              finished.fulfill()
+                                              return .success("")
+                                          },
+                                          chromeIsRunning: { true },
+                                          pollsOffMainThread: true)
+        controller.startTabWatch(subject: "CS128", studySites: [])
+        defer { controller.stopTabWatch() }
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertEqual(probe.wasMain, false)
+    }
+
     // MARK: openAll (prepare's per-site loop)
 
     /// Records every script handed to `openAll` and answers from `results` (missing key = success).
@@ -247,12 +267,11 @@ import XCTest
         XCTAssertEqual(h.closedHosts, [])
     }
 
-    func testUnknownVerdictAsksOncePerHostAndNeededKeepsTheTabs() async {
-        let a = tab("https://example.org/one", id: 5)
+    func testUnknownVerdictAsksTheAssistantOncePerHostAndLeavesTheTabsOpen() async {
+        let a = tab("https://example.org/one", id: 5, title: "One")
         let b = tab("https://example.org/two", id: 6)
         let h = WatchHarness(tabs: [a, b])
         h.judge.defaultVerdict = .unknown("no key")
-        h.prompter.answers["example.org"] = true
         h.start()
         defer { h.controller.stopTabWatch() }
 
@@ -261,55 +280,48 @@ import XCTest
         h.controller.pollTabs()
         await settle()
 
-        XCTAssertEqual(h.prompter.asked, ["example.org"])
-        XCTAssertEqual(h.prompter.askedSubjects, ["CS128"])
-        XCTAssertEqual(h.judge.judgedURLs, [a.url, b.url], "no re-checks after the user said it is needed")
+        XCTAssertEqual(h.asker.questions, [SiteQuestion(host: "example.org", url: a.url, title: "One", relevance: -1)])
+        XCTAssertEqual(h.asker.subjects, ["CS128"])
+        XCTAssertEqual(h.prompter.asked, [], "a failed check uses the chat popup, never the system alert")
+        XCTAssertEqual(h.judge.judgedURLs, [a.url, b.url], "no re-checks while the assistant asks")
         XCTAssertEqual(h.log.closeScripts, [])
     }
 
-    func testUnknownVerdictThenCloseTabClosesEveryTabOfTheHostOnTheNextPoll() async {
+    func testUnknownVerdictCloseFromTheAssistantClosesEveryTabOfTheHost() async {
         let a = tab("https://example.org/one", id: 5)
         let b = tab("https://example.org/two", id: 6)
         let other = tab("https://other.org/", id: 7)
         let h = WatchHarness(tabs: [a, b, other])
         h.judge.defaultVerdict = .relevant
         h.judge.verdicts[a.url] = .unknown("offline")
-        h.prompter.answers["example.org"] = false
         h.start()
         defer { h.controller.stopTabWatch() }
 
         h.controller.pollTabs()
         await settle()
-        XCTAssertEqual(h.log.closeScripts, [], "the answer is acted on by the next poll")
+        XCTAssertEqual(h.log.closeScripts, [], "asking does not close the tabs")
+        XCTAssertEqual(h.prompter.asked, [])
 
-        h.controller.pollTabs()
+        h.controller.closeHost("example.org")
         XCTAssertEqual(h.log.closeScripts, [ChromeScripts.closeTab(windowID: 1, tabID: 5),
                                             ChromeScripts.closeTab(windowID: 1, tabID: 6)])
         XCTAssertEqual(h.closedHosts, ["example.org", "example.org"])
-        XCTAssertEqual(h.prompter.asked, ["example.org"])
     }
 
-    func testOnlyOneQuestionIsOnScreenAtATime() async {
+    func testUnknownVerdictsOnDifferentHostsAreAskedInTheChat() async {
         let a = tab("https://a.org/", id: 5)
         let b = tab("https://b.org/", id: 6)
         let h = WatchHarness(tabs: [a, b])
         h.judge.defaultVerdict = .unknown("offline")
-        h.prompter.holds = true
         h.start()
         defer { h.controller.stopTabWatch() }
 
         h.controller.pollTabs()
         await settle()
-        XCTAssertEqual(h.prompter.asked, ["a.org"])
 
-        h.prompter.resolveNext(true)
-        await settle()
-        XCTAssertEqual(h.prompter.asked, ["a.org", "b.org"])
-
-        h.prompter.resolveNext(false)
-        await settle()
-        h.controller.pollTabs()
-        XCTAssertEqual(h.log.closeScripts, [ChromeScripts.closeTab(windowID: 1, tabID: 6)])
+        XCTAssertEqual(h.asker.questions.map(\.host), ["a.org", "b.org"])
+        XCTAssertEqual(h.prompter.asked, [])
+        XCTAssertEqual(h.log.closeScripts, [])
     }
 
     func testStoppingTheWatchIgnoresVerdictsThatArriveLate() async {
@@ -329,26 +341,21 @@ import XCTest
         XCTAssertEqual(h.closedHosts, [])
     }
 
-    func testStoppingTheWatchIgnoresAnswersThatArriveLate() async {
+    func testUnknownVerdictThatArrivesAfterTheWatchStoppedIsIgnored() async {
         let page = tab("https://example.org/post", id: 5)
         let h = WatchHarness(tabs: [page])
-        h.judge.defaultVerdict = .unknown("offline")
-        h.prompter.holds = true
+        h.judge.holds = true
         h.start()
         h.controller.pollTabs()
         await settle()
-        XCTAssertEqual(h.prompter.pendingCount, 1)
 
-        // The question from the old watch is still on screen when a new watch starts and the user finally answers.
         h.controller.stopTabWatch()
-        h.judge.defaultVerdict = .relevant
-        h.start()
-        defer { h.controller.stopTabWatch() }
-        h.prompter.resolveNext(false)
+        h.judge.resolveNext(.unknown("offline"))
         await settle()
-        h.controller.pollTabs()
 
-        XCTAssertEqual(h.log.closeScripts, [], "the new watch must not inherit the old watch's \"Close tab\" answer")
+        XCTAssertEqual(h.asker.questions, [])
+        XCTAssertEqual(h.prompter.asked, [])
+        XCTAssertEqual(h.log.closeScripts, [])
     }
 
     func testSubjectAndStudySitesComeFromTheLatestWatch() async {
@@ -425,8 +432,8 @@ import XCTest
         XCTAssertEqual(h.judge.judgedURLs, [page.url])
     }
 
-    func testUnknownVerdictStillUsesThePromptAndNeverTheAssistant() async {
-        let page = tab("https://example.org/one", id: 5)
+    func testUnknownVerdictUsesTheAssistantAndNeverThePrompt() async {
+        let page = tab("https://example.org/one", id: 5, title: "One")
         let h = WatchHarness(tabs: [page])
         h.judge.defaultVerdict = .unknown("no key")
         h.start()
@@ -435,8 +442,8 @@ import XCTest
         h.controller.pollTabs()
         await settle()
 
-        XCTAssertEqual(h.prompter.asked, ["example.org"])
-        XCTAssertEqual(h.asker.questions, [])
+        XCTAssertEqual(h.asker.questions, [SiteQuestion(host: "example.org", url: page.url, title: "One", relevance: -1)])
+        XCTAssertEqual(h.prompter.asked, [])
     }
 
     func testUnsureVerdictThatArrivesAfterTheWatchStoppedIsIgnored() async {

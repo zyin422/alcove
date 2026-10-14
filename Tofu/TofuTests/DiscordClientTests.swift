@@ -180,7 +180,7 @@ final class DiscordClientTests: XCTestCase {
         ])
     }
 
-    func testCachedChannelIsTriedFirst() async {
+    func testPreferredChannelBeatsTheCachedOne() async {
         let transport = MockTransport { request in
             switch request.url?.path ?? "" {
             case "/api/v10/users/@me/guilds":
@@ -197,8 +197,8 @@ final class DiscordClientTests: XCTestCase {
         }
         let report = await makeClient(transport).broadcast("hello", channelCache: ["1": "11"])
 
-        XCTAssertEqual(report.posted, ["1": "11"])
-        XCTAssertEqual(transport.log.last, "POST /api/v10/channels/11/messages")
+        XCTAssertEqual(report.posted, ["1": "12"])
+        XCTAssertEqual(transport.log.last, "POST /api/v10/channels/12/messages")
         XCTAssertEqual(transport.log.filter { $0.hasPrefix("POST") }.count, 1)
     }
 
