@@ -60,6 +60,10 @@ struct SessionSummaryView: View {
                 }
             }
 
+            if !model.engine.relaunchOffer.isEmpty {
+                relaunchList
+            }
+
             if let priority {
                 priorityCheck(priority)
             }
@@ -69,8 +73,50 @@ struct SessionSummaryView: View {
                 .keyboardShortcut(.defaultAction)
         }
         .padding(Theme.Space.l)
-        .frame(width: 420)
+        .frame(width: 460)
         .onAppear { priority = model.priorityToConfirm(after: session) }
+        .onDisappear { model.engine.applyRelaunch() }
+    }
+
+    private var relaunchList: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            Text("Bring back")
+                .font(.system(size: 15, weight: .semibold))
+            Text("Checked tabs and apps open again when you close this.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Space.m) {
+                    ForEach(RelaunchChoice.Group.allCases, id: \.self) { group in
+                        let rows = model.engine.relaunchOffer.filter { $0.group == group }
+                        if !rows.isEmpty {
+                            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                                Text(group.rawValue)
+                                    .font(Theme.captionFont)
+                                    .foregroundStyle(.secondary)
+                                ForEach(rows) { choice in
+                                    Toggle(isOn: Binding(
+                                        get: { model.engine.relaunchOffer.first { $0.id == choice.id }?.selected ?? false },
+                                        set: { model.engine.setRelaunchSelection(choice.id, selected: $0) }
+                                    )) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(choice.title).lineLimit(1)
+                                            Text(choice.subtitle)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    .toggleStyle(.checkbox)
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 240)
+        }
     }
 
     @ViewBuilder private func priorityCheck(_ priority: Priority) -> some View {

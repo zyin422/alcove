@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Tofu
 
@@ -112,6 +113,7 @@ final class CustomSetupTests: XCTestCase {
         XCTAssertFalse(script.contains("set w to"), "Arc's make new window returns no window")
         XCTAssertTrue(script.contains("tell front window"))
         XCTAssertTrue(script.contains("if already is false then make new tab"), "an open URL is not made again")
+        XCTAssertTrue(script.contains("repeat with t in tabs of s"), "a URL open in another space is not made again")
         XCTAssertEqual(script.components(separatedBy: "make new window").count - 1, 1)
     }
 
@@ -156,11 +158,49 @@ final class CustomSetupTests: XCTestCase {
         XCTAssertTrue(script.contains("set bounds of w to {0, 0, 10, 10}"))
     }
 
-    func testArcListsOnlyUnpinnedTabsAndQuotesTextIDs() {
-        XCTAssertTrue(ChromeScripts.listTabs(for: .arc).contains("is \"unpinned\""))
+    func testArcListsEverySpaceAndStillSkipsPinnedTabs() {
+        let script = ChromeScripts.listTabs(for: .arc, quietArcSpaces: ["SPACE-1"])
+        XCTAssertTrue(script.contains("repeat with t in tabs of w"))
+        XCTAssertTrue(script.contains("spaces of w"))
+        XCTAssertTrue(script.contains("id of active space of front window"))
+        XCTAssertTrue(script.contains("focus s"))
+        XCTAssertTrue(script.contains("focus space id savedSpace"))
+        XCTAssertTrue(script.contains("\"pinned\""))
+        XCTAssertTrue(script.contains("\"topApp\""))
+        XCTAssertTrue(script.contains("\"#space\""))
+        XCTAssertTrue(script.contains("\"SPACE-1\""))
+        XCTAssertFalse(script.contains("is \"unpinned\""), "a tab whose location cannot be read is still listed")
         XCTAssertFalse(ChromeScripts.listTabs(for: .chrome).contains("unpinned"))
-        XCTAssertEqual(ChromeScripts.closeTab(windowID: "W-1", tabID: "T-9", browser: .arc),
-                       "tell application \"Arc\" to close (every tab of window id \"W-1\" whose id is \"T-9\")")
+        XCTAssertNotNil(NSAppleScript(source: script), "the Arc tab list must compile")
+        XCTAssertEqual(ChromeScripts.listTabs(for: .arc, quietArcSpaces: []).contains("set quietSpaces to {}"), true)
+    }
+
+    func testArcCloseReachesATabThatOnlyItsSpaceLists() {
+        let script = ChromeScripts.closeTab(windowID: "W-1", tabID: "T-9", browser: .arc)
+        XCTAssertTrue(script.contains("close (every tab of window id \"W-1\" whose id is \"T-9\")"))
+        XCTAssertTrue(script.contains("close (every tab of s whose id is \"T-9\")"))
+        XCTAssertNotNil(NSAppleScript(source: script))
+        let tab = ChromeTab(windowID: "W-1", tabIndex: 1, tabID: "T-9", title: "", url: "https://a.com")
+        XCTAssertTrue(ChromeScripts.closeTabs([tab], browser: .arc).contains("close (every tab of s whose id is \"T-9\")"))
+    }
+
+    func testArcEmptySpaceMarkersAreNotTabs() {
+        let us = String(ChromeScripts.fieldSeparator)
+        let output = [
+            ["W-1", "1", "T-1", "Notes", "https://canvas.illinois.edu/course"].joined(separator: us),
+            "#space" + us + "SPACE-EMPTY",
+            ["W-2", "1", "T-1", "Notes", "https://canvas.illinois.edu/course"].joined(separator: us),
+            ["W-1", "2", "T-poker", "Poker", "https://www.pokerstars.com/poker"].joined(separator: us),
+        ].joined(separator: "\n")
+        let tabs = ChromeScripts.parseTabs(output, browser: .arc)
+        XCTAssertEqual(tabs.map(\.tabID), ["T-1", "T-poker"])
+        XCTAssertEqual(tabs.map(\.windowID), ["W-1", "W-1"])
+        XCTAssertEqual(ChromeScripts.emptyArcSpaceIDs(in: output), ["SPACE-EMPTY"])
+        var triage = TabTriage(studySites: ["https://canvas.illinois.edu"], protected: [],
+                               alwaysBlocked: DistractionList.hosts)
+        XCTAssertFalse(triage.shouldCloseImmediately(tabs[0]))
+        XCTAssertTrue(triage.shouldCloseImmediately(tabs[1]))
+        XCTAssertEqual(triage.tabsToCheck(tabs), [])
     }
 
     func testParseTabsAcceptsArcTextIDsOnlyForArc() {
@@ -195,7 +235,10 @@ final class CustomSetupTests: XCTestCase {
         XCTAssertTrue(WorkspaceCapture.captureScript(for: .chrome).contains("tell application \"Google Chrome\""))
         XCTAssertTrue(WorkspaceCapture.captureScript(for: .chrome).contains("bounds of w"))
         XCTAssertTrue(WorkspaceCapture.captureScript(for: .arc).contains("tell application \"Arc\""))
+        XCTAssertTrue(WorkspaceCapture.captureScript(for: .arc).contains("spaces of w"))
+        XCTAssertTrue(WorkspaceCapture.captureScript(for: .arc).contains("focus space id savedSpace"))
         XCTAssertFalse(WorkspaceCapture.captureScript(for: .arc).contains("bounds"))
+        XCTAssertNotNil(NSAppleScript(source: WorkspaceCapture.captureScript(for: .arc)))
     }
 
     func testProjectFolderFindsTheProjectRoot() {
@@ -294,14 +337,19 @@ final class CustomSetupTests: XCTestCase {
 
     @MainActor func testQuitSetupQuitsOthersAndRelaunchesThemAtTheEnd() async {
         let h = EngineHarness()
-        h.workspace.quitResult = (["com.spotify.client"], ["com.apple.Terminal"])
+        h.workspace.quitResult = ([RunningAppInfo(bundleID: "com.spotify.client", name: "Spotify", isRegular: true)],
+                                 ["com.apple.Terminal"])
         await h.engine.start(subject: Subject(name: "A", sites: ["https://a.com"], unusedApps: .quit),
                              mode: .open, displayName: "Z")
         XCTAssertEqual(h.workspace.quitCalls.count, 1)
         XCTAssertTrue(h.workspace.hideCalls.isEmpty)
         await h.engine.finish()
-        XCTAssertEqual(h.workspace.relaunchCalls, [["com.spotify.client"]])
+        XCTAssertEqual(h.workspace.relaunchCalls, [])
         XCTAssertEqual(h.workspace.unhideCalls, [["com.apple.Terminal"]])
+        XCTAssertEqual(h.engine.relaunchOffer.map(\.title), ["Spotify"])
+        XCTAssertEqual(h.engine.relaunchOffer.map(\.selected), [true])
+        h.engine.applyRelaunch()
+        XCTAssertEqual(h.workspace.relaunchCalls, [["com.spotify.client"]])
     }
 
     @MainActor func testHideSetupNeverQuits() async {
@@ -310,7 +358,7 @@ final class CustomSetupTests: XCTestCase {
         await h.engine.finish()
         XCTAssertTrue(h.workspace.quitCalls.isEmpty)
         XCTAssertEqual(h.workspace.hideCalls.count, 1)
-        XCTAssertEqual(h.workspace.relaunchCalls, [[]])
+        XCTAssertEqual(h.workspace.relaunchCalls, [])
     }
 
     @MainActor func testBrowserErrorMessages() {

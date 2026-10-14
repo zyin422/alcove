@@ -135,8 +135,8 @@ struct BrowserWindowCapture: Equatable {
     }
 
     /// Lists every non-minimized window as "left<US>top<US>right<US>bottom<US>activeIndex<US>url<RS>url<RS>…".
-    /// Arc has no bounds, so its first four fields are empty; its active tab's URL comes first and only
-    /// unpinned tabs are listed.
+    /// Arc has no bounds, so its first four fields are empty; its active tab's URL comes first. Pinned and
+    /// favorite tabs are skipped. Spaces Arc is hiding are focused once, then the space that was showing is restored.
     nonisolated static func captureScript(for browser: Browser) -> String {
         let windowPart: String
         switch browser {
@@ -152,20 +152,82 @@ struct BrowserWindowCapture: Equatable {
                     end if
             """
         case .arc:
-            windowPart = """
-                    if minimized of w is false then
-                        set urlText to ""
+            return """
+                set sepChar to ASCII character 31
+                set urlSep to ASCII character 30
+                set lineChar to linefeed
+                set out to ""
+                tell application "Arc"
+                    set savedSpace to ""
+                    try
+                        set savedSpace to (id of active space of front window) as text
+                    end try
+                    set seenSpaces to {}
+                    repeat with w in windows
                         try
-                            set urlText to ((URL of active tab of w) as text) & urlSep
+                            if minimized of w is false then
+                                set urlText to ""
+                                try
+                                    set urlText to ((URL of active tab of w) as text) & urlSep
+                                end try
+                                repeat with t in tabs of w
+                                    try
+                                        set includeTab to true
+                                        try
+                                            set loc to ((location of t) as text)
+                                            if loc is "pinned" or loc is "topApp" then set includeTab to false
+                                        end try
+                                        if includeTab is true then set urlText to urlText & ((URL of t) as text) & urlSep
+                                    end try
+                                end repeat
+                                repeat with s in spaces of w
+                                    try
+                                        set sid to (id of s) as text
+                                        set seen to false
+                                        repeat with previous in seenSpaces
+                                            if (previous as text) is sid then set seen to true
+                                        end repeat
+                                        if seen is false then
+                                            set end of seenSpaces to sid
+                                            set n to 0
+                                            try
+                                                set n to count of tabs of s
+                                            end try
+                                            if n is 0 and sid is not savedSpace then
+                                                try
+                                                    focus s
+                                                    set n to count of tabs of s
+                                                end try
+                                            end if
+                                            if n > 0 then
+                                                repeat with t in tabs of s
+                                                    try
+                                                        set includeTab to true
+                                                        try
+                                                            set loc to ((location of t) as text)
+                                                            if loc is "pinned" or loc is "topApp" then set includeTab to false
+                                                        end try
+                                                        if includeTab is true then set urlText to urlText & ((URL of t) as text) & urlSep
+                                                    end try
+                                                end repeat
+                                            end if
+                                        end if
+                                    end try
+                                end repeat
+                                set out to out & sepChar & sepChar & sepChar & sepChar & "1" & sepChar & urlText & lineChar
+                            end if
                         end try
-                        repeat with t in tabs of w
-                            try
-                                if ((location of t) as text) is "unpinned" then set urlText to urlText & ((URL of t) as text) & urlSep
-                            end try
-                        end repeat
-                        set out to out & sepChar & sepChar & sepChar & sepChar & "1" & sepChar & urlText & lineChar
+                    end repeat
+                    if savedSpace is not "" then
+                        try
+                            tell front window
+                                focus space id savedSpace
+                            end tell
+                        end try
                     end if
-            """
+                end tell
+                return out
+                """
         }
         return """
             set sepChar to ASCII character 31

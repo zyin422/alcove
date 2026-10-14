@@ -7,8 +7,9 @@ import AppKit
     func unhide(_ bundleIDs: [String])
     func activate(bundleID: String)
     /// Asks every running .regular app not in `allowed` to quit (it may ask to save first); apps in
-    /// `BlockPolicy.neverQuit` are hidden instead. Returns the bundle IDs asked to quit and those hidden.
-    func quitOthers(allowed: Set<String>) -> (quit: [String], hidden: [String])
+    /// `BlockPolicy.neverQuit` are hidden instead. Returns the apps asked to quit (with their names) and the
+    /// bundle IDs hidden instead.
+    func quitOthers(allowed: Set<String>) -> (quit: [RunningAppInfo], hidden: [String])
     /// Opens these apps again in the background (skipping ones already running).
     func relaunch(_ bundleIDs: [String])
 }
@@ -26,18 +27,19 @@ extension RunningAppInfo {
 /// Hides, unhides, quits and relaunches other apps through NSWorkspace / NSRunningApplication.
 /// Quitting is a normal quit request (never a force quit), so apps can ask to save.
 @MainActor final class WorkspaceController: WorkspaceControlling {
-    func quitOthers(allowed: Set<String>) -> (quit: [String], hidden: [String]) {
+    func quitOthers(allowed: Set<String>) -> (quit: [RunningAppInfo], hidden: [String]) {
         let ownPID = ProcessInfo.processInfo.processIdentifier
-        var quit: [String] = []
+        var quit: [RunningAppInfo] = []
         var hidden: [String] = []
         for app in NSWorkspace.shared.runningApplications where app.processIdentifier != ownPID {
             let info = RunningAppInfo(app)
             guard BlockPolicy.shouldBlock(info, allowed: allowed) else { continue }
-            if BlockPolicy.neverQuit.contains(info.bundleID) {
+            let sentQuit = BlockPolicy.neverQuit.contains(info.bundleID) ? false : app.terminate()
+            switch BlockPolicy.forcedClose(bundleID: info.bundleID, didSendQuit: sentQuit) {
+            case .quit:
+                if !quit.contains(where: { $0.bundleID == info.bundleID }) { quit.append(info) }
+            case .hide:
                 if !app.isHidden, app.hide(), !hidden.contains(info.bundleID) { hidden.append(info.bundleID) }
-            } else {
-                app.hide()
-                if app.terminate(), !quit.contains(info.bundleID) { quit.append(info.bundleID) }
             }
         }
         return (quit, hidden)

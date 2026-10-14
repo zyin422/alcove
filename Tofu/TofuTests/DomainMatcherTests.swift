@@ -93,7 +93,7 @@ final class DomainMatcherTests: XCTestCase {
     func testBlankTabsAndChromeInternalPagesAreAllowed() {
         let internalPages = [
             "chrome://newtab", "chrome://newtab/", "chrome://new-tab-page/", "chrome://settings",
-            "chrome://settings/privacy", "Chrome://Settings", "about:blank", "", "   ",
+            "chrome://settings/privacy", "Chrome://Settings", "about:blank", "arc://newtab", "arc://newtab/", "", "   ",
             "chrome-extension://abcdefghijklmnop/popup.html", "chrome-search://local-ntp/local-ntp.html",
         ]
         for url in internalPages {

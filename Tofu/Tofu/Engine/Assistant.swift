@@ -38,6 +38,14 @@ struct SiteQuestion: Equatable {
     func askAboutSite(_ question: SiteQuestion, subject: String)
 }
 
+/// What the chat assistant may do to other apps during a lock-in (implemented by SessionEngine).
+@MainActor protocol AppUnblocking: AnyObject {
+    /// Unblocks the app for this work block. The returned text goes back to the model.
+    func allowApp(named name: String) -> String
+    /// "Name — bundleID" lines for apps quit or blocked this session and not yet allowed.
+    var blockedAppsSummary: [String] { get }
+}
+
 /// What the chat assistant may do to Chrome (implemented by ChromeController).
 @MainActor protocol SiteVerdictReceiving: AnyObject {
     /// Keep every tab on `host` for the rest of the session; it is never checked or closed again.

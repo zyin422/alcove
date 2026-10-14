@@ -478,4 +478,26 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.data.subjects, [subject])
         XCTAssertEqual(reloaded(store).sessions, [real])
     }
+
+    func testSitesAndAppsAllowedDuringABlockAreSaved() async throws {
+        let store = try makeStore()
+        let harness = EngineHarness()
+        let model = AppModel(store: store, engine: harness.engine)
+        let subject = makeSubject()
+        model.addSubject(subject)
+        await harness.engine.start(subject: subject, mode: .open, displayName: "Z")
+        harness.engine.lookupApp = { name in
+            name == "Slack" ? AllowedApp(bundleID: "com.tinyspeck.slackmacgap", name: "Slack") : nil
+        }
+
+        harness.engine.rememberAllowedSite("https://stackoverflow.com/questions/1")
+        XCTAssertEqual(harness.engine.allowApp(named: "Slack"), "Allowed Slack for this work block.")
+
+        let saved = model.subject(id: subject.id)
+        XCTAssertEqual(saved?.extraDomains, ["piazza.com", "stackoverflow.com"])
+        XCTAssertEqual(saved?.allowedApps.map(\.name), ["Slack"])
+        let again = reloaded(store).subjects.first { $0.id == subject.id }
+        XCTAssertEqual(again?.extraDomains, ["piazza.com", "stackoverflow.com"])
+        XCTAssertEqual(again?.allowedApps.map(\.bundleID), ["com.tinyspeck.slackmacgap"])
+    }
 }

@@ -105,6 +105,13 @@ enum ChromeScripts {
                       "                    if ((URL of t) as text) is \(quoted) then set already to true",
                       "                end try",
                       "            end repeat",
+                      "            repeat with s in spaces",
+                      "                repeat with t in tabs of s",
+                      "                    try",
+                      "                        if ((URL of t) as text) is \(quoted) then set already to true",
+                      "                    end try",
+                      "                end repeat",
+                      "            end repeat",
                       "            if already is false then make new tab with properties {URL:\(quoted)}"]
         }
         lines += ["        end tell", "    end try", "    try", "        return (id of front window) as text",
@@ -122,9 +129,15 @@ enum ChromeScripts {
     /// Chrome's own classes.
     static let listTabs: String = listTabs(for: .chrome)
 
-    /// `listTabs` for `browser`. Arc lists only unpinned tabs: pinned and favorite tabs live in the user's
-    /// sidebar, and closing one would delete it.
-    static func listTabs(for browser: Browser) -> String {
+    /// First field of a `listTabs` line that names an Arc space with no tabs. Not a tab: `parseTabs` ignores it.
+    /// The next poll passes these ids back as `quietArcSpaces` so an empty space is not focused again.
+    static let arcEmptySpaceMarker = "#space"
+
+    /// `listTabs` for `browser`. Arc skips pinned and favorite tabs (they live in the sidebar, and closing one
+    /// would delete it). A tab whose location can't be read is still listed: a new tab often won't answer yet.
+    /// Arc's window tab list hides every space that has not been focused, so those spaces are focused once and the
+    /// space that was showing is focused again afterward. `quietArcSpaces` are spaces already found empty.
+    static func listTabs(for browser: Browser, quietArcSpaces: [String] = []) -> String {
         let line = "set out to out & wid & sepChar & (i as text) & sepChar & ((id of t) as text) & sepChar & ((title of t) as text) & sepChar & ((URL of t) as text) & lineChar"
         switch browser {
         case .chrome:
@@ -147,11 +160,19 @@ enum ChromeScripts {
         case .arc:
             // `item i of every tab` makes Arc refuse `location` for the whole script, so nothing would be
             // remembered or closed. Walk the tabs directly, and skip a tab that still won't answer.
+            let quiet = appleScriptList(quietArcSpaces)
+            let marker = arcEmptySpaceMarker
             return """
                 set sepChar to ASCII character 31
                 set lineChar to linefeed
                 set out to ""
+                set quietSpaces to \(quiet)
                 tell application "Arc"
+                    set savedSpace to ""
+                    try
+                        set savedSpace to (id of active space of front window) as text
+                    end try
+                    set seenSpaces to {}
                     repeat with w in windows
                         try
                             set wid to (id of w) as text
@@ -159,24 +180,111 @@ enum ChromeScripts {
                             repeat with t in tabs of w
                                 set i to i + 1
                                 try
-                                    if ((location of t) as text) is "unpinned" then
+                                    set includeTab to true
+                                    try
+                                        set loc to ((location of t) as text)
+                                        if loc is "pinned" or loc is "topApp" then set includeTab to false
+                                    end try
+                                    if includeTab is true then
                                         \(line)
                                     end if
                                 end try
                             end repeat
                         end try
                     end repeat
+                    repeat with w in windows
+                        try
+                            set wid to (id of w) as text
+                            repeat with s in spaces of w
+                                try
+                                    set sid to (id of s) as text
+                                    set seen to false
+                                    repeat with previous in seenSpaces
+                                        if (previous as text) is sid then set seen to true
+                                    end repeat
+                                    if seen is false then
+                                        set end of seenSpaces to sid
+                                        set n to 0
+                                        try
+                                            set n to count of tabs of s
+                                        end try
+                                        set shouldFocus to false
+                                        if n is 0 and sid is not savedSpace then
+                                            set shouldFocus to true
+                                            repeat with q in quietSpaces
+                                                if (q as text) is sid then set shouldFocus to false
+                                            end repeat
+                                        end if
+                                        if shouldFocus is true then
+                                            try
+                                                focus s
+                                                set n to count of tabs of s
+                                            end try
+                                        end if
+                                        if n is 0 then
+                                            set out to out & "\(marker)" & sepChar & sid & lineChar
+                                        else
+                                            set i to 0
+                                            repeat with t in tabs of s
+                                                set i to i + 1
+                                                try
+                                                    set includeTab to true
+                                                    try
+                                                        set loc to ((location of t) as text)
+                                                        if loc is "pinned" or loc is "topApp" then set includeTab to false
+                                                    end try
+                                                    if includeTab is true then
+                                                        \(line)
+                                                    end if
+                                                end try
+                                            end repeat
+                                        end if
+                                    end if
+                                end try
+                            end repeat
+                        end try
+                    end repeat
+                    if savedSpace is not "" then
+                        try
+                            tell front window
+                                focus space id savedSpace
+                            end tell
+                        end try
+                    end if
                 end tell
                 return out
                 """
         }
     }
 
+    /// An AppleScript list literal of escaped strings. `{}` when there is nothing to skip.
+    private static func appleScriptList(_ values: [String]) -> String {
+        "{" + values.map { "\"\(escape($0))\"" }.joined(separator: ", ") + "}"
+    }
+
     /// Closes the tab with the browser's id `tabID` in the window. Addressing by id (not index) means a tab whose
     /// index shifted, or that has already gone, is never closed by mistake: the script then matches nothing.
     static func closeTab(windowID: ScriptID, tabID: ScriptID, browser: Browser = .chrome) -> String {
         let id = browser.hasTextTabIDs ? "\"\(escape(tabID.raw))\"" : tabID.raw
-        return "\(tell(browser)) to close (every tab of window id \"\(escape(windowID.raw))\" whose id is \(id))"
+        let windowClose = "close (every tab of window id \"\(escape(windowID.raw))\" whose id is \(id))"
+        guard browser == .arc else { return "\(tell(browser)) to \(windowClose)" }
+        // A tab Arc has not yet put on the window (it still lives only on its space) is missed by the window close.
+        return """
+            tell application "Arc"
+                try
+                    \(windowClose)
+                end try
+                repeat with w in windows
+                    try
+                        repeat with s in spaces of w
+                            try
+                                close (every tab of s whose id is \(id))
+                            end try
+                        end repeat
+                    end try
+                end repeat
+            end tell
+            """
     }
 
     /// Closes every window of the browser. Arc can only close its front window by script, and its window count
@@ -211,6 +319,17 @@ enum ChromeScripts {
             lines += ["    try",
                       "        close (every tab of window id \"\(escape(tab.windowID.raw))\" whose id is \(id))",
                       "    end try"]
+            if browser == .arc {
+                lines += ["    repeat with w in windows",
+                          "        try",
+                          "            repeat with s in spaces of w",
+                          "                try",
+                          "                    close (every tab of s whose id is \(id))",
+                          "                end try",
+                          "            end repeat",
+                          "        end try",
+                          "    end repeat"]
+            }
         }
         lines.append("end tell")
         return lines.joined(separator: "\n")
@@ -263,6 +382,19 @@ enum ChromeScripts {
     static let ping: String = ping(for: .chrome)
 
     static func ping(for browser: Browser) -> String { "\(tell(browser)) to count windows" }
+
+    /// Space ids Arc reported as empty (`arcEmptySpaceMarker` lines). Tab lines are ignored. Order is stable.
+    static func emptyArcSpaceIDs(in output: String) -> [String] {
+        var seen = Set<String>()
+        let ids = output.split(whereSeparator: { $0 == "\n" || $0 == "\r" }).compactMap { line -> String? in
+            let parts = line.split(separator: fieldSeparator, omittingEmptySubsequences: false)
+            guard parts.count >= 2, parts[0] == Substring(arcEmptySpaceMarker) else { return nil }
+            let id = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !id.isEmpty, seen.insert(id).inserted else { return nil }
+            return id
+        }
+        return ids.sorted()
+    }
 
     /// Parses `listTabs` output. Lines with fewer than five fields are skipped, and so are Chrome lines whose
     /// ids are not integers (Arc ids are text, so any non-empty id counts there).

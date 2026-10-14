@@ -87,7 +87,7 @@ final class DecisionsClient {
         let name = subject.trimmingCharacters(in: .whitespacesAndNewlines)
         return "The user is locked in to work on \"\(name)\". "
             + "The predicate is true when the web page described below is unrelated to that work: "
-            + "entertainment, social media, email inboxes, messaging and chat apps, games, shopping, sports, "
+            + "entertainment, social media, email inboxes, messaging and chat apps, games, gambling, poker, shopping, sports, "
             + "celebrity or unrelated news, or another subject. "
             + "It is false when the page plausibly supports the work: course and university sites, documentation, "
             + "reference material, Q&A sites, search results or videos about the topic, and coding tools. "

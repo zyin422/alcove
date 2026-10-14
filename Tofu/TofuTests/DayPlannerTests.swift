@@ -22,22 +22,54 @@ final class DayPlannerTests: XCTestCase {
         XCTAssertEqual(DayKey.tomorrow(from: date(11, 1), calendar: calendar), "2026-10-11")
     }
 
-    func testWorkingDayMovesToTomorrowAfterWrapUp() {
+    func testWorkingDayStaysOnTheCalendarDay() {
         let now = date(11, 6, 17)
         XCTAssertEqual(DayPlanner.workingDay(now: now, plans: [], calendar: calendar), "2026-10-11")
         XCTAssertEqual(
-            DayPlanner.workingDay(now: now, plans: [DayPlan(day: "2026-10-11", wrappedUp: false)], calendar: calendar),
-            "2026-10-11")
-        XCTAssertEqual(
             DayPlanner.workingDay(now: now, plans: [DayPlan(day: "2026-10-11", wrappedUp: true)], calendar: calendar),
-            "2026-10-12")
+            "2026-10-11", "wrapping up does not move Today onto the next day")
         XCTAssertEqual(
             DayPlanner.workingDay(now: now, plans: [
                 DayPlan(day: "2026-10-11", wrappedUp: true),
                 DayPlan(day: "2026-10-12", wrappedUp: true),
+                DayPlan(day: "2026-10-13", priorities: [Priority(title: "Exam")]),
             ], calendar: calendar),
-            "2026-10-13")
+            "2026-10-11")
         XCTAssertEqual(DayKey.next("2026-10-11"), "2026-10-12")
+        XCTAssertEqual(DayKey.previous("2026-10-12"), "2026-10-11")
+    }
+
+    func testUnwrappedPreviousDayBlocksTheNewDay() {
+        let now = date(12, 8)
+        let open = DayPlan(day: "2026-10-11", priorities: [Priority(title: "Lab")], wrappedUp: false)
+        XCTAssertEqual(DayPlanner.workingDay(now: now, plans: [open], calendar: calendar), "2026-10-11")
+        let wrapped = DayPlan(day: "2026-10-11", priorities: [Priority(title: "Lab")], wrappedUp: true)
+        let today = DayPlan(day: "2026-10-12", priorities: [Priority(title: "Quiz")])
+        XCTAssertEqual(DayPlanner.workingDay(now: now, plans: [wrapped, today], calendar: calendar), "2026-10-12")
+        XCTAssertEqual(
+            DayPlanner.workingDay(now: now, plans: [today], calendar: calendar),
+            "2026-10-12", "a day with no plan does not need a wrap-up")
+    }
+
+    func testMonthGridAndUpcomingDays() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Chicago")!
+        calendar.firstWeekday = 1
+        let cells = DayCalendar.cells(year: 2026, month: 10, calendar: calendar)
+        XCTAssertEqual(cells.count, 42)
+        XCTAssertEqual(DayCalendar.cells(year: 2026, month: 2, calendar: calendar).count, 42)
+        XCTAssertEqual(cells.firstIndex { $0.key == "2026-10-01" }, 4, "October 1 2026 is a Thursday")
+        XCTAssertEqual(cells.first?.key, "2026-09-27")
+        XCTAssertFalse(cells[0].inMonth)
+        XCTAssertTrue(cells.contains { $0.key == "2026-10-31" && $0.inMonth && $0.number == 31 })
+        XCTAssertFalse(DayCalendar.isUpcoming("2026-10-13", today: "2026-10-13"))
+        XCTAssertFalse(DayCalendar.isUpcoming("2026-10-12", today: "2026-10-13"))
+        XCTAssertTrue(DayCalendar.isUpcoming("2026-10-14", today: "2026-10-13"))
+        XCTAssertEqual(DayCalendar.shiftMonth(year: 2026, month: 12, by: 1, calendar: calendar).year, 2027)
+        XCTAssertEqual(DayCalendar.shiftMonth(year: 2026, month: 12, by: 1, calendar: calendar).month, 1)
+        XCTAssertEqual(DayCalendar.shiftMonth(year: 2026, month: 1, by: -1, calendar: calendar).year, 2025)
+        XCTAssertEqual(DayCalendar.shiftMonth(year: 2026, month: 1, by: -1, calendar: calendar).month, 12)
+        XCTAssertEqual(DayCalendar.weekdayLabels(calendar: calendar).count, 7)
     }
 
     func testSmallHoursCountAsLateEvening() {
@@ -272,21 +304,53 @@ final class DayPlanModelTests: XCTestCase {
         model.wrapUpDay(today: today, tomorrow: [Priority(title: "Quiz prep"), Priority(title: "  ")], now: now)
 
         XCTAssertEqual(announcer.messages, [
+            DiscordMessages.priorityUpdate(name: "Zixuan", title: "Lab", setup: nil),
             DiscordMessages.dayRecap(name: "Zixuan", done: ["Lab"], notDone: ["Read"], tomorrow: ["Quiz prep"],
                                      summary: DaySummary.summarize(day: DayKey.key(for: now), sessions: [],
                                                                    priorities: today)),
         ])
         XCTAssertEqual(model.plan(for: DayKey.key(for: now))?.wrappedUp, true)
         XCTAssertEqual(model.plan(for: DayKey.tomorrow(from: now))?.priorities.map(\.title), ["Quiz prep"])
-        XCTAssertEqual(model.todayPlan(now: now).priorities.map(\.title), ["Quiz prep"])
-        XCTAssertFalse(model.todayPlan(now: now).wrappedUp)
+        XCTAssertEqual(model.todayPlan(now: now).day, DayKey.key(for: now))
+        XCTAssertEqual(model.todayPlan(now: now).priorities.map(\.title), ["Lab", "Read"])
+        XCTAssertTrue(model.todayPlan(now: now).wrappedUp)
         XCTAssertFalse(model.isWrappingUpDay)
         model.startMyDay(now: now)
-        XCTAssertEqual(model.todayPlan(now: now).priorities.map(\.title), ["Quiz prep"])
+        XCTAssertEqual(model.todayPlan(now: now).priorities.map(\.title), ["Lab", "Read"])
+        let nextMorning = DayKey.date(for: DayKey.tomorrow(from: now))!
+        XCTAssertEqual(model.todayPlan(now: nextMorning).priorities.map(\.title), ["Quiz prep"])
         model.wrapUpDay(today: [Priority(title: "Quiz prep", isDone: true)], tomorrow: [Priority(title: "Exam")], now: now)
-        XCTAssertEqual(model.todayPlan(now: now).priorities.map(\.title), ["Exam"])
+        XCTAssertEqual(model.todayPlan(now: now).priorities.map(\.title), ["Quiz prep"])
+        XCTAssertEqual(model.plan(for: DayKey.tomorrow(from: now))?.priorities.map(\.title), ["Exam"])
         let reloaded = Store(fileURL: model.store.fileURL).load().data
-        XCTAssertEqual(reloaded.dayPlans.count, 3)
+        XCTAssertEqual(reloaded.dayPlans.count, 2)
+    }
+
+    func testStartMyDayWrapsUpYesterdayBeforeTheNewDay() throws {
+        let model = try makeModel(announcer: FakeAnnouncer())
+        let now = Date()
+        let yesterday = DayKey.previous(DayKey.key(for: now))
+        model.updatePlan(day: yesterday) { $0.priorities = [Priority(title: "Lab")] }
+        var mornings = 0
+        var windows = 0
+        model.onShowMorning = { mornings += 1 }
+        model.onShowMainWindow = { windows += 1 }
+
+        model.startMyDay(now: now)
+
+        XCTAssertTrue(model.needsPreviousWrapUp(now: now))
+        XCTAssertTrue(model.isWrappingUpDay)
+        XCTAssertFalse(model.isShowingMorning)
+        XCTAssertEqual(mornings, 0)
+        XCTAssertEqual(windows, 1)
+        XCTAssertEqual(model.todayPlan(now: now).day, yesterday)
+
+        model.wrapUpDay(today: [Priority(title: "Lab", isDone: true)], tomorrow: [Priority(title: "Quiz")], now: now)
+
+        XCTAssertFalse(model.needsPreviousWrapUp(now: now))
+        XCTAssertEqual(model.todayPlan(now: now).day, DayKey.key(for: now))
+        XCTAssertEqual(model.todayPlan(now: now).priorities.map(\.title), ["Quiz"])
+        XCTAssertFalse(model.todayPlan(now: now).wrappedUp)
     }
 
     func testPostDayRecapUsesTheSavedPlans() throws {
@@ -322,11 +386,47 @@ final class DayPlanModelTests: XCTestCase {
     }
 
     func testSetPriorityTicksIt() throws {
-        let model = try makeModel(announcer: FakeAnnouncer())
+        let announcer = FakeAnnouncer()
+        let model = try makeModel(announcer: announcer)
+        model.updateSettings { $0.displayName = "Zixuan" }
+        let subject = Subject(name: "MATH241")
+        model.addSubject(subject)
         let day = DayKey.key(for: Date())
-        let priority = Priority(title: "Lab")
+        let priority = Priority(title: "Math241 review", subjectID: subject.id)
         model.updatePlan(day: day) { $0.priorities = [priority] }
+
         model.setPriority(priority.id, done: true, day: day)
         XCTAssertEqual(model.todayPlan().priorities.first?.isDone, true)
+        XCTAssertEqual(announcer.messages, [
+            DiscordMessages.priorityUpdate(name: "Zixuan", title: "Math241 review", setup: "MATH241"),
+        ])
+
+        model.setPriority(priority.id, done: true, day: day)
+        model.setPriority(priority.id, done: false, day: day)
+        XCTAssertEqual(announcer.messages.count, 1)
+        model.setPriority(priority.id, done: true, day: day)
+        XCTAssertEqual(announcer.messages.count, 2)
+    }
+
+    func testWrapUpAnnouncesOnlyPrioritiesFinishedInThatWrapUp() throws {
+        let announcer = FakeAnnouncer()
+        let model = try makeModel(announcer: announcer)
+        model.updateSettings { $0.displayName = "Zixuan" }
+        let now = Date()
+        let lab = Priority(title: "Lab", isDone: true)
+        let read = Priority(title: "Read")
+        model.updatePlan(day: DayKey.key(for: now)) { $0.priorities = [lab, read] }
+        var finishedRead = read
+        finishedRead.isDone = true
+        let today = [lab, finishedRead]
+
+        model.wrapUpDay(today: today, tomorrow: [Priority(title: "Quiz prep")], now: now)
+
+        XCTAssertEqual(announcer.messages, [
+            DiscordMessages.priorityUpdate(name: "Zixuan", title: "Read", setup: nil),
+            DiscordMessages.dayRecap(name: "Zixuan", done: ["Lab", "Read"], notDone: [], tomorrow: ["Quiz prep"],
+                                     summary: DaySummary.summarize(day: DayKey.key(for: now), sessions: [],
+                                                                   priorities: today)),
+        ])
     }
 }

@@ -489,6 +489,32 @@ import XCTest
 
     // MARK: assistant decisions (SiteVerdictReceiving)
 
+    func testDecisionsMadeWhileTheWatchIsPausedApplyWhenItRestarts() async {
+        let kept = tab("https://other.org/", id: 7)
+        let closed = tab("https://example.org/one", id: 5)
+        let h = WatchHarness(tabs: [kept, closed])
+        h.judge.defaultVerdict = .relevant
+        h.start()
+        h.controller.pollTabs()
+        await settle()
+        h.controller.pauseTabWatch()
+
+        var allowed: [String] = []
+        h.controller.onHostAllowed = { allowed.append($0) }
+        h.controller.allowHost("other.org")
+        h.controller.closeHost("example.org")
+        XCTAssertEqual(allowed, ["other.org"])
+        XCTAssertEqual(h.log.closeScripts, [], "a paused watch cannot close a tab until it is running")
+
+        let judged = h.judge.judgedURLs.count
+        h.start()
+        defer { h.controller.stopTabWatch() }
+        await settle()
+
+        XCTAssertEqual(h.judge.judgedURLs.count, judged, "a settled host is not judged again")
+        XCTAssertEqual(h.log.closeScripts, [ChromeScripts.closeTab(windowID: 1, tabID: 5)])
+    }
+
     func testAllowHostKeepsTheHostFromNowOn() async {
         let a = tab("https://example.org/one", id: 5)
         let h = WatchHarness(tabs: [a])
@@ -564,17 +590,18 @@ import XCTest
 
         h.start()
         h.controller.stopTabWatch()
+        let listedAtStart = h.log.scripts.count
         h.controller.closeHost("example.org")   // session over: a late tool call must not touch Chrome
 
-        XCTAssertEqual(h.log.scripts, [])
+        XCTAssertEqual(h.log.scripts.count, listedAtStart)
         XCTAssertEqual(h.closedHosts, [])
     }
 
     func testCloseHostDoesNothingWhileChromeIsNotRunning() async {
         let h = WatchHarness(tabs: [tab("https://example.org/one", id: 5)])
+        h.log.isRunning = false
         h.start()
         defer { h.controller.stopTabWatch() }
-        h.log.isRunning = false
 
         h.controller.closeHost("example.org")
 
@@ -608,11 +635,11 @@ import XCTest
         h.judge.defaultVerdict = .relevant
         h.start()
         defer { h.controller.stopTabWatch() }
-        XCTAssertEqual(h.controller.openTabsSummary, [])
 
+        XCTAssertEqual(h.controller.openTabsSummary,
+                       ["cs128.org — Schedule", "youtube.com — Lecture 4", "example.org", "newtab — New Tab"])
         h.controller.pollTabs()
         await settle()
-
         XCTAssertEqual(h.controller.openTabsSummary,
                        ["cs128.org — Schedule", "youtube.com — Lecture 4", "example.org", "newtab — New Tab"])
     }
@@ -665,5 +692,30 @@ import XCTest
 
         XCTAssertEqual(h.judge.judgedURLs, [])
         XCTAssertEqual(h.log.closeScripts, [])
+    }
+
+    func testArcWatchRemembersAnEmptySpaceSoTheNextPollDoesNotFocusIt() {
+        let separator = String(ChromeScripts.fieldSeparator)
+        let marker = ChromeScripts.arcEmptySpaceMarker + separator + "SPACE-1\n"
+        let poker = ["W-1", "1", "T-poker", "Poker", "https://www.pokerstars.com/"].joined(separator: separator)
+        var listings: [String] = []
+        let controller = ChromeController(judge: FakeJudge(), prompter: FakePrompter(),
+                                          alwaysBlocked: DistractionList.hosts, browser: .arc,
+                                          runScript: { source in
+                                              if source.contains("set sepChar") {
+                                                  listings.append(source)
+                                                  return .success(marker + poker + "\n")
+                                              }
+                                              return .success("")
+                                          },
+                                          chromeIsRunning: { true })
+        controller.startTabWatch(subject: "MATH241", studySites: ["https://canvas.illinois.edu"])
+        defer { controller.stopTabWatch() }
+        controller.pollTabs()
+
+        XCTAssertEqual(listings.count, 2, "locking in lists tabs immediately, then the timer's poll can be driven by hand")
+        XCTAssertFalse(listings[0].contains("SPACE-1"))
+        XCTAssertTrue(listings[1].contains("\"SPACE-1\""))
+        XCTAssertEqual(controller.openTabsSummary, [], "the poker tab was closed as soon as it was listed")
     }
 }

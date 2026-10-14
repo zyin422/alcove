@@ -15,6 +15,14 @@ enum DiscordMessages {
             + " · tried other apps **\(attempts)×** · closed **\(tabs)** tabs"
     }
 
+    /// One priority just got finished. An update, not the end-of-day overview.
+    /// "Update: **{name}** finished **{title}**" and, when it belongs to a setup, " · **{setup}**".
+    static func priorityUpdate(name: String, title: String, setup: String?) -> String {
+        let line = "Update: **\(name)** finished **\(title)**"
+        guard let setup = setup?.trimmingCharacters(in: .whitespacesAndNewlines), !setup.isEmpty else { return line }
+        return line + " · **\(setup)**"
+    }
+
     /// "🏳️ **{name}** bailed on **{subject}** after **{dur}** (goal {goal}) · tried other apps **{attempts}×**"
     /// The flag is written as escapes (U+1F3F3 U+FE0F) so the variation selector cannot be lost in copy/paste.
     static func bailed(name: String, subject: String, duration: TimeInterval, goalMinutes: Int, attempts: Int) -> String {

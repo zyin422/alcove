@@ -19,7 +19,7 @@ import Observation
 /// The lock-in state machine (spec §6): idle -> locked -> idle.
 /// Orchestrates app hiding, Chrome tiling and tab watch, app blocking, the 1 s tick, the 30 s heartbeat
 /// and announcements. Every side effect goes through an injected protocol so the engine is unit-testable.
-@Observable @MainActor final class SessionEngine {
+@Observable @MainActor final class SessionEngine: AppUnblocking {
     static let heartbeatInterval: TimeInterval = 30
 
     private(set) var session: Session?
@@ -27,6 +27,8 @@ import Observation
     private(set) var now: Date = Date()
     /// Most recently ended session (for the summary screen); nil until one ends.
     private(set) var lastEnded: Session?
+    /// Tabs and apps the user can choose to reopen after a session. Empty once that choice is applied.
+    private(set) var relaunchOffer: [RelaunchChoice] = []
 
     var isLocked: Bool { session != nil }
 
@@ -70,6 +72,12 @@ import Observation
     @ObservationIgnored var onLockedIn: ((Subject) -> Void)?
     /// Called after a session ends, however it ends (finish, bail, goal reached, app quit), once the engine is idle again.
     @ObservationIgnored var onEnded: (() -> Void)?
+    /// A site was allowed during the lock-in. AppModel saves it on the work block.
+    @ObservationIgnored var onSiteAllowed: ((String) -> Void)?
+    /// An app was unblocked during the lock-in. AppModel saves it on the work block.
+    @ObservationIgnored var onAppAllowed: ((AllowedApp) -> Void)?
+    /// Resolves an app name to an installed app. Nil result means the name is unknown. Tests replace it.
+    @ObservationIgnored var lookupApp: (String) -> AllowedApp? = { _ in nil }
 
     private let workspace: WorkspaceControlling
     private let blocker: AppBlocking
@@ -87,8 +95,10 @@ import Observation
     @ObservationIgnored private var displayName = ""
     /// Bundle IDs this session hid at lock-in; unhidden again at the end.
     @ObservationIgnored private var hiddenByUs: [String] = []
-    /// Bundle IDs this session asked to quit at lock-in; opened again at the end.
-    @ObservationIgnored private var quitByUs: [String] = []
+    /// Apps this session asked to quit at lock-in. Offered for relaunch when the session ends normally.
+    @ObservationIgnored private var quitApps: [RunningAppInfo] = []
+    /// Apps the user brought forward that were hidden as off-task. Offered, unchecked, at the end.
+    @ObservationIgnored private var blockedDuringSession: [RunningAppInfo] = []
     /// The allowlist from lock-in, so a break can resume blocking with the same set.
     @ObservationIgnored private var sessionAllowed: Set<String> = []
     /// True when the tab watch was started, so a break resumes it.
@@ -122,6 +132,7 @@ import Observation
     /// Locks in on `subject` (spec §6 "Lock in"). Ignored while a session is already running.
     func start(subject: Subject, mode: SessionMode, displayName: String) async {
         guard !isLocked else { return }
+        applyRelaunch()
         let startDate = clock()
         let newSession = Session(subjectID: subject.id, subjectName: subject.name, mode: mode, start: startDate)
         let sessionID = newSession.id
@@ -132,13 +143,14 @@ import Observation
         isEnding = false
         onSessionChanged?(newSession)
 
+        quitApps = []
+        blockedDuringSession = []
         let allowed = BlockPolicy.allowedSet(for: subject, ownBundleID: ownBundleID)
         switch subject.unusedApps {
         case .hide:
             hiddenByUs = workspace.hideOthers(allowed: allowed)
-            quitByUs = []
         case .quit:
-            (quitByUs, hiddenByUs) = workspace.quitOthers(allowed: allowed)
+            (quitApps, hiddenByUs) = workspace.quitOthers(allowed: allowed)
         }
 
         let placement = LayoutEngine.placement(for: subject, visible: visibleFrame(), primaryHeight: primaryHeight())
@@ -178,7 +190,7 @@ import Observation
         // Without Chrome (or without permission to script it) every poll would fail, so skip the watch.
         resumesTabWatch = chromeError != .notInstalled && chromeError != .automationDenied
         if resumesTabWatch {
-            chrome.startTabWatch(subject: subject.name, studySites: subject.sites)
+            chrome.startTabWatch(subject: subject.name, studySites: studySites(of: subject))
         }
 
         if startsTimers { startTimer() }
@@ -253,6 +265,9 @@ import Observation
         guard var current = session else { return }
         current.blockedAttempts += 1
         session = current
+        if !blockedDuringSession.contains(where: { $0.bundleID == app.bundleID }) {
+            blockedDuringSession.append(app)
+        }
         let name = app.name.isEmpty ? app.bundleID : app.name
         toaster.show("🔒 \(name) is blocked during \(current.subjectName)")
         onSessionChanged?(current)
@@ -274,18 +289,35 @@ import Observation
         guard isLocked else { return }
         let clamped = min(max(minutes, 1), 15)
         blocker.stop()
-        chrome.stopTabWatch()
+        chrome.pauseTabWatch()
+        let hidden = appsHiddenForTheBlock()
+        if !hidden.isEmpty { workspace.unhide(hidden) }
         breakEndsAt = clock().addingTimeInterval(TimeInterval(clamped * 60))
         now = clock()
+    }
+
+    /// Apps this block hid at the start, plus apps hidden when the user brought them forward.
+    private func appsHiddenForTheBlock() -> [String] {
+        var seen = Set<String>()
+        return (hiddenByUs + blockedDuringSession.map(\.bundleID)).filter { seen.insert($0).inserted }
     }
 
     private func resumeMonitoring() {
         breakEndsAt = nil
         guard session != nil else { return }
+        // Anything opened during the break is hidden again. Quitting a second time would throw away work.
+        for id in workspace.hideOthers(allowed: sessionAllowed) where !hiddenByUs.contains(id) {
+            hiddenByUs.append(id)
+        }
         blocker.start(allowed: sessionAllowed)
         if resumesTabWatch, let subject {
-            chrome.startTabWatch(subject: subject.name, studySites: subject.sites)
+            chrome.startTabWatch(subject: subject.name, studySites: studySites(of: subject))
         }
+    }
+
+    /// Study sites plus hosts the work block is allowed to keep open.
+    private func studySites(of subject: Subject) -> [String] {
+        subject.sites + subject.extraDomains
     }
 
     // MARK: End
@@ -303,9 +335,17 @@ import Observation
         finalize(needsGiveUpPhrase ? .bailed : .completed)
     }
 
-    /// Synchronous end for app termination: outcome .interrupted, unhide, restore Chrome, no Discord.
+    /// Synchronous end for app termination. A running session is interrupted and everything is restored.
+    /// A session that already ended still has its bring-back list: quitting now restores all of it, because
+    /// nobody is left to choose.
     func terminateNow() {
-        _ = endSession(.interrupted)
+        if session != nil {
+            _ = endSession(.interrupted)
+            return
+        }
+        guard !relaunchOffer.isEmpty else { return }
+        for index in relaunchOffer.indices { relaunchOffer[index].selected = true }
+        applyRelaunch()
     }
 
     /// Ends the session, then restores the UI, toasts the summary and announces it.
@@ -325,8 +365,9 @@ import Observation
         }
     }
 
-    /// Stops blocking and timers, stamps the end, unhides our hidden apps, restores Chrome windows and
-    /// reports the final session. Returns nil when idle, so every end path runs at most once.
+    /// Stops blocking and timers, stamps the end, unhides apps that were only hidden, and reports the final
+    /// session. A normal end keeps closed tabs and quit apps for the user to choose; an interrupted end gives
+    /// them all back. Returns nil when idle, so every end path runs at most once.
     private func endSession(_ outcome: SessionOutcome) -> Session? {
         guard var final = session else { return nil }
         timer?.invalidate()
@@ -343,9 +384,18 @@ import Observation
 
         workspace.unhide(hiddenByUs)
         hiddenByUs = []
-        workspace.relaunch(quitByUs)
-        quitByUs = []
-        chrome.restoreAfterSession()
+        if outcome == .interrupted {
+            // Nobody is here to choose, so give everything back.
+            if !quitApps.isEmpty { workspace.relaunch(quitApps.map(\.bundleID)) }
+            if !blockedDuringSession.isEmpty { workspace.unhide(blockedDuringSession.map(\.bundleID)) }
+            chrome.restoreAfterSession()
+            relaunchOffer = []
+        } else {
+            relaunchOffer = SessionRelaunch.choices(state: chrome.takeClosedBrowser(), quitApps: quitApps,
+                                                    blockedApps: blockedDuringSession)
+        }
+        quitApps = []
+        blockedDuringSession = []
 
         session = nil
         subject = nil
@@ -354,5 +404,149 @@ import Observation
         onSessionChanged?(final)
         onEnded?()
         return final
+    }
+
+    // MARK: Allowed during the block
+
+    /// Remembers `host` on this work block so the tab watch leaves it open, including after a break.
+    func rememberAllowedSite(_ host: String) {
+        guard isLocked, var subject else { return }
+        guard let host = DomainMatcher.host(of: host) else { return }
+        let study = Set(subject.sites.compactMap { DomainMatcher.host(of: $0) })
+        guard !study.contains(host) else { return }
+        guard !subject.extraDomains.contains(where: { DomainMatcher.host(of: $0) == host }) else { return }
+        subject.extraDomains.append(host)
+        self.subject = subject
+        onSiteAllowed?(host)
+    }
+
+    /// Unblocks the app named `name` for the rest of the session and remembers it on the work block.
+    /// The returned text is what the assistant tells the model.
+    func allowApp(named name: String) -> String {
+        guard isLocked else { return "No work block is running." }
+        let query = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return "Error: missing app name." }
+        let running = (quitApps + blockedDuringSession).map { AllowedApp(bundleID: $0.bundleID, name: $0.name) }
+        guard let app = AppNameMatch.find(query, in: running) ?? lookupApp(query) else {
+            return "No app named \(query)."
+        }
+        sessionAllowed.insert(app.bundleID)
+        blocker.allow(app.bundleID)
+        workspace.unhide([app.bundleID])
+        if var subject,
+           !subject.allowedApps.contains(where: { $0.bundleID == app.bundleID }),
+           !subject.slotApps.contains(where: { $0.bundleID == app.bundleID }) {
+            subject.allowedApps.append(app)
+            self.subject = subject
+        }
+        onAppAllowed?(app)
+        return "Allowed \(app.name) for this work block."
+    }
+
+    /// Apps quit or blocked this session that are not allowed yet, for the assistant's prompt.
+    var blockedAppsSummary: [String] {
+        var seen = Set<String>()
+        return (quitApps + blockedDuringSession).compactMap { app in
+            guard seen.insert(app.bundleID).inserted, !sessionAllowed.contains(app.bundleID) else { return nil }
+            let name = app.name.isEmpty ? app.bundleID : app.name
+            return "\(name) — \(app.bundleID)"
+        }
+    }
+
+    func setRelaunchSelection(_ id: String, selected: Bool) {
+        guard let index = relaunchOffer.firstIndex(where: { $0.id == id }) else { return }
+        relaunchOffer[index].selected = selected
+    }
+
+    /// Opens the checked tabs and apps, then forgets the offer. Safe to call again.
+    func applyRelaunch() {
+        let chosen = relaunchOffer.filter(\.selected)
+        guard !relaunchOffer.isEmpty else { return }
+        relaunchOffer = []
+        let apps = chosen.filter { $0.kind == .app }.map(\.target)
+        let urls = chosen.filter { $0.kind == .tab }.map(\.target)
+        if !apps.isEmpty {
+            workspace.relaunch(apps)
+            workspace.unhide(apps)
+        }
+        if !urls.isEmpty { chrome.reopen(urls: urls) }
+    }
+}
+
+/// One row on the end-of-session "bring back" list.
+struct RelaunchChoice: Identifiable, Equatable {
+    enum Kind: Equatable { case tab, app }
+    enum Group: String, CaseIterable, Hashable {
+        case closedTabs = "Tabs closed"
+        case previousTabs = "Tabs put away"
+        case quitApps = "Apps quit"
+        case blockedApps = "Apps blocked"
+    }
+
+    var id: String
+    var title: String
+    var subtitle: String
+    /// A tab's URL, or an app's bundle ID.
+    var target: String
+    var kind: Kind
+    var group: Group
+    var selected: Bool
+}
+
+/// Builds the checklist shown after a work block. Off-task tabs and blocked apps start unchecked;
+/// tabs and apps that were only put away at the start start checked.
+enum SessionRelaunch {
+    static func choices(state: ClosedBrowserState?, quitApps: [RunningAppInfo],
+                        blockedApps: [RunningAppInfo]) -> [RelaunchChoice] {
+        var result: [RelaunchChoice] = []
+        var seenURLs = Set<String>()
+        if let state {
+            for url in state.closedTabs where addTab(url, state: state, group: .closedTabs, selected: false,
+                                                     seen: &seenURLs, into: &result) {}
+            for url in state.windows.flatMap({ $0 }) where addTab(url, state: state, group: .previousTabs, selected: true,
+                                                                  seen: &seenURLs, into: &result) {}
+        }
+        var seenApps = Set<String>()
+        for app in quitApps where addApp(app, group: .quitApps, selected: true, seen: &seenApps, into: &result) {}
+        for app in blockedApps where addApp(app, group: .blockedApps, selected: false, seen: &seenApps, into: &result) {}
+        return result
+    }
+
+    private static func addTab(_ url: String, state: ClosedBrowserState, group: RelaunchChoice.Group, selected: Bool,
+                               seen: inout Set<String>, into result: inout [RelaunchChoice]) -> Bool {
+        guard ClosedBrowserState.isReopenable(url), seen.insert(url).inserted else { return false }
+        let host = DomainMatcher.host(of: url) ?? url
+        let stored = state.pageTitles[url]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        result.append(RelaunchChoice(id: "tab:\(url)", title: stored.isEmpty ? host : stored, subtitle: host,
+                                     target: url, kind: .tab, group: group, selected: selected))
+        return true
+    }
+
+    private static func addApp(_ app: RunningAppInfo, group: RelaunchChoice.Group, selected: Bool,
+                               seen: inout Set<String>, into result: inout [RelaunchChoice]) -> Bool {
+        guard !app.bundleID.isEmpty, seen.insert(app.bundleID).inserted else { return false }
+        let name = app.name.isEmpty ? app.bundleID : app.name
+        result.append(RelaunchChoice(id: "app:\(app.bundleID)", title: name, subtitle: app.bundleID,
+                                     target: app.bundleID, kind: .app, group: group, selected: selected))
+        return true
+    }
+}
+
+/// Finds an installed app from a name or bundle ID the assistant was given.
+enum AppNameMatch {
+    /// Exact name or bundle ID, otherwise the single app whose name contains the query (or the other way around).
+    static func find(_ query: String, in apps: [AllowedApp]) -> AllowedApp? {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return nil }
+        if let exact = apps.first(where: {
+            $0.name.compare(query, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+                || $0.bundleID.compare(query, options: .caseInsensitive) == .orderedSame
+        }) {
+            return exact
+        }
+        let contains = apps.filter {
+            $0.name.localizedCaseInsensitiveContains(query) || query.localizedCaseInsensitiveContains($0.name)
+        }
+        return contains.count == 1 ? contains[0] : nil
     }
 }

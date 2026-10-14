@@ -69,11 +69,16 @@ struct EndOfDayView: View {
         }
     }
 
+    /// The sheet is finishing the previous day, so the list being written is for the current day.
+    private var wrappingPreviousDay: Bool { model.todayPlan().day != DayKey.key(for: Date()) }
+    private var finishedWord: String { wrappingPreviousDay ? "yesterday" : "today" }
+    private var nextWord: String { wrappingPreviousDay ? "today" : "tomorrow" }
+
     private var stepTitle: String {
         switch step {
-        case .recap: "What did you get done today?"
-        case .speak: "What are your priorities for tomorrow?"
-        case .review: "Tomorrow's plan"
+        case .recap: "What did you get done \(finishedWord)?"
+        case .speak: "What are your priorities for \(nextWord)?"
+        case .review: wrappingPreviousDay ? "Today's plan" : "Tomorrow's plan"
         }
     }
 
@@ -82,7 +87,7 @@ struct EndOfDayView: View {
     private var recap: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
             if today.isEmpty {
-                Text("You had no priorities planned for today.").foregroundStyle(.secondary)
+                Text("You had no priorities planned for \(finishedWord).").foregroundStyle(.secondary)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: Theme.Space.s) {
@@ -104,7 +109,7 @@ struct EndOfDayView: View {
                     if model.hasMirror {
                         Task { await openPlanner() }
                     } else {
-                        voiceOut.speak("Nice work today. What are your priorities for tomorrow?")
+                        voiceOut.speak("Nice work. What are your priorities for \(nextWord)?")
                     }
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -219,7 +224,7 @@ struct EndOfDayView: View {
         isMakingList = false
         guard !turn.message.isEmpty || turn.ready else {
             plannerOffline = true
-            voiceOut.speak("Nice work today. What are your priorities for tomorrow?")
+            voiceOut.speak("Nice work. What are your priorities for \(nextWord)?")
             return
         }
         apply(turn)

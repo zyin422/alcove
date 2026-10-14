@@ -6,6 +6,9 @@ struct SubjectDetailView: View {
     let subject: Subject
     @State private var isEditing = false
     @State private var isChoosingMode = false
+    @State private var siteDraft = ""
+    @State private var isPickingApps = false
+    @State private var appDraft: [AllowedApp] = []
 
     var body: some View {
         ScrollView {
@@ -49,6 +52,9 @@ struct SubjectDetailView: View {
         .sheet(isPresented: $isChoosingMode) {
             LockInSheet(model: model, subject: subject)
         }
+        .sheet(isPresented: $isPickingApps, onDismiss: saveApps) {
+            AppPickerView(selection: $appDraft)
+        }
     }
 
     private var header: some View {
@@ -91,19 +97,87 @@ struct SubjectDetailView: View {
     }
 
     private var appsBlock: some View {
-        block("Allowed apps") {
-            HStack(spacing: Theme.Space.s) {
-                ForEach(subject.allowedApps) { app in
-                    AppIcon(bundleID: app.bundleID)
-                        .frame(width: 28, height: 28)
-                        .help(app.name)
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            block("Allowed sites") {
+                if subject.extraDomains.isEmpty {
+                    Text("None yet. Sites you allow during a session are saved here.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
-                let browserName = subject.browser == .chrome ? "Chrome" : subject.browser.title
-                Text(subject.allowedApps.isEmpty ? "\(browserName) and Finder only" : "+ \(browserName) and Finder")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                ForEach(subject.extraDomains, id: \.self) { host in
+                    HStack(spacing: Theme.Space.s) {
+                        Image(systemName: "globe").frame(width: 20)
+                        Text(host).lineLimit(1)
+                        Spacer()
+                        Button { removeSite(host) } label: { Image(systemName: "xmark") }
+                            .buttonStyle(.borderless)
+                            .help("Stop allowing \(host)")
+                    }
+                }
+                HStack(spacing: Theme.Space.s) {
+                    TextField("Add a site, e.g. piazza.com", text: $siteDraft)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Add") { addSite() }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .disabled(siteDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            block("Allowed apps") {
+                if subject.allowedApps.isEmpty {
+                    Text("None yet. Apps you unblock during a session are saved here.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(subject.allowedApps) { app in
+                    HStack(spacing: Theme.Space.s) {
+                        AppIcon(bundleID: app.bundleID).frame(width: 20, height: 20)
+                        Text(app.name)
+                        Spacer()
+                        Button { removeApp(app) } label: { Image(systemName: "xmark") }
+                            .buttonStyle(.borderless)
+                            .help("Stop allowing \(app.name)")
+                    }
+                }
+                Button("Edit apps…") {
+                    appDraft = subject.allowedApps
+                    isPickingApps = true
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
         }
+    }
+
+    private func addSite() {
+        let raw = siteDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let host = DomainMatcher.host(of: raw), !host.isEmpty else { return }
+        let study = Set(subject.sites.compactMap { DomainMatcher.host(of: $0) })
+        guard !study.contains(host), !subject.extraDomains.contains(where: { DomainMatcher.normalize($0) == host }) else {
+            siteDraft = ""
+            return
+        }
+        var updated = subject
+        updated.extraDomains.append(host)
+        model.updateSubject(updated)
+        siteDraft = ""
+    }
+
+    private func removeSite(_ host: String) {
+        var updated = subject
+        updated.extraDomains.removeAll { $0 == host }
+        model.updateSubject(updated)
+    }
+
+    private func removeApp(_ app: AllowedApp) {
+        var updated = subject
+        updated.allowedApps.removeAll { $0.bundleID == app.bundleID }
+        model.updateSubject(updated)
+    }
+
+    private func saveApps() {
+        var updated = subject
+        guard updated.allowedApps != appDraft else { return }
+        updated.allowedApps = appDraft
+        model.updateSubject(updated)
     }
 
     private func block<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {

@@ -173,12 +173,15 @@ final class MirrorTests: XCTestCase {
 
     @MainActor func testBreakPausesMonitoringAndRestoresIt() async {
         let h = EngineHarness()
+        h.workspace.hideResult = ["com.hnc.Discord"]
         await h.engine.start(subject: Subject(name: "CS128", sites: ["https://cs128.org"]),
                              mode: .goal(minutes: 50), displayName: "Z")
+        h.blocker.simulateBlocked("com.spotify.client", name: "Spotify")
         let stops = h.chrome.stopWatchCount
         h.engine.beginBreak(minutes: 5)
         XCTAssertEqual(h.blocker.stopCount, 1)
         XCTAssertEqual(h.chrome.stopWatchCount, stops + 1)
+        XCTAssertEqual(h.workspace.unhideCalls, [["com.hnc.Discord", "com.spotify.client"]])
         XCTAssertEqual(h.engine.breakRemaining ?? 0, 300, accuracy: 1)
         XCTAssertTrue(h.engine.isLocked)
 
@@ -186,6 +189,7 @@ final class MirrorTests: XCTestCase {
         h.engine.tick()
         XCTAssertNil(h.engine.breakRemaining)
         XCTAssertEqual(h.chrome.watchedSubject, "CS128")
+        XCTAssertEqual(h.workspace.hideCalls.count, 2, "apps opened during the break are hidden again")
         XCTAssertNotNil(h.blocker.startedWith)
     }
 
