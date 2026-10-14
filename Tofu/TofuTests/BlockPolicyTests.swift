@@ -108,6 +108,12 @@ final class BlockPolicyTests: XCTestCase {
         XCTAssertFalse(debouncer.shouldCount("com.apple.Notes", at: t0.addingTimeInterval(0.3)))
     }
 
+    func testAQuitThatWasNotSentIsRememberedAsAHide() {
+        XCTAssertEqual(BlockPolicy.forcedClose(bundleID: "com.spotify.client", didSendQuit: true), .quit)
+        XCTAssertEqual(BlockPolicy.forcedClose(bundleID: "com.spotify.client", didSendQuit: false), .hide)
+        XCTAssertEqual(BlockPolicy.forcedClose(bundleID: "com.apple.dt.Xcode", didSendQuit: true), .hide)
+    }
+
     func testCustomWindow() {
         var debouncer = AttemptDebouncer(window: 10)
         XCTAssertTrue(debouncer.shouldCount("com.hnc.Discord", at: t0))

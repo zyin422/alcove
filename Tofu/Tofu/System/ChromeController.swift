@@ -19,9 +19,17 @@ struct BrowserWindowPlan: Equatable {
     /// Starts the 2 s tab poll. Every tab outside `studySites` is judged for relevance to `subject` (the subject's
     /// name, e.g. "CS128") and closed when it is off-task. Replaces any watch already running.
     func startTabWatch(subject: String, studySites: [String])
+    /// Stops polling for a break. Allow and close decisions made while paused still apply when the watch resumes.
+    func pauseTabWatch()
     func stopTabWatch()
     /// Opens again the windows `prepare` closed and the tabs the watch closed.
     func restoreAfterSession()
+    /// Hands back what `prepare` and the tab watch closed, and forgets it. Nothing is reopened.
+    func takeClosedBrowser() -> ClosedBrowserState?
+    /// Opens these pages again in the session's browser (already-open ones are skipped).
+    func reopen(urls: [String])
+    /// Called when a host is allowed for the session (the assistant, or the user answering "Needed").
+    var onHostAllowed: ((String) -> Void)? { get set }
 }
 
 /// Drives Google Chrome with NSAppleScript (main thread). Never scripts System Events.
@@ -37,10 +45,13 @@ struct BrowserWindowPlan: Equatable {
     static let launchTimeout: TimeInterval = 5
 
     var onTabClosed: ((String) -> Void)?
+    var onHostAllowed: ((String) -> Void)?
     /// The chat assistant that gets the unsure sites. Weak: AppModel owns both ends.
     weak var asker: SiteAsking?
     /// The browser of the latest `prepare` (Chrome until then).
     private(set) var browser: Browser = .chrome
+    /// Arc spaces that listed no tabs. Passed into the next list so an empty space is not focused on every poll.
+    private var quietArcSpaces: [String] = []
     /// What to open again at the end; mirrored to `rememberedURL` on every change.
     private(set) var remembered: ClosedBrowserState?
     private let rememberedURL: URL?
@@ -68,6 +79,12 @@ struct BrowserWindowPlan: Equatable {
     private var promptQueue: [String] = []
     /// Hosts that were queued or asked this watch: a host is asked at most once.
     private var promptedHosts: Set<String> = []
+    /// Allow / close decisions for this lock-in, including ones made while the watch is paused for a break.
+    /// The next `startTabWatch` applies them. Stopping the watch, or preparing the next lock-in, clears them.
+    private var sessionAnswers: [String: Bool] = [:]
+    /// True from the first `startTabWatch` of a lock-in until `stopTabWatch`. A decision before that, or after the
+    /// session's watch has ended, is ignored.
+    private var acceptsSiteDecisions = false
     private var isPrompting = false
     /// Hosts handed to the assistant this watch: a host is asked about at most once.
     private var askedAssistantHosts: Set<String> = []
@@ -86,7 +103,7 @@ struct BrowserWindowPlan: Equatable {
     /// `rememberedURL` is where closed windows and tabs are kept until reopened (nil = memory only); a state left
     /// there by a crash is loaded and reopened by the next `restoreAfterSession`.
     init(judge: RelevanceJudging, prompter: NeedPrompting, alwaysBlocked: [String] = [],
-         rememberedURL: URL? = nil,
+         rememberedURL: URL? = nil, browser: Browser = .chrome,
          runScript: ((String) -> Result<String, ChromeError>)? = nil,
          chromeIsRunning: (() -> Bool)? = nil,
          placeFrontWindow: ((Browser, ChromeBounds) async -> Void)? = nil) {
@@ -94,6 +111,7 @@ struct BrowserWindowPlan: Equatable {
         self.prompter = prompter
         self.alwaysBlocked = alwaysBlocked
         self.rememberedURL = rememberedURL
+        self.browser = browser
         self.remembered = ClosedBrowserState.load(from: rememberedURL)
         self.runScript = runScript ?? { ChromeController.run($0) }
         self.browserIsRunningOverride = chromeIsRunning
@@ -134,7 +152,9 @@ struct BrowserWindowPlan: Equatable {
     }
 
     func prepare(browser: Browser, windows: [BrowserWindowPlan]) async -> ChromeError? {
+        sessionAnswers = [:]
         self.browser = browser
+        quietArcSpaces = []
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleID) else {
             return .notInstalled
         }
@@ -147,8 +167,9 @@ struct BrowserWindowPlan: Equatable {
             waited += 0.1
         }
 
-        switch Self.run(ChromeScripts.listTabs(for: browser)) {
+        switch Self.run(ChromeScripts.listTabs(for: browser, quietArcSpaces: quietArcSpaces)) {
         case .success(let output):
+            if browser == .arc { quietArcSpaces = ChromeScripts.emptyArcSpaceIDs(in: output) }
             closeExistingWindows(ChromeScripts.parseTabs(output, browser: browser))
         case .failure(.automationDenied):
             return .automationDenied
@@ -218,7 +239,8 @@ struct BrowserWindowPlan: Equatable {
     /// pinned tabs are never listed, so they stay.
     private func closeExistingWindows(_ tabs: [ChromeTab]) {
         let windows = ClosedBrowserState.windows(from: tabs, browser: browser)
-        let state = ClosedBrowserState(browser: browser, windows: windows, closedTabs: [])
+        var state = ClosedBrowserState(browser: browser, windows: windows, closedTabs: [])
+        for tab in tabs { state.recordTitle(tab.title, for: tab.url) }
         if var existing = remembered, existing.browser == browser {
             existing.merge(state)
             remember(existing)
@@ -249,18 +271,34 @@ struct BrowserWindowPlan: Equatable {
     }
 
     func startTabWatch(subject: String, studySites: [String]) {
-        stopTabWatch()
+        haltPolling()
+        acceptsSiteDecisions = true
         subjectName = subject
         triage = TabTriage(studySites: studySites, protected: [], alwaysBlocked: alwaysBlocked)
+        for (host, needed) in sessionAnswers {
+            triage.recordAnswer(host: host, needed: needed)
+        }
         let timer = Timer(timeInterval: Self.tabPollInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.pollTabs() }
         }
         RunLoop.main.add(timer, forMode: .common)
         tabTimer = timer
+        pollTabs()
     }
 
-    /// Stops polling and forgets queued questions. Verdicts and answers still on their way are ignored.
+    func pauseTabWatch() {
+        haltPolling()
+    }
+
+    /// Stops polling and forgets this lock-in's site decisions. Verdicts still on their way are ignored.
     func stopTabWatch() {
+        acceptsSiteDecisions = false
+        sessionAnswers = [:]
+        haltPolling()
+    }
+
+    /// Stops the poll and drops queued questions without forgetting allow / close decisions.
+    private func haltPolling() {
         tabTimer?.invalidate()
         tabTimer = nil
         watchToken = UUID()
@@ -276,7 +314,7 @@ struct BrowserWindowPlan: Equatable {
     /// Internal (not private) so tests can drive it without the timer.
     func pollTabs() {
         guard chromeIsRunning() else { return }
-        switch runScript(ChromeScripts.listTabs(for: browser)) {
+        switch listTabsNow() {
         case .success(let output):
             let tabs = ChromeScripts.parseTabs(output, browser: browser)
             lastTabs = tabs
@@ -289,6 +327,15 @@ struct BrowserWindowPlan: Equatable {
         case .failure:
             break            // Chrome busy or quitting; try again next tick
         }
+    }
+
+    /// The current tab list. For Arc, remembers spaces that had no tabs so the next poll does not focus them.
+    private func listTabsNow() -> Result<String, ChromeError> {
+        let result = runScript(ChromeScripts.listTabs(for: browser, quietArcSpaces: quietArcSpaces))
+        if case .success(let output) = result, browser == .arc {
+            quietArcSpaces = ChromeScripts.emptyArcSpaceIDs(in: output)
+        }
+        return result
     }
 
     /// Closes every tab of `tabs` that is already known to be off-task (see `TabTriage.shouldCloseImmediately`).
@@ -308,6 +355,7 @@ struct BrowserWindowPlan: Equatable {
         if ClosedBrowserState.isReopenable(tab.url) {
             var state = remembered ?? ClosedBrowserState(browser: browser, windows: [], closedTabs: [])
             state.closedTabs.append(tab.url)
+            state.recordTitle(tab.title, for: tab.url)
             remember(state)
         }
         onTabClosed?(DomainMatcher.host(of: tab.url) ?? tab.url)
@@ -317,11 +365,14 @@ struct BrowserWindowPlan: Equatable {
     /// Closes the tab only if it is still open at the same address, so a tab the user already closed (or sent
     /// elsewhere) while the verdict was pending is neither counted nor touched.
     private func closeIfStillOpen(_ tab: ChromeTab) {
-        guard chromeIsRunning(), case .success(let output) = runScript(ChromeScripts.listTabs(for: browser)) else { return }
-        let isOpen = ChromeScripts.parseTabs(output, browser: browser).contains {
-            $0.windowID == tab.windowID && $0.tabID == tab.tabID && $0.url == tab.url
-        }
-        if isOpen { close(tab) }
+        guard chromeIsRunning(), case .success(let output) = listTabsNow() else { return }
+        // Arc tab ids are unique across windows; the window a tab was listed under can change between polls.
+        guard let current = ChromeScripts.parseTabs(output, browser: browser).first(where: { listed in
+            let sameTab = browser.hasTextTabIDs ? listed.tabID == tab.tabID
+                : listed.windowID == tab.windowID && listed.tabID == tab.tabID
+            return sameTab && listed.url == tab.url
+        }) else { return }
+        close(current)
     }
 
     /// Asks the judge about one tab without blocking the poll. The result is ignored if the watch was stopped
@@ -382,6 +433,7 @@ struct BrowserWindowPlan: Equatable {
             let needed = await prompter.askIfNeeded(host: host, subject: subject)
             guard let self, token == self.watchToken else { return }
             self.triage.recordAnswer(host: host, needed: needed)
+            if needed { self.onHostAllowed?(DomainMatcher.normalize(host)) }
             self.isPrompting = false
             self.askNext()
         }
@@ -391,16 +443,21 @@ struct BrowserWindowPlan: Equatable {
 
     /// The assistant allowed the site: every tab on `host` stays for the rest of the watch.
     func allowHost(_ host: String) {
-        guard tabTimer != nil else { return }
+        let host = DomainMatcher.normalize(host)
+        guard acceptsSiteDecisions, !host.isEmpty else { return }
+        sessionAnswers[host] = true
         triage.allowHost(host)
+        onHostAllowed?(host)
     }
 
     /// The assistant closed the site: every open tab on `host` is closed now (from a fresh tab list, so a tab the
     /// user already closed is not counted), and the host is closed on every later poll too.
     func closeHost(_ host: String) {
-        guard tabTimer != nil else { return }
+        let host = DomainMatcher.normalize(host)
+        guard acceptsSiteDecisions, !host.isEmpty else { return }
+        sessionAnswers[host] = false
         triage.closeHost(host)
-        guard chromeIsRunning(), case .success(let output) = runScript(ChromeScripts.listTabs(for: browser)) else { return }
+        guard tabTimer != nil, chromeIsRunning(), case .success(let output) = listTabsNow() else { return }
         let tabs = ChromeScripts.parseTabs(output, browser: browser)
         lastTabs = tabs
         closeKnownOffTask(in: tabs)
@@ -423,11 +480,25 @@ struct BrowserWindowPlan: Equatable {
         reopen(state)
     }
 
+    func takeClosedBrowser() -> ClosedBrowserState? {
+        guard let state = remembered, !state.isEmpty else {
+            remember(nil)
+            return nil
+        }
+        remember(nil)
+        return state
+    }
+
+    func reopen(urls: [String]) {
+        let state = ClosedBrowserState(browser: browser, windows: [], closedTabs: urls)
+        reopen(state)
+    }
+
     private func reopen(_ state: ClosedBrowserState) {
         guard !state.isEmpty else { return }
         var open = Set<String>()
         if browserIsRunningOverride?() ?? Self.isRunning(state.browser),
-           case .success(let output) = runScript(ChromeScripts.listTabs(for: state.browser)) {
+           case .success(let output) = runScript(ChromeScripts.listTabs(for: state.browser, quietArcSpaces: quietArcSpaces)) {
             open = Set(ChromeScripts.parseTabs(output, browser: state.browser).map(\.url))
         }
         for urls in state.windowsToReopen(alreadyOpen: open) {

@@ -9,12 +9,12 @@ import Foundation
     var unhideCalls: [[String]] = []
     var activated: [String] = []
     func hideOthers(allowed: Set<String>) -> [String] { hideCalls.append(allowed); return hideResult }
-    var quitResult: (quit: [String], hidden: [String]) = ([], [])
+    var quitResult: (quit: [RunningAppInfo], hidden: [String]) = ([], [])
     var quitCalls: [Set<String>] = []
     var relaunchCalls: [[String]] = []
     func unhide(_ bundleIDs: [String]) { unhideCalls.append(bundleIDs) }
     func activate(bundleID: String) { activated.append(bundleID) }
-    func quitOthers(allowed: Set<String>) -> (quit: [String], hidden: [String]) {
+    func quitOthers(allowed: Set<String>) -> (quit: [RunningAppInfo], hidden: [String]) {
         quitCalls.append(allowed)
         return quitResult
     }
@@ -43,8 +43,10 @@ import Foundation
     var onBlocked: ((RunningAppInfo) -> Void)?
     var startedWith: Set<String>?
     var stopCount = 0
+    private(set) var allowedBundles: [String] = []
     func start(allowed: Set<String>) { startedWith = allowed }
     func stop() { stopCount += 1 }
+    func allow(_ bundleID: String) { allowedBundles.append(bundleID) }
     func simulateBlocked(_ bundleID: String, name: String = "App") {
         onBlocked?(RunningAppInfo(bundleID: bundleID, name: name, isRegular: true))
     }
@@ -63,6 +65,9 @@ import Foundation
     var watchedSites: [String]?
     var stopWatchCount = 0
     var restoreCount = 0
+    var pendingRestore: ClosedBrowserState?
+    private(set) var reopenedURLs: [String] = []
+    var onHostAllowed: ((String) -> Void)?
     /// Runs inside `prepare`, e.g. to end the session while Chrome is being prepared.
     var onPrepare: (() -> Void)?
     func prepare(browser: Browser, windows: [BrowserWindowPlan]) async -> ChromeError? {
@@ -77,8 +82,15 @@ import Foundation
         watchedSubject = subject
         watchedSites = studySites
     }
+    func pauseTabWatch() { stopWatchCount += 1 }
     func stopTabWatch() { stopWatchCount += 1 }
     func restoreAfterSession() { restoreCount += 1 }
+    func takeClosedBrowser() -> ClosedBrowserState? {
+        let state = pendingRestore
+        pendingRestore = nil
+        return state
+    }
+    func reopen(urls: [String]) { reopenedURLs.append(contentsOf: urls) }
     func simulateTabClosed(_ host: String) { onTabClosed?(host) }
 }
 

@@ -129,6 +129,7 @@ struct Subject: Codable, Identifiable, Hashable {
     /// the website slots by `SubjectValidator.subject(…)`.
     var sites: [String]
     var allowedApps: [AllowedApp]
+    /// Hosts allowed during this work block (in addition to `sites`). Kept across sessions and left open by the tab watch.
     var extraDomains: [String]
     var createdAt: Date
     /// The setup's windows. With a preset, one per zone (left to right); with a custom layout, each has a frame.

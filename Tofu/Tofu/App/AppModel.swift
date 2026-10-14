@@ -88,6 +88,7 @@ enum TokenSource: Equatable {
         let assistant = ChatAssistant(apiKey: { [box] in box.model?.openAIKey })
         let chrome = ChromeController(judge: judge, prompter: NeedPrompt(), alwaysBlocked: DistractionList.hosts,
                                       rememberedURL: ClosedBrowserState.defaultURL())
+        chrome.onHostAllowed = { host in box.model?.engine.rememberAllowedSite(host) }
         if chrome.hasLeftovers {
             // The app quit without ending a session cleanly: give back the windows and tabs it had closed.
             DispatchQueue.main.async { chrome.restoreAfterSession() }
@@ -159,6 +160,10 @@ enum TokenSource: Equatable {
         }
         // The chat lives and dies with the lock-in, and can pull the chat screen forward.
         engine.onLockedIn = { [weak self] subject in self?.assistant.beginSession(subject: subject.name) }
+        engine.onSiteAllowed = { [weak self] host in self?.persistAllowedHost(host) }
+        engine.onAppAllowed = { [weak self] app in self?.persistAllowedApp(app) }
+        engine.lookupApp = { [weak self] name in self?.installedApp(named: name) }
+        assistant.apps = engine
         engine.onEnded = { [weak self] in
             self?.assistant.endSession()
             self?.onSessionEnded?()
@@ -201,6 +206,34 @@ enum TokenSource: Equatable {
         data.subjects.append(subject)
         selection = .subject(subject.id)
         save()
+    }
+
+    /// Saves a host the user or the assistant allowed during the current work block.
+    private func persistAllowedHost(_ host: String) {
+        guard let id = engine.subject?.id, var subject = subject(id: id) else { return }
+        guard let host = DomainMatcher.host(of: host),
+              !subject.extraDomains.contains(where: { DomainMatcher.host(of: $0) == host }) else { return }
+        subject.extraDomains.append(host)
+        updateSubject(subject)
+    }
+
+    /// Saves an app the assistant unblocked during the current work block.
+    private func persistAllowedApp(_ app: AllowedApp) {
+        guard let id = engine.subject?.id, var subject = subject(id: id) else { return }
+        guard !subject.allowedApps.contains(where: { $0.bundleID == app.bundleID }),
+              !subject.slotApps.contains(where: { $0.bundleID == app.bundleID }) else { return }
+        subject.allowedApps.append(app)
+        updateSubject(subject)
+    }
+
+    private var installedAppsCache: [AllowedApp]?
+
+    /// An installed app matching `name`, scanned once per launch.
+    private func installedApp(named name: String) -> AllowedApp? {
+        if installedAppsCache == nil {
+            installedAppsCache = AppCatalog.scan(directories: AppCatalog.defaultDirectories())
+        }
+        return AppNameMatch.find(name, in: installedAppsCache ?? [])
     }
 
     /// Replaces the subject with the same id (no-op if it is unknown) and saves.
@@ -267,11 +300,15 @@ enum TokenSource: Equatable {
         data.dayPlans.first { $0.day == day }
     }
 
-    /// The plan Today and Start my day show. After wrap-up this is the next day, the one whose list
-    /// was just saved, skipping any earlier day already marked wrapped up.
+    /// The plan Today shows: the current day, or the previous day when that day still needs a wrap-up.
     func todayPlan(now: Date = Date()) -> DayPlan {
         let day = DayPlanner.workingDay(now: now, plans: data.dayPlans)
         return plan(for: day) ?? DayPlan(day: day)
+    }
+
+    /// True when the previous day has a plan that was never wrapped up, so the new day has not started.
+    func needsPreviousWrapUp(now: Date = Date()) -> Bool {
+        DayPlanner.workingDay(now: now, plans: data.dayPlans) != DayKey.key(for: now)
     }
 
     /// Changes the plan of `day` (creating it when missing) and saves.
@@ -286,12 +323,22 @@ enum TokenSource: Equatable {
         save()
     }
 
-    /// Ticks (or unticks) a priority of `day`.
+    /// Ticks (or unticks) a priority of `day`. Finishing one posts an update to Discord.
     func setPriority(_ id: UUID, done: Bool, day: String) {
+        var finished: Priority?
         updatePlan(day: day) { plan in
             guard let index = plan.priorities.firstIndex(where: { $0.id == id }) else { return }
+            guard plan.priorities[index].isDone != done else { return }
             plan.priorities[index].isDone = done
+            if done { finished = plan.priorities[index] }
         }
+        if let finished { postPriorityUpdate(finished) }
+    }
+
+    /// The one-line update for a priority that just flipped to done. The end-of-day recap is separate.
+    private func postPriorityUpdate(_ priority: Priority) {
+        let setup = priority.subjectID.flatMap { subject(id: $0)?.name }
+        announcer.announce(DiscordMessages.priorityUpdate(name: displayName, title: priority.title, setup: setup))
     }
 
     /// The unfinished priority of today that `session` (just ended) worked on, for "Did you finish …?".
@@ -312,15 +359,27 @@ enum TokenSource: Equatable {
     // MARK: Morning
 
     /// Shows the morning screen if this is the first use of the Mac today (launch, wake, unlock).
+    /// When yesterday still needs a wrap-up, that sheet opens instead, and the new day waits.
     func checkMorning(now: Date = Date()) {
+        if openPreviousWrapUpIfNeeded(now: now) { return }
         guard DayPlanner.shouldShowMorning(now: now, settings: data.settings, isLocked: engine.isLocked,
                                            isBusy: isShowingMorning || isWrappingUpDay) else { return }
         showMorning(now: now)
     }
 
-    /// Opens the morning screen on the current plan (the next day, once today has been wrapped up).
+    /// Opens the morning screen for the current day. If yesterday was not wrapped up, opens that wrap-up.
     func startMyDay(now: Date = Date()) {
+        if openPreviousWrapUpIfNeeded(now: now) { return }
         showMorning(now: now)
+    }
+
+    /// Opens the wrap-up for the previous day when it is still open. Returns true when the new day is blocked.
+    private func openPreviousWrapUpIfNeeded(now: Date) -> Bool {
+        guard needsPreviousWrapUp(now: now) else { return false }
+        guard !engine.isLocked, !isWrappingUpDay, !isShowingMorning else { return true }
+        isWrappingUpDay = true
+        onShowMainWindow?()
+        return true
     }
 
     /// Shows the morning screen now (also from "Start my day"); it then counts as shown today.
@@ -355,6 +414,7 @@ enum TokenSource: Equatable {
     /// Ends the day: stores today's ticks, saves tomorrow's priorities, and posts the recap to the group chat.
     func wrapUpDay(today: [Priority], tomorrow: [Priority], now: Date = Date()) {
         let todayKey = DayPlanner.workingDay(now: now, plans: data.dayPlans)
+        let alreadyDone = Set((plan(for: todayKey)?.priorities ?? []).filter(\.isDone).map(\.id))
         updatePlan(day: todayKey) { plan in
             plan.priorities = today
             plan.wrappedUp = true
@@ -362,6 +422,9 @@ enum TokenSource: Equatable {
         let kept = tomorrow.filter { !$0.title.trimmingCharacters(in: .whitespaces).isEmpty }
         updatePlan(day: DayKey.next(todayKey)) { $0.priorities = kept }
         let summary = DaySummary.summarize(day: todayKey, sessions: data.sessions, priorities: today)
+        for priority in today where priority.isDone && !alreadyDone.contains(priority.id) {
+            postPriorityUpdate(priority)
+        }
         announcer.announce(DiscordMessages.dayRecap(
             name: displayName,
             done: today.filter(\.isDone).map(\.title),

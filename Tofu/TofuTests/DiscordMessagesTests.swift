@@ -31,6 +31,15 @@ final class DiscordMessagesTests: XCTestCase {
                        "✅ **Alex** locked in on **CS128** for **0m** · tried other apps **0×** · closed **0** tabs")
     }
 
+    func testPriorityUpdateStandsApartFromTheDayRecap() {
+        XCTAssertEqual(DiscordMessages.priorityUpdate(name: "Zixuan", title: "Math241 review", setup: nil),
+                       "Update: **Zixuan** finished **Math241 review**")
+        XCTAssertEqual(DiscordMessages.priorityUpdate(name: "Zixuan", title: "Math241 review", setup: "MATH241"),
+                       "Update: **Zixuan** finished **Math241 review** · **MATH241**")
+        XCTAssertEqual(DiscordMessages.priorityUpdate(name: "Zixuan", title: "Read", setup: "  "),
+                       "Update: **Zixuan** finished **Read**")
+    }
+
     func testBailed() {
         let text = DiscordMessages.bailed(name: "Alex", subject: "CS128", duration: 12 * 60 + 40,
                                           goalMinutes: 50, attempts: 4)

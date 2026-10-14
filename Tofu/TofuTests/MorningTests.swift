@@ -99,14 +99,33 @@ final class MorningTests: XCTestCase {
 
         XCTAssertEqual(model.plan(for: DayKey.key(for: now))?.priorities.map(\.title), ["Old lab"])
         XCTAssertTrue(model.plan(for: DayKey.key(for: now))?.wrappedUp == true)
-        XCTAssertEqual(model.todayPlan(now: now).priorities.map(\.title), ["CS173"])
+        XCTAssertEqual(model.todayPlan(now: now).priorities.map(\.title), ["Old lab"])
 
-        model.startMyDay(now: now)
-        XCTAssertEqual(model.todayPlan(now: now).priorities.map(\.title), ["CS173"])
+        let nextMorning = DayKey.date(for: DayKey.tomorrow(from: now))!
+        XCTAssertEqual(model.todayPlan(now: nextMorning).priorities.map(\.title), ["CS173"])
+        model.startMyDay(now: nextMorning)
+        XCTAssertTrue(model.isShowingMorning)
+        XCTAssertEqual(model.todayPlan(now: nextMorning).priorities.map(\.title), ["CS173"])
 
-        await model.start(priority: tomorrow, subjectID: subject.id, mode: .goal(minutes: 50), now: now)
+        await model.start(priority: tomorrow, subjectID: subject.id, mode: .goal(minutes: 50), now: nextMorning)
 
-        XCTAssertEqual(model.todayPlan(now: now).priorities.first?.subjectID, subject.id)
+        XCTAssertEqual(model.todayPlan(now: nextMorning).priorities.first?.subjectID, subject.id)
         XCTAssertEqual(harness.engine.subject?.id, subject.id)
+    }
+
+    @MainActor func testCheckMorningOpensYesterdaysWrapUpInstead() throws {
+        let model = try makeModel(EngineHarness())
+        let now = Date()
+        model.updatePlan(day: DayKey.previous(DayKey.key(for: now))) { $0.priorities = [Priority(title: "Lab")] }
+        model.updateSettings { $0.dayEndMinutes = 24 * 60 + 3 * 60 }
+        var shown = 0
+        model.onShowMorning = { shown += 1 }
+
+        model.checkMorning(now: now)
+
+        XCTAssertEqual(shown, 0)
+        XCTAssertTrue(model.isWrappingUpDay)
+        XCTAssertFalse(model.isShowingMorning)
+        XCTAssertNil(model.data.settings.lastMorningKey)
     }
 }

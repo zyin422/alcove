@@ -1,7 +1,7 @@
 import Foundation
 
 /// Sites that are closed during a lock-in without asking the AI: social media, email and messaging,
-/// streaming, YouTube and shopping. A subject's study sites and hosts the user explicitly allowed still win.
+/// streaming, YouTube, shopping, and gambling. A subject's study sites and hosts the user explicitly allowed still win.
 /// Matching covers subdomains (`m.youtube.com`), except for hosts under `exceptions`.
 enum DistractionList {
     enum Category: String, CaseIterable {
@@ -10,6 +10,7 @@ enum DistractionList {
         case streaming = "streaming"
         case video = "YouTube"
         case shopping = "shopping"
+        case gambling = "gambling"
     }
 
     static let domains: [Category: [String]] = [
@@ -25,6 +26,9 @@ enum DistractionList {
         .video: ["youtube.com", "youtu.be"],
         .shopping: ["amazon.com", "ebay.com", "etsy.com", "shein.com", "temu.com", "aliexpress.com",
                     "walmart.com", "target.com", "bestbuy.com"],
+        .gambling: ["pokerstars.com", "pokerstars.net", "pokernow.club", "wsop.com", "ggpoker.com",
+                    "partypoker.com", "globalpoker.com", "pokerbros.net", "replaypoker.com", "888poker.com",
+                    "clubgg.com", "ignitioncasino.eu", "bovada.lv"],
     ]
 
     /// Work tools that live under a blocked domain (AWS docs and console are under amazon.com).

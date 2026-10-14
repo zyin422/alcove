@@ -5,6 +5,8 @@ import AppKit
     var onBlocked: ((RunningAppInfo) -> Void)? { get set }
     func start(allowed: Set<String>)
     func stop()
+    /// Lets this app stay in front for the rest of the run. A later `start` replaces the set.
+    func allow(_ bundleID: String)
 }
 
 /// Hides disallowed apps the moment they launch or come to the front.
@@ -47,6 +49,11 @@ import AppKit
         for token in observers { center.removeObserver(token) }
         observers.removeAll()
         generation += 1
+    }
+
+    func allow(_ bundleID: String) {
+        guard !bundleID.isEmpty else { return }
+        allowed.insert(bundleID)
     }
 
     private func handle(pid: pid_t) {

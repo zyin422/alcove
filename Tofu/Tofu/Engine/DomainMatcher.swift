@@ -2,9 +2,10 @@ import Foundation
 
 /// Decides which Chrome tabs belong to the current subject (spec §8).
 enum DomainMatcher {
-    /// Chrome's own pages and blank tabs. Tabs whose URL starts with one of these are never closed.
+    /// The browser's own pages and blank tabs. Tabs whose URL starts with one of these are never closed.
     private static let internalPrefixes = [
         "chrome://", "chrome-extension://", "chrome-search://", "chrome-untrusted://", "devtools://", "about:",
+        "arc://",
     ]
 
     /// lowercase, trim whitespace, strip leading "www." and trailing ".".

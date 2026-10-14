@@ -9,8 +9,17 @@ struct ClosedBrowserState: Codable, Equatable {
     var windows: [[String]]
     /// Off-task tabs closed during the session, oldest first.
     var closedTabs: [String]
+    /// Page title for a URL, when the browser had one. Missing for states saved before titles were kept.
+    var pageTitles: [String: String]
 
     var isEmpty: Bool { windows.allSatisfy(\.isEmpty) && closedTabs.isEmpty }
+
+    init(browser: Browser, windows: [[String]], closedTabs: [String], pageTitles: [String: String] = [:]) {
+        self.browser = browser
+        self.windows = windows
+        self.closedTabs = closedTabs
+        self.pageTitles = pageTitles
+    }
 
     /// Only pages that can be opened again by URL (not "chrome://newtab" and the like).
     static func isReopenable(_ url: String) -> Bool {
@@ -35,10 +44,20 @@ struct ClosedBrowserState: Codable, Equatable {
         }
     }
 
+    /// Remembers a non-empty title for `url` when one is not stored yet.
+    mutating func recordTitle(_ title: String, for url: String) {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, pageTitles[url] == nil else { return }
+        pageTitles[url] = title
+    }
+
     /// Adds another lock-in's windows (a state not yet reopened is never overwritten).
     mutating func merge(_ other: ClosedBrowserState) {
         windows += other.windows
         closedTabs += other.closedTabs
+        for (url, title) in other.pageTitles where pageTitles[url] == nil {
+            pageTitles[url] = title
+        }
     }
 
     /// The windows to open at the end: the remembered windows, then one window with the closed tabs (Arc puts
@@ -65,6 +84,26 @@ struct ClosedBrowserState: Codable, Equatable {
 
     static func defaultURL() -> URL {
         Store.defaultURL().deletingLastPathComponent().appendingPathComponent("closed-browser-tabs.json")
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        browser = try container.decode(Browser.self, forKey: .browser)
+        windows = try container.decode([[String]].self, forKey: .windows)
+        closedTabs = try container.decode([String].self, forKey: .closedTabs)
+        pageTitles = try container.decodeIfPresent([String: String].self, forKey: .pageTitles) ?? [:]
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(browser, forKey: .browser)
+        try container.encode(windows, forKey: .windows)
+        try container.encode(closedTabs, forKey: .closedTabs)
+        try container.encode(pageTitles, forKey: .pageTitles)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case browser, windows, closedTabs, pageTitles
     }
 
     static func load(from url: URL?) -> ClosedBrowserState? {

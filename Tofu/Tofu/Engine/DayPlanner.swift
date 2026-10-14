@@ -23,15 +23,16 @@ enum DayPlanner {
         return DayKey.minutesIntoDay(now, calendar: calendar) < settings.dayEndMinutes
     }
 
-    /// The day Today and Start my day should show. Each wrap-up marks that day done and stores the new
-    /// list on the next key, so skip every wrapped day until the list that has not been wrapped yet.
+    /// The day Today shows. This is the current day (a day runs from 4 AM). Wrapping up saves the next
+    /// list on the next calendar day and does not move Today forward. If the previous day has a plan
+    /// that was never wrapped up, that day stays on screen until it is wrapped up.
     static func workingDay(now: Date, plans: [DayPlan], calendar: Calendar = .current) -> String {
-        var day = DayKey.key(for: now, calendar: calendar)
-        for _ in 0..<30 {
-            guard plans.first(where: { $0.day == day })?.wrappedUp == true else { return day }
-            day = DayKey.next(day, calendar: calendar)
+        let today = DayKey.key(for: now, calendar: calendar)
+        let yesterday = DayKey.previous(today, calendar: calendar)
+        if plans.first(where: { $0.day == yesterday })?.wrappedUp == false {
+            return yesterday
         }
-        return day
+        return today
     }
 
     /// "Good morning" / "Good afternoon" / "Good evening" for the hour of `now`.

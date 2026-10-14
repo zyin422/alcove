@@ -1,6 +1,15 @@
 import XCTest
 @testable import Tofu
 
+@MainActor private final class ChatFakeApps: AppUnblocking {
+    var allowed: [String] = []
+    var blockedAppsSummary: [String] = []
+    func allowApp(named name: String) -> String {
+        allowed.append(name)
+        return "Allowed \(name) for this work block."
+    }
+}
+
 @MainActor private final class ChatFakeSites: SiteVerdictReceiving {
     var allowed: [String] = []
     var closed: [String] = []
@@ -50,6 +59,7 @@ final class ChatAssistantTests: XCTestCase {
     /// One assistant wired to fake Chrome, a hand-fired timer, and a scripted transport.
     private struct Rig {
         let sites: ChatFakeSites
+        let apps: ChatFakeApps
         let transport: MockTransport
         let assistant: ChatAssistant
         let timers: TimerBox
@@ -77,11 +87,13 @@ final class ChatAssistantTests: XCTestCase {
         let attention = CounterBox()
         let key = KeyBox()
         let sites = ChatFakeSites()
+        let apps = ChatFakeApps()
         let assistant = ChatAssistant(apiKey: { key.value }, transport: transport,
                                       scheduleTimeout: { delay, fire in timers.items.append((delay, fire)) })
         assistant.sites = sites
+        assistant.apps = apps
         assistant.onNeedsAttention = { attention.count += 1 }
-        return Rig(sites: sites, transport: mock, assistant: assistant, timers: timers, attention: attention, key: key)
+        return Rig(sites: sites, apps: apps, transport: mock, assistant: assistant, timers: timers, attention: attention, key: key)
     }
 
     private func requestJSON(_ rig: Rig, _ index: Int = 0) throws -> [String: Any] {
@@ -162,7 +174,7 @@ final class ChatAssistantTests: XCTestCase {
         XCTAssertEqual(json["model"] as? String, "gpt-4.1-mini")
         let tools = try XCTUnwrap(json["tools"] as? [[String: Any]])
         let names = tools.compactMap { ($0["function"] as? [String: Any])?["name"] as? String }
-        XCTAssertEqual(names, ["allow_site", "close_site"])
+        XCTAssertEqual(names, ["allow_site", "close_site", "allow_app"])
 
         let messages = try wireMessages(rig)
         XCTAssertEqual(messages.first?["role"] as? String, "system")
@@ -170,7 +182,7 @@ final class ChatAssistantTests: XCTestCase {
         XCTAssertTrue(system.contains("CS128"))
         XCTAssertTrue(system.contains("piazza.com — CS128 Piazza"))
         XCTAssertTrue(system.contains("youtube.com — Lo-fi beats"))
-        XCTAssertTrue(system.contains("allow_site") && system.contains("close_site"))
+        XCTAssertTrue(system.contains("allow_site") && system.contains("close_site") && system.contains("allow_app"))
         // The greeting is part of the history; the trimmed user text is last.
         XCTAssertEqual(messages.map { $0["role"] as? String }, ["system", "assistant", "user"])
         XCTAssertEqual(messages.last?["content"] as? String, "can I check piazza?")
@@ -251,6 +263,22 @@ final class ChatAssistantTests: XCTestCase {
         XCTAssertEqual(roles(rig.assistant), [.assistant, .user, .notice, .assistant])
         XCTAssertEqual(texts(rig.assistant)[2], "Closed reddit.com")
         XCTAssertEqual(texts(rig.assistant)[3], "Closed it. Back to work!")
+    }
+
+    func testAllowAppToolUnblocksTheNamedApp() async throws {
+        let rig = makeRig([
+            (200, chatToolBody([("call_2", "allow_app", #"{"name":"Slack","reason":"class group chat"}"#)])),
+            (200, chatTextBody("Slack's open.")),
+        ])
+        rig.apps.blockedAppsSummary = ["Slack — com.tinyspeck.slackmacgap"]
+        rig.assistant.beginSession(subject: "MATH241")
+        await rig.assistant.send("I need Slack, it's the MATH241 group chat")
+
+        XCTAssertEqual(rig.apps.allowed, ["Slack"])
+        XCTAssertEqual(texts(rig.assistant)[2], "Allowed Slack")
+        let system = try XCTUnwrap(try wireMessages(rig).first?["content"] as? String)
+        XCTAssertTrue(system.contains("Slack — com.tinyspeck.slackmacgap"))
+        XCTAssertTrue(system.contains("allow_app"))
     }
 
     func testToolCallWithURLHostIsNormalized() async {

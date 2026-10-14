@@ -17,6 +17,8 @@ struct SubjectEditorView: View {
     @State private var browser: Browser
     @State private var unusedApps: UnusedAppsAction
     @State private var allowedApps: [AllowedApp]
+    @State private var extraDomains: [String]
+    @State private var siteDraft = ""
     @State private var isPickingApps = false
     /// The window whose app is being chosen.
     @State private var choosingAppFor: SlotRef?
@@ -39,6 +41,7 @@ struct SubjectEditorView: View {
         _browser = State(initialValue: subject?.browser ?? .chrome)
         _unusedApps = State(initialValue: subject?.unusedApps ?? .hide)
         _allowedApps = State(initialValue: subject?.allowedApps ?? [])
+        _extraDomains = State(initialValue: subject?.extraDomains ?? [])
     }
 
     /// Website windows always show at least one address field.
@@ -69,6 +72,7 @@ struct SubjectEditorView: View {
                     browserSection
                     unusedAppsSection
                     appsSection
+                    sitesAllowedSection
                 }
                 .padding(Theme.Space.l)
             }
@@ -294,7 +298,7 @@ struct SubjectEditorView: View {
             if NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleID) == nil {
                 Text("\(browser.title) isn't installed on this Mac.").font(.caption).foregroundStyle(.secondary)
             } else if browser == .arc {
-                Text("Pinned Arc tabs are left alone; new tabs are checked like in Chrome.")
+                Text("Pinned Arc tabs are left alone. Tabs in every space are checked, including ones opened after you lock in.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -309,7 +313,7 @@ struct SubjectEditorView: View {
             .labelsHidden()
             .frame(width: 280)
             Text(unusedApps == .quit
-                 ? "Apps the setup doesn't use are asked to quit (they can ask to save first) and open again when the session ends. Finder, Terminal, Xcode and Cursor are only hidden."
+                 ? "Apps the setup doesn't use are asked to quit (they can ask to save first). At the end you choose which ones to open again. Finder, Terminal, Xcode and Cursor are only hidden."
                  : "Apps the setup doesn't use are hidden and shown again when the session ends.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -341,6 +345,38 @@ struct SubjectEditorView: View {
             Button("Add apps…") { isPickingApps = true }
                 .buttonStyle(SecondaryButtonStyle())
         }
+    }
+
+    private var sitesAllowedSection: some View {
+        section("Allowed sites") {
+            Text("Left open during this work block, and remembered for next time. The sites in the windows above are already allowed.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(extraDomains, id: \.self) { host in
+                HStack {
+                    Text(host).lineLimit(1)
+                    Spacer()
+                    Button { extraDomains.removeAll { $0 == host } } label: { Image(systemName: "xmark") }
+                        .buttonStyle(.borderless)
+                }
+            }
+            HStack(spacing: Theme.Space.s) {
+                TextField("piazza.com", text: $siteDraft)
+                    .textFieldStyle(.roundedBorder)
+                Button("Add") { addAllowedSite() }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(siteDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    private func addAllowedSite() {
+        let raw = siteDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let host = DomainMatcher.host(of: raw), !host.isEmpty else { return }
+        if !extraDomains.contains(where: { DomainMatcher.normalize($0) == host }) {
+            extraDomains.append(host)
+        }
+        siteDraft = ""
     }
 
     private var footer: some View {
@@ -415,7 +451,7 @@ struct SubjectEditorView: View {
                               preset: preset,
                               sites: SubjectValidator.sites(of: slots),
                               allowedApps: allowedApps,
-                              extraDomains: original?.extraDomains ?? [],   // deprecated: kept so old data survives
+                              extraDomains: extraDomains,
                               createdAt: original?.createdAt ?? Date(),
                               slots: slots,
                               usesCustomLayout: usesCustomLayout,

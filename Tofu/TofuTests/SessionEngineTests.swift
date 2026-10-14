@@ -6,8 +6,7 @@ final class SessionEngineTests: XCTestCase {
     private let ownID = "com.tofu.app"
     private let template = "I give up on {subject}"
 
-    /// CS128 with one extra allowed app and a deprecated extra domain (the tab watch must ignore it);
-    /// site count follows the preset.
+    /// CS128 with one extra allowed app and an allowed site (piazza.com). Site count follows the preset.
     private func makeSubject(_ preset: LayoutPreset = .split) -> Subject {
         let sites = preset.siteCount == 2
             ? ["https://cs128.org/schedule", "https://docs.python.org/3/"]
@@ -101,7 +100,7 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(h.blocker.startedWith,
                        [ownID, "com.google.Chrome", "com.apple.finder", "com.apple.systempreferences", "com.microsoft.VSCode"])
         XCTAssertEqual(h.chrome.watchedSubject, "CS128")
-        XCTAssertEqual(h.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/"])
+        XCTAssertEqual(h.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/", "piazza.com"])
         XCTAssertEqual(h.announcer.messages, ["🔒 **Alex** is locked in on **CS128**"])
         XCTAssertEqual(h.toaster.messages, [])
     }
@@ -275,7 +274,7 @@ final class SessionEngineTests: XCTestCase {
         slow.chrome.prepareResult = .profileNotReady
         await slow.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
         XCTAssertEqual(slow.chrome.watchedSubject, "CS128")
-        XCTAssertEqual(slow.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/"])
+        XCTAssertEqual(slow.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/", "piazza.com"])
     }
 
     // MARK: During the session
@@ -418,7 +417,9 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(h.engine.lastEnded?.end, h.clock.now)
         XCTAssertEqual(h.engine.lastEnded?.blockedAttempts, 1)
         XCTAssertEqual(h.workspace.unhideCalls, [["com.hnc.Discord"]])
-        XCTAssertEqual(h.chrome.restoreCount, 1)
+        XCTAssertEqual(h.chrome.restoreCount, 0, "a normal end waits for the user to choose what to reopen")
+        XCTAssertEqual(h.engine.relaunchOffer.map(\.title), ["Discord"])
+        XCTAssertEqual(h.engine.relaunchOffer.map(\.selected), [false])
         XCTAssertEqual(h.chrome.stopWatchCount, 1)
         XCTAssertEqual(h.blocker.stopCount, 1)
         XCTAssertEqual(h.presenter.exitCount, 1)
@@ -509,5 +510,103 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(h.blocker.stopCount, 0)
         XCTAssertTrue(h.announcer.messages.isEmpty)
         XCTAssertEqual(h.engine.elapsed, 0)
+    }
+
+    func testFinishOffersWhatWasClosedAndReopensOnlyWhatIsChecked() async {
+        let h = EngineHarness()
+        h.workspace.quitResult = ([RunningAppInfo(bundleID: "com.spotify.client", name: "Spotify", isRegular: true)], [])
+        h.chrome.pendingRestore = ClosedBrowserState(
+            browser: .chrome,
+            windows: [["https://docs.python.org/3/"]],
+            closedTabs: ["https://youtube.com/watch?v=1"],
+            pageTitles: ["https://youtube.com/watch?v=1": "Lo-fi"])
+        await h.engine.start(subject: Subject(name: "A", sites: ["https://a.com"], unusedApps: .quit),
+                             mode: .open, displayName: "Z")
+        h.blocker.simulateBlocked("com.hnc.Discord", name: "Discord")
+        await h.engine.finish()
+
+        XCTAssertEqual(h.engine.relaunchOffer.map(\.group), [.closedTabs, .previousTabs, .quitApps, .blockedApps])
+        XCTAssertEqual(h.engine.relaunchOffer.map(\.selected), [false, true, true, false])
+        XCTAssertEqual(h.engine.relaunchOffer.map(\.title), ["Lo-fi", "docs.python.org", "Spotify", "Discord"])
+
+        h.engine.setRelaunchSelection(h.engine.relaunchOffer[1].id, selected: false)
+        h.engine.applyRelaunch()
+        XCTAssertEqual(h.chrome.reopenedURLs, [])
+        XCTAssertEqual(h.workspace.relaunchCalls, [["com.spotify.client"]])
+        h.engine.applyRelaunch()
+        XCTAssertEqual(h.workspace.relaunchCalls.count, 1)
+    }
+
+    func testQuittingWithAPendingBringBackRestoresEverything() async {
+        let h = EngineHarness()
+        h.workspace.quitResult = ([RunningAppInfo(bundleID: "com.spotify.client", name: "Spotify", isRegular: true)], [])
+        h.chrome.pendingRestore = ClosedBrowserState(
+            browser: .chrome,
+            windows: [["https://docs.python.org/3/"]],
+            closedTabs: ["https://youtube.com/watch?v=1"],
+            pageTitles: ["https://youtube.com/watch?v=1": "Lo-fi"])
+        await h.engine.start(subject: Subject(name: "A", sites: ["https://a.com"], unusedApps: .quit),
+                             mode: .open, displayName: "Z")
+        h.blocker.simulateBlocked("com.hnc.Discord", name: "Discord")
+        await h.engine.finish()
+
+        h.engine.terminateNow()
+
+        XCTAssertTrue(h.engine.relaunchOffer.isEmpty)
+        XCTAssertEqual(h.workspace.relaunchCalls, [["com.spotify.client", "com.hnc.Discord"]])
+        XCTAssertEqual(h.chrome.reopenedURLs, ["https://youtube.com/watch?v=1", "https://docs.python.org/3/"])
+    }
+
+    func testAllowAppUnblocksItForTheBlock() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        var saved: [String] = []
+        h.engine.onAppAllowed = { saved.append($0.name) }
+        h.engine.lookupApp = { name in
+            name.compare("slack", options: .caseInsensitive) == .orderedSame
+                ? AllowedApp(bundleID: "com.tinyspeck.slackmacgap", name: "Slack") : nil
+        }
+
+        XCTAssertEqual(h.engine.allowApp(named: "slack"), "Allowed Slack for this work block.")
+        XCTAssertEqual(h.blocker.allowedBundles, ["com.tinyspeck.slackmacgap"])
+        XCTAssertEqual(h.workspace.unhideCalls.last, ["com.tinyspeck.slackmacgap"])
+        XCTAssertEqual(saved, ["Slack"])
+        XCTAssertEqual(h.engine.allowApp(named: "no such app"), "No app named no such app.")
+        XCTAssertEqual(h.engine.blockedAppsSummary, [])
+    }
+
+    func testRememberedSiteJoinsTheTabWatchAllowList() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        var hosts: [String] = []
+        h.engine.onSiteAllowed = { hosts.append($0) }
+
+        h.engine.rememberAllowedSite("https://www.YouTube.com/watch?v=1")
+        h.engine.rememberAllowedSite("cs128.org")
+        h.engine.rememberAllowedSite("youtube.com")
+
+        XCTAssertEqual(hosts, ["youtube.com"])
+        XCTAssertEqual(h.engine.subject?.extraDomains, ["piazza.com", "youtube.com"])
+    }
+
+    func testRelaunchChoicesSkipDuplicatesAndAppNamesMatchLoosely() {
+        let state = ClosedBrowserState(browser: .arc,
+                                       windows: [["https://a.com", "https://youtube.com/a"]],
+                                       closedTabs: ["https://youtube.com/a", "chrome://newtab"],
+                                       pageTitles: ["https://youtube.com/a": "Video"])
+        let quit = [RunningAppInfo(bundleID: "com.spotify.client", name: "Spotify", isRegular: true)]
+        let blocked = [RunningAppInfo(bundleID: "com.spotify.client", name: "Spotify", isRegular: true),
+                       RunningAppInfo(bundleID: "com.hnc.Discord", name: "Discord", isRegular: true)]
+        let choices = SessionRelaunch.choices(state: state, quitApps: quit, blockedApps: blocked)
+        XCTAssertEqual(choices.map(\.target), ["https://youtube.com/a", "https://a.com", "com.spotify.client", "com.hnc.Discord"])
+        XCTAssertEqual(choices.map(\.selected), [false, true, true, false])
+        XCTAssertEqual(choices[0].title, "Video")
+
+        let apps = [AllowedApp(bundleID: "com.tinyspeck.slackmacgap", name: "Slack"),
+                    AllowedApp(bundleID: "com.apple.Notes", name: "Notes")]
+        XCTAssertEqual(AppNameMatch.find("SLACK", in: apps)?.bundleID, "com.tinyspeck.slackmacgap")
+        XCTAssertEqual(AppNameMatch.find("com.apple.Notes", in: apps)?.name, "Notes")
+        XCTAssertNil(AppNameMatch.find("note", in: [AllowedApp(bundleID: "a", name: "Notes"),
+                                                    AllowedApp(bundleID: "b", name: "Notepad")]))
     }
 }

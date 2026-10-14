@@ -35,6 +35,13 @@ enum BlockPolicy {
     static func shouldBlock(_ app: RunningAppInfo, allowed: Set<String>) -> Bool {
         app.isRegular && !app.bundleID.isEmpty && !allowed.contains(app.bundleID)
     }
+
+    /// How a disallowed app is put away at lock-in. Developer tools are only hidden. Anything else is quit when
+    /// the quit message was sent; when it was not, the app is hidden and that hide has to be remembered.
+    static func forcedClose(bundleID: String, didSendQuit: Bool) -> UnusedAppsAction {
+        if neverQuit.contains(bundleID) || !didSendQuit { return .hide }
+        return .quit
+    }
 }
 
 /// Counts a blocked attempt at most once per `window` seconds per app
