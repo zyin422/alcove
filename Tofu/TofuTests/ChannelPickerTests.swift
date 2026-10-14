@@ -6,9 +6,14 @@ final class ChannelPickerTests: XCTestCase {
         DiscordChannel(id: id, name: name, type: 0, position: position)
     }
 
-    func testCachedChannelFirstWhenPresentAndText() {
+    func testPreferredNameBeatsACachedGeneralChannel() {
+        let channels = [text("10", "general", 0), text("11", "random", 1), text("12", "locked-in", 2)]
+        XCTAssertEqual(ChannelPicker.candidates(from: channels, cachedID: "10"), ["12", "10", "11"])
+    }
+
+    func testCachedChannelFollowsPreferredNames() {
         let channels = [text("10", "general", 0), text("11", "random", 1), text("12", "lock-in", 2)]
-        XCTAssertEqual(ChannelPicker.candidates(from: channels, cachedID: "11"), ["11", "12", "10"])
+        XCTAssertEqual(ChannelPicker.candidates(from: channels, cachedID: "11"), ["12", "11", "10"])
     }
 
     func testCachedChannelIgnoredWhenMissing() {

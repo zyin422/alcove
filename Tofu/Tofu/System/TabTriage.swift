@@ -51,7 +51,7 @@ struct TabTriage {
     }
 
     /// Stores the outcome of one check. Relevant: keep. Off-task: close now and whenever the URL reappears.
-    /// Unknown: the check no longer runs for this URL; the controller asks the user about the host.
+    /// Unknown: the check no longer runs for this URL; the controller asks in the chat popup, same as unsure.
     /// Unsure: the tab stays open and is not checked again; the controller hands the host to the chat assistant,
     /// whose `allowHost` / `closeHost` decision settles it.
     mutating func record(url: String, verdict: RelevanceVerdict) {

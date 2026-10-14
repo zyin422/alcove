@@ -32,9 +32,12 @@ struct BrowserWindowPlan: Equatable {
     var onHostAllowed: ((String) -> Void)? { get set }
 }
 
-/// Drives Google Chrome with NSAppleScript (main thread). Never scripts System Events.
+/// Drives Google Chrome and Arc with NSAppleScript. Never scripts System Events.
+/// The repeating tab poll runs the script off the main thread so dragging the timer and typing in chat stay responsive.
+/// One script runs at a time; a call that is already on the main thread still runs there so it cannot deadlock
+/// waiting for a script that needs this process's run loop.
 /// While the tab watch runs, each new tab URL is judged by a `RelevanceJudging`; off-task tabs are closed by tab id.
-/// When no verdict can be had, the user is asked about the host, one question at a time (`NeedPrompting`).
+/// When no verdict can be had, the chat popup asks about the host. The alert prompt is not used.
 /// Pages that are only maybe relevant (`.unsure`) go to the chat assistant (`SiteAsking`), which answers later
 /// through `SiteVerdictReceiving` (`allowHost` / `closeHost`).
 @MainActor final class ChromeController: ChromeControlling, SiteVerdictReceiving {
@@ -56,6 +59,12 @@ struct BrowserWindowPlan: Equatable {
     private(set) var remembered: ClosedBrowserState?
     private let rememberedURL: URL?
     private var tabTimer: Timer?
+    /// True while a tab-list script is running off the main thread. A second poll waits for it.
+    private var pollInFlight = false
+    /// Bumped when the watch stops so a script that returns late is discarded.
+    private var pollGeneration = 0
+    /// Production polls leave the main thread. Tests that inject `runScript` stay synchronous unless they opt in.
+    private let pollsOffMainThread: Bool
 
     private let judge: RelevanceJudging
     private let prompter: NeedPrompting
@@ -106,6 +115,7 @@ struct BrowserWindowPlan: Equatable {
          rememberedURL: URL? = nil, browser: Browser = .chrome,
          runScript: ((String) -> Result<String, ChromeError>)? = nil,
          chromeIsRunning: (() -> Bool)? = nil,
+         pollsOffMainThread: Bool? = nil,
          placeFrontWindow: ((Browser, ChromeBounds) async -> Void)? = nil) {
         self.judge = judge
         self.prompter = prompter
@@ -114,6 +124,7 @@ struct BrowserWindowPlan: Equatable {
         self.browser = browser
         self.remembered = ClosedBrowserState.load(from: rememberedURL)
         self.runScript = runScript ?? { ChromeController.run($0) }
+        self.pollsOffMainThread = pollsOffMainThread ?? (runScript == nil)
         self.browserIsRunningOverride = chromeIsRunning
         self.placeFrontWindow = placeFrontWindow ?? { browser, bounds in
             _ = await WindowPlacer.place(bundleID: browser.bundleID, bounds: bounds)
@@ -128,8 +139,18 @@ struct BrowserWindowPlan: Equatable {
         browserIsRunningOverride?() ?? Self.isRunning(browser)
     }
 
+    /// Only one AppleScript runs at a time. NSAppleScript is not safe to call concurrently.
+    private static let scriptLock = NSLock()
+
     /// Compiles and runs `source`. Error -1743 maps to .automationDenied, every other error to .scriptFailed(message).
-    static func run(_ source: String) -> Result<String, ChromeError> {
+    /// Safe to call off the main thread. Callers share one lock so two scripts never run at once.
+    nonisolated static func run(_ source: String) -> Result<String, ChromeError> {
+        scriptLock.lock()
+        defer { scriptLock.unlock() }
+        return execute(source)
+    }
+
+    nonisolated private static func execute(_ source: String) -> Result<String, ChromeError> {
         guard let script = NSAppleScript(source: source) else {
             return .failure(.scriptFailed("Could not create AppleScript"))
         }
@@ -302,6 +323,8 @@ struct BrowserWindowPlan: Equatable {
         tabTimer?.invalidate()
         tabTimer = nil
         watchToken = UUID()
+        pollGeneration += 1
+        pollInFlight = false
         promptQueue = []
         promptedHosts = []
         askedAssistantHosts = []
@@ -312,9 +335,40 @@ struct BrowserWindowPlan: Equatable {
     /// One poll: list every tab, close the ones already known to be off-task (by tab id), and start a relevance
     /// check for every tab that needs a verdict.
     /// Internal (not private) so tests can drive it without the timer.
+    /// The repeating watch runs the list script off the main thread. The timer only starts that work, so a slow
+    /// Arc listing cannot freeze a drag or a keystroke. Tests inject a script runner and stay synchronous.
     func pollTabs() {
         guard chromeIsRunning() else { return }
-        switch listTabsNow() {
+        guard pollsOffMainThread else {
+            applyPoll(listTabsNow())
+            return
+        }
+        guard !pollInFlight else { return }
+        pollInFlight = true
+        let generation = pollGeneration
+        let token = watchToken
+        let source = ChromeScripts.listTabs(for: browser, quietArcSpaces: quietArcSpaces)
+        let run = runScript
+        let isArc = browser == .arc
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = run(source)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, self.pollGeneration == generation else { return }
+                    self.pollInFlight = false
+                    guard self.watchToken == token else { return }
+                    if case .success(let output) = result, isArc {
+                        self.quietArcSpaces = ChromeScripts.emptyArcSpaceIDs(in: output)
+                    }
+                    self.applyPoll(result)
+                }
+            }
+        }
+    }
+
+    /// Applies a finished tab listing. `listTabsNow` has already recorded empty Arc spaces when it ran the script.
+    private func applyPoll(_ result: Result<String, ChromeError>) {
+        switch result {
         case .success(let output):
             let tabs = ChromeScripts.parseTabs(output, browser: browser)
             lastTabs = tabs
@@ -398,7 +452,8 @@ struct BrowserWindowPlan: Equatable {
             // The user may have answered "Needed" for this host while the check was running.
             if triage.shouldCloseImmediately(tab) { closeIfStillOpen(tab) }
         case .unknown:
-            askIfNeeded(host: DomainMatcher.host(of: tab.url) ?? tab.url)
+            // Same popup as an unsure site. A negative relevance means the check itself failed.
+            if !triage.isHostAnswered(tab) { askAssistant(about: tab, relevance: -1) }
         case .unsure(let relevance):
             // The tab stays open. Unless the chat already settled this host while the check ran, the assistant asks.
             if !triage.isHostAnswered(tab) { askAssistant(about: tab, relevance: relevance) }
