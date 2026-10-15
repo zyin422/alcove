@@ -123,6 +123,38 @@ open build/DerivedData/Build/Products/Release/Tofu.app
 
 > **While developing:** a lock-in hides Xcode and Terminal too. It never quits them. Add them to a test subject's allowed apps, or end the session from the mini timer.
 
+## Updates
+
+Tofu updates itself with [Sparkle](https://sparkle-project.org). Once a day it checks
+`https://raw.githubusercontent.com/axion66/tofu-releases/main/appcast.xml`. When a newer version exists, a card appears
+above **Stats** in the sidebar: **Update** opens Sparkle's window (release notes → Install → relaunch), **×** hides it
+until the next launch. **Tofu → Check for Updates…** checks right away. Debug builds never check.
+
+**For friends (first install):**
+1. Download the newest `Tofu-<version>.zip` from [axion66/tofu-releases](https://github.com/axion66/tofu-releases),
+   unzip it and move `Tofu.app` to Applications.
+2. The first launch is blocked because the app isn't notarized: open **System Settings → Privacy & Security** and click
+   **Open Anyway**. Updates after that install without this step.
+3. Release builds carry no keys. Paste the Discord bot token (ask the maintainer) and, optionally, your own OpenAI key
+   in **Settings**. They live in your Keychain and survive updates.
+
+**For the maintainer (publishing):**
+
+```bash
+cd Tofu
+scripts/release.sh --dry-run              # build + sign + appcast locally, publishes nothing
+scripts/release.sh 1.2 "What changed"     # bump, build, publish to axion66/tofu-releases, commit + tag (no source push)
+```
+
+The script refuses a dirty tree or a reused version number, and aborts if the build would ship `discord.env`.
+It needs, on this Mac only:
+- the **Accountabilibrosis Local Codesign** certificate — every release must be signed with it, or friends lose
+  their Accessibility grant after updating;
+- Sparkle's private EdDSA key in the login Keychain (created once with `generate_keys`; its public half is
+  `SUPublicEDKey` in `project.yml`). Back it up:
+  `build/ReleaseData/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/tofu-sparkle-key.txt`
+  and keep the file somewhere safe. Without it, friends' copies can't verify new updates and must be reinstalled.
+
 ## Permissions
 
 The main permission is **Automation → Google Chrome**.
