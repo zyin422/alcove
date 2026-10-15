@@ -44,6 +44,7 @@ targets:
         SUPublicEDKey: my3cG5Hh9Yhc83xOkrv32Wq8IzQhgBZFE6Y7JXs7qow=
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
+        SUAllowsAutomaticUpdates: false
     postCompileScripts:
       # Bundles the repo-root .env (team Discord bot token, committed) followed by .env.local (personal keys such
       # as OPENAI_API_KEY, gitignored) as Resources/discord.env, read by EnvFile; later keys win. Missing files are
@@ -69,6 +70,9 @@ targets:
       base:
         PRODUCT_NAME: Tofu
         PRODUCT_BUNDLE_IDENTIFIER: com.tofu.app
+        # Sparkle only runs in builds made by scripts/release.sh (TOFU_RELEASE=1), so builds from source never replace themselves.
+        TOFU_RELEASE_CONDITION_1: TOFU_RELEASE
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(TOFU_RELEASE_CONDITION_$(TOFU_RELEASE))"
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES

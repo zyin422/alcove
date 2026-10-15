@@ -978,6 +978,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tofu.app;
 				PRODUCT_NAME = Tofu;
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) $(TOFU_RELEASE_CONDITION_$(TOFU_RELEASE))";
+				TOFU_RELEASE_CONDITION_1 = TOFU_RELEASE;
 			};
 			name = Debug;
 		};
@@ -1015,6 +1017,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tofu.app;
 				PRODUCT_NAME = Tofu;
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) $(TOFU_RELEASE_CONDITION_$(TOFU_RELEASE))";
+				TOFU_RELEASE_CONDITION_1 = TOFU_RELEASE;
 			};
 			name = Release;
 		};

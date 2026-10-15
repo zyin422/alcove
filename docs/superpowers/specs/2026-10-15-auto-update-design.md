@@ -50,6 +50,7 @@ Added through XcodeGen `info:` (Xcode merges this file with the generated Info.p
 | `SUPublicEDKey` | `my3cG5Hh9Yhc83xOkrv32Wq8IzQhgBZFE6Y7JXs7qow=` |
 | `SUEnableAutomaticChecks` | `true` (no "check automatically?" prompt) |
 | `SUScheduledCheckInterval` | `86400` |
+| `SUAllowsAutomaticUpdates` | `false` (the alert offers no "Automatically download and install updates"; the user always clicks Update) |
 
 The private EdDSA key lives in the maintainer's login Keychain (account `ed25519`), created with Sparkle's `generate_keys`. Back it up with `generate_keys -x <file>`; losing it means friends must reinstall by hand.
 
@@ -73,7 +74,7 @@ SparkleUpdater (System) — owns SPUStandardUpdaterController,
   - `private(set) var availableVersion: String?` — the version shown on the card; nil = no card.
   - `var canCheckForUpdates: Bool { driver != nil }`
   - `func updateFound(version: String)` — shows the card unless `version` equals the version the user dismissed this run.
-  - `func dismiss()` — hides the card and remembers its version as dismissed (in memory only; a relaunch or a newer version shows it again).
+  - `func dismiss()` — hides the card and remembers its version as dismissed (in memory only; it can come back at the next daily check after a relaunch, and a newer version shows it again).
   - `func checkNow()` — used by both the card's Update button and the menu item: hides the card and calls `driver?.checkForUpdates()` (Sparkle's window takes over).
   - `func hide()` — hides the card without marking it dismissed (Sparkle got the user's attention, or its update session ended).
 - **`SparkleUpdater`** (`System/SparkleUpdater.swift`): creates `SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)`; delegate:
@@ -82,7 +83,7 @@ SparkleUpdater (System) — owns SPUStandardUpdaterController,
   - `standardUserDriverWillHandleShowingUpdate(_:forUpdate:state:)` → when `handleShowingUpdate == false`, `center.updateFound(version: update.displayVersionString)`
   - `standardUserDriverDidReceiveUserAttention(forUpdate:)` → `center.hide()`
   - `standardUserDriverWillFinishUpdateSession()` → `center.hide()`
-- **Wiring** (`AppDelegate.applicationDidFinishLaunching`, already skipped under tests): in non-`DEBUG` builds create `SparkleUpdater(center: model.updates)`, retain it, set `model.updates.driver` (the center owns the updater; `SparkleUpdater` holds the center `unowned`). Debug builds never start Sparkle (a dev build must not replace itself).
+- **Wiring** (`AppDelegate.applicationDidFinishLaunching`, already skipped under tests): in `TOFU_RELEASE` builds (the `TOFU_RELEASE` compilation condition, set when `TOFU_RELEASE=1`, i.e. only builds made by `scripts/release.sh`) create `SparkleUpdater(center: model.updates)`, retain it, set `model.updates.driver` (the center owns the updater; `SparkleUpdater` holds the center `unowned`). Debug and from-source builds never start Sparkle (a dev build must not replace itself).
 
 ## UI
 

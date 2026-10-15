@@ -45,8 +45,10 @@ if [ "$DRY_RUN" = 1 ]; then
   BUILD="$CURRENT_BUILD"
 else
   [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]] || die "usage: scripts/release.sh <version like 1.2> [notes]   or   scripts/release.sh --dry-run"
-  [ "$VERSION" != "$CURRENT_VERSION" ] || die "$VERSION is already the current version"
-  { git diff --quiet && git diff --cached --quiet; } || die "commit or stash your changes first; a release must match a commit"
+  [ "$(printf '%s\n%s\n' "$CURRENT_VERSION" "$VERSION" | sort -V | tail -n 1)" = "$VERSION" ] && [ "$VERSION" != "$CURRENT_VERSION" ] \
+    || die "$VERSION must be newer than the current version $CURRENT_VERSION"
+  if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then die "tag v$VERSION already exists"; fi
+  [ -z "$(git status --porcelain -- .)" ] || die "commit or stash your changes first (including untracked files); a release must match a commit"
   BUILD=$((CURRENT_BUILD + 1))
   BUMPED=1
   sed -i '' -E "s/^( *MARKETING_VERSION: ).*/\1\"$VERSION\"/; s/^( *CURRENT_PROJECT_VERSION: ).*/\1\"$BUILD\"/" project.yml
