@@ -133,6 +133,17 @@ final class RelevanceJudgeTests: XCTestCase {
         XCTAssertTrue(input.contains("Description: Syllabus for CS128"))
     }
 
+    func testDescriptionReachesTheDecisionsInstructions() async throws {
+        let transport = routedTransport()
+        _ = await makeJudge(transport: transport).judge(page: bare, subject: "CS128", details: "Intro CS in C++")
+
+        let request = try XCTUnwrap(transport.requests.first { $0.url?.host == "api.openai.com" })
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as? [String: Any])
+        let questions = try XCTUnwrap(json["questions"] as? [[String: Any]])
+        XCTAssertEqual(questions.first?["instructions"] as? String,
+                       DecisionsClient.instructions(subject: "CS128", details: "Intro CS in C++"))
+    }
+
     func testExistingTitleIsKeptWhenMetadataFetched() async throws {
         let transport = routedTransport()
         let page = PageInfo(url: "https://example.edu/syllabus", title: "Tab Title", description: nil, siteName: nil)

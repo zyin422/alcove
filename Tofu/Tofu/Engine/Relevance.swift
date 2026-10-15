@@ -23,8 +23,9 @@ enum RelevanceVerdict: Equatable {
 }
 
 /// Decides whether a page is relevant to the subject the user locked in on (OpenAI Decisions API in production).
+/// `subject` is the subject's name; `details` is the user's description of it (`Subject.details`, may be empty).
 @MainActor protocol RelevanceJudging: AnyObject {
-    func judge(page: PageInfo, subject: String) async -> RelevanceVerdict
+    func judge(page: PageInfo, subject: String, details: String) async -> RelevanceVerdict
 }
 
 /// Asks the user directly when no verdict could be obtained. Returns true to keep the tab ("Needed").

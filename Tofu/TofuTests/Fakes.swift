@@ -62,6 +62,7 @@ import Foundation
     var preparedWindows: [BrowserWindowPlan] = []
     var preparedBrowser: Browser?
     var watchedSubject: String?
+    var watchedDetails: String?
     var watchedSites: [String]?
     var stopWatchCount = 0
     var restoreCount = 0
@@ -78,8 +79,9 @@ import Foundation
         preparedBounds = windows.compactMap(\.bounds)
         return prepareResult
     }
-    func startTabWatch(subject: String, studySites: [String]) {
+    func startTabWatch(subject: String, details: String, studySites: [String]) {
         watchedSubject = subject
+        watchedDetails = details
         watchedSites = studySites
     }
     func pauseTabWatch() { stopWatchCount += 1 }
@@ -102,14 +104,16 @@ import Foundation
     var holds = false
     private(set) var judgedPages: [PageInfo] = []
     private(set) var judgedSubjects: [String] = []
+    private(set) var judgedDetails: [String] = []
     private var pending: [CheckedContinuation<RelevanceVerdict, Never>] = []
 
     var judgedURLs: [String] { judgedPages.map(\.url) }
     var pendingCount: Int { pending.count }
 
-    func judge(page: PageInfo, subject: String) async -> RelevanceVerdict {
+    func judge(page: PageInfo, subject: String, details: String) async -> RelevanceVerdict {
         judgedPages.append(page)
         judgedSubjects.append(subject)
+        judgedDetails.append(details)
         if holds {
             return await withCheckedContinuation { pending.append($0) }
         }

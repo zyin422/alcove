@@ -146,8 +146,8 @@ import XCTest
             controller.asker = asker
         }
 
-        func start() {
-            controller.startTabWatch(subject: "CS128", studySites: ["https://cs128.org/schedule"])
+        func start(details: String = "") {
+            controller.startTabWatch(subject: "CS128", details: details, studySites: ["https://cs128.org/schedule"])
         }
     }
 
@@ -158,6 +158,18 @@ import XCTest
     /// Lets the tasks the controller spawned (judge calls, prompts) run.
     private func settle() async {
         for _ in 0..<30 { await Task.yield() }
+    }
+
+    func testJudgeIsGivenTheSubjectDescription() async {
+        let h = WatchHarness(tabs: [tab("https://youtube.com/watch?v=1", id: 5, title: "Pointers in C++")])
+        h.start(details: "Intro CS in C++")
+        defer { h.controller.stopTabWatch() }
+
+        h.controller.pollTabs()
+        await settle()
+
+        XCTAssertEqual(h.judge.judgedSubjects, ["CS128"])
+        XCTAssertEqual(h.judge.judgedDetails, ["Intro CS in C++"])
     }
 
     func testOffTaskVerdictClosesTheTabByIDAndReportsItsHost() async {
@@ -173,6 +185,7 @@ import XCTest
 
         XCTAssertEqual(h.judge.judgedURLs, [reddit.url], "the study site is never judged")
         XCTAssertEqual(h.judge.judgedSubjects, ["CS128"])
+        XCTAssertEqual(h.judge.judgedDetails, [""])
         XCTAssertEqual(h.judge.judgedPages.first?.title, "Reddit")
         XCTAssertEqual(h.log.closeScripts, [ChromeScripts.closeTab(windowID: 1, tabID: 22)])
         XCTAssertEqual(h.closedHosts, ["reddit.com"])

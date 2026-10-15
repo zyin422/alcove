@@ -178,4 +178,33 @@ final class DecisionsClientTests: XCTestCase {
         XCTAssertTrue(text.contains("\"Organic Chemistry\""))
         XCTAssertTrue(text.contains("unrelated"))
     }
+
+    func testInstructionsWithoutDetailsHaveNoDescription() {
+        XCTAssertEqual(DecisionsClient.instructions(subject: "CS128", details: "  \n "),
+                       DecisionsClient.instructions(subject: "CS128"))
+        XCTAssertFalse(DecisionsClient.instructions(subject: "CS128").contains("describes"))
+    }
+
+    func testInstructionsCarryTheDescriptionCollapsedAndCapped() {
+        let text = DecisionsClient.instructions(subject: "CS128", details: "Intro CS in C++:\n  pointers,   classes")
+        XCTAssertTrue(text.contains("\"Intro CS in C++: pointers, classes\""), text)
+
+        let long = DecisionsClient.instructions(subject: "CS128", details: String(repeating: "x", count: 900))
+        XCTAssertTrue(long.contains(String(repeating: "x", count: DecisionsClient.maxDetailsLength)))
+        XCTAssertFalse(long.contains(String(repeating: "x", count: DecisionsClient.maxDetailsLength + 1)))
+    }
+
+    func testRequestInstructionsCarryTheDescription() async throws {
+        let transport = MockTransport { _ in (200, decisionsBody("0.2")) }
+        _ = try await makeClient(transport).offTaskProbability(page: page, subject: "CS128",
+                                                               details: "Intro CS in C++")
+
+        let body = try XCTUnwrap(transport.requests.first?.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let questions = try XCTUnwrap(json["questions"] as? [[String: Any]])
+        let instructions = try XCTUnwrap(questions.first?["instructions"] as? String)
+        XCTAssertEqual(instructions, DecisionsClient.instructions(subject: "CS128", details: "Intro CS in C++"))
+        XCTAssertFalse(try XCTUnwrap(json["input"] as? String).contains("Intro CS"),
+                       "the description is the user's own words, not part of the untrusted page input")
+    }
 }

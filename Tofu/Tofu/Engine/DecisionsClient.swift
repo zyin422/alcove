@@ -23,11 +23,11 @@ struct DecisionsRequest: Encodable, Equatable {
     var input: String
     var questions: [Question]
 
-    init(page: PageInfo, subject: String) {
+    init(page: PageInfo, subject: String, details: String = "") {
         model = DecisionsClient.model
         input = DecisionsClient.inputText(page)
         questions = [Question(name: DecisionsClient.questionName,
-                              instructions: DecisionsClient.instructions(subject: subject))]
+                              instructions: DecisionsClient.instructions(subject: subject, details: details))]
     }
 }
 
@@ -40,6 +40,7 @@ final class DecisionsClient {
     static let maxDescriptionLength = 500
     static let maxURLLength = 500
     static let maxSiteNameLength = 100
+    static let maxDetailsLength = 600
 
     private let apiKey: String
     private let transport: HTTPTransport
@@ -51,12 +52,12 @@ final class DecisionsClient {
         self.timeout = timeout
     }
 
-    /// Probability in 0...1 that the page is unrelated to `subject`.
+    /// Probability in 0...1 that the page is unrelated to `subject` (described by `details`, which may be empty).
     /// Throws `DecisionsError` (http, transport, refusal, decoding); never returns a guess.
-    func offTaskProbability(page: PageInfo, subject: String) async throws -> Double {
+    func offTaskProbability(page: PageInfo, subject: String, details: String = "") async throws -> Double {
         let body: Data
         do {
-            body = try JSONEncoder().encode(DecisionsRequest(page: page, subject: subject))
+            body = try JSONEncoder().encode(DecisionsRequest(page: page, subject: subject, details: details))
         } catch {
             throw DecisionsError.decoding
         }
@@ -82,10 +83,16 @@ final class DecisionsClient {
 
     // MARK: - Prompt
 
-    /// What the predicate means for this subject. The page text is untrusted, so it is told to be ignored as instructions.
-    static func instructions(subject: String) -> String {
+    /// What the predicate means for this subject. `details` is the user's own description of the work (whitespace
+    /// collapsed, capped, left out when blank). The page text is untrusted, so it is told to be ignored as instructions.
+    static func instructions(subject: String, details: String = "") -> String {
         let name = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        let about = clean(details, limit: maxDetailsLength)
+        let described = about.isEmpty ? ""
+            : "The user describes this work and its goals as: \"\(about)\". "
+            + "Use that description to decide which topics, tools and sites support the work. "
         return "The user is locked in to work on \"\(name)\". "
+            + described
             + "The predicate is true when the web page described below is unrelated to that work: "
             + "entertainment, social media, email inboxes, messaging and chat apps, games, gambling, poker, shopping, sports, "
             + "celebrity or unrelated news, or another subject. "

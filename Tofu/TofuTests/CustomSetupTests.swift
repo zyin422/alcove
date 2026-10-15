@@ -21,15 +21,28 @@ final class CustomSetupTests: XCTestCase {
         XCTAssertEqual(subject.browser, .chrome)
         XCTAssertEqual(subject.unusedApps, .hide)
         XCTAssertFalse(subject.usesCustomLayout)
+        XCTAssertEqual(subject.details, "")
     }
 
     func testSubjectRoundTripsSlotsAndChoices() throws {
-        let subject = Subject(name: "CS128", sites: ["https://cs128.org"],
+        let subject = Subject(name: "CS128", details: "Intro CS in C++: pointers, classes, and MPs",
+                              sites: ["https://cs128.org"],
                               slots: [.website(["https://cs128.org"], frame: UnitRect(x: 0, y: 0, width: 0.5, height: 1)),
                                       .app(vscode, folder: "~/code/cs128")],
                               usesCustomLayout: true, browser: .arc, unusedApps: .quit)
         let decoded = try JSONDecoder().decode(Subject.self, from: JSONEncoder().encode(subject))
         XCTAssertEqual(decoded, subject)
+    }
+
+    func testFormKeepsTheDescriptionAndSavesItTrimmed() {
+        let subject = Subject(name: "CS128", details: "Intro CS in C++", sites: ["https://cs128.org"])
+        var form = SubjectFormState(subject: subject)
+        XCTAssertEqual(form.details, "Intro CS in C++")
+        XCTAssertEqual(SubjectFormState(subject: nil).details, "")
+
+        form.details = "  Data structures: trees and graphs\n"
+        XCTAssertEqual(form.subject(id: subject.id, createdAt: subject.createdAt).details,
+                       "Data structures: trees and graphs")
     }
 
     func testAllowedSetUsesTheSetupBrowserAndApps() {

@@ -17,8 +17,9 @@ struct BrowserWindowPlan: Equatable {
     /// Returns nil when every window opened, otherwise the first error; notInstalled / automationDenied abort at once.
     func prepare(browser: Browser, windows: [BrowserWindowPlan]) async -> ChromeError?
     /// Starts the 2 s tab poll. Every tab outside `studySites` is judged for relevance to `subject` (the subject's
-    /// name, e.g. "CS128") and closed when it is off-task. Replaces any watch already running.
-    func startTabWatch(subject: String, studySites: [String])
+    /// name, e.g. "CS128", described by `details`, which may be empty) and closed when it is off-task.
+    /// Replaces any watch already running.
+    func startTabWatch(subject: String, details: String, studySites: [String])
     /// Stops polling for a break. Allow and close decisions made while paused still apply when the watch resumes.
     func pauseTabWatch()
     func stopTabWatch()
@@ -79,6 +80,8 @@ struct BrowserWindowPlan: Equatable {
 
     /// The subject's name from the latest `startTabWatch`, e.g. "CS128".
     private(set) var subjectName = ""
+    /// The subject's description from the latest `startTabWatch`, passed to the judge with the name.
+    private var subjectDetails = ""
     private var triage = TabTriage(studySites: [], protected: [])
     /// Tabs seen by the latest poll (minus the ones closed since), for `openTabsSummary`.
     private var lastTabs: [ChromeTab] = []
@@ -291,10 +294,11 @@ struct BrowserWindowPlan: Equatable {
         return .profileNotReady
     }
 
-    func startTabWatch(subject: String, studySites: [String]) {
+    func startTabWatch(subject: String, details: String = "", studySites: [String]) {
         haltPolling()
         acceptsSiteDecisions = true
         subjectName = subject
+        subjectDetails = details
         triage = TabTriage(studySites: studySites, protected: [], alwaysBlocked: alwaysBlocked)
         for (host, needed) in sessionAnswers {
             triage.recordAnswer(host: host, needed: needed)
@@ -434,10 +438,11 @@ struct BrowserWindowPlan: Equatable {
     private func check(_ tab: ChromeTab) {
         let token = watchToken
         let subject = subjectName
+        let details = subjectDetails
         let judge = judge
         let page = PageInfo(url: tab.url, title: tab.title, description: nil, siteName: nil)
         Task { @MainActor [weak self] in
-            let verdict = await judge.judge(page: page, subject: subject)
+            let verdict = await judge.judge(page: page, subject: subject, details: details)
             self?.handle(verdict, for: tab, token: token)
         }
     }

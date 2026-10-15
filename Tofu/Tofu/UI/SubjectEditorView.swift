@@ -5,6 +5,7 @@ import SwiftUI
 /// states (a cleared name, a half-typed URL) never reach the model.
 struct SubjectFormState: Equatable {
     var name: String
+    var details: String
     var preset: LayoutPreset
     var usesCustomLayout: Bool
     /// One per zone; always at least 2, only the first `preset.siteCount` are shown and saved.
@@ -19,6 +20,7 @@ struct SubjectFormState: Equatable {
     init(subject: Subject?) {
         let custom = subject?.usesCustomLayout ?? false
         name = subject?.name ?? ""
+        details = subject?.details ?? ""
         preset = subject?.preset ?? .split
         usesCustomLayout = custom
         zoneSlots = SubjectValidator.zoneSlots((custom ? [] : subject?.slots ?? []).map(Self.editable))
@@ -49,6 +51,7 @@ struct SubjectFormState: Equatable {
         let slots = SubjectValidator.slotsForSave(visibleSlots)
         return Subject(id: id,
                        name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                       details: details.trimmingCharacters(in: .whitespacesAndNewlines),
                        preset: preset,
                        sites: SubjectValidator.sites(of: slots),
                        allowedApps: allowedApps,
@@ -100,6 +103,7 @@ struct SubjectForm: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
             if showsName { nameSection }
+            detailsSection
             layoutSection
             windowsSection
             browserSection
@@ -122,6 +126,18 @@ struct SubjectForm: View {
         section("Name") {
             TextField("e.g. CS128", text: $form.name)
                 .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private var detailsSection: some View {
+        section("Description") {
+            TextField("e.g. Intro CS in C++: pointers, classes, linked lists. Goal: finish MP3 and study for the midterm.",
+                      text: $form.details, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(2...5)
+            Text("What this subject is and what you're working toward. Tabs you open are checked against it, so a page about the topic stays open even when its title doesn't mention \(form.name.isEmpty ? "the name" : form.name).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

@@ -124,6 +124,9 @@ struct SetupSlot: Codable, Hashable, Identifiable {
 struct Subject: Codable, Identifiable, Hashable {
     var id: UUID
     var name: String
+    /// The user's own description of the work and its goals, e.g. "Intro CS in C++: pointers, classes, MPs".
+    /// Gives the relevance check context a short name can't; empty when not filled in.
+    var details: String
     var preset: LayoutPreset
     /// Every website of the setup as full URLs (the study sites: never judged or closed). Kept in sync with
     /// the website slots by `SubjectValidator.subject(…)`.
@@ -139,12 +142,13 @@ struct Subject: Codable, Identifiable, Hashable {
     var browser: Browser
     var unusedApps: UnusedAppsAction
 
-    init(id: UUID = UUID(), name: String, preset: LayoutPreset = .split, sites: [String] = [],
+    init(id: UUID = UUID(), name: String, details: String = "", preset: LayoutPreset = .split, sites: [String] = [],
          allowedApps: [AllowedApp] = [], extraDomains: [String] = [], createdAt: Date = Date(),
          slots: [SetupSlot]? = nil, usesCustomLayout: Bool = false, browser: Browser = .chrome,
          unusedApps: UnusedAppsAction = .hide) {
         self.id = id
         self.name = name
+        self.details = details
         self.preset = preset
         self.sites = sites
         self.allowedApps = allowedApps
@@ -161,13 +165,14 @@ struct Subject: Codable, Identifiable, Hashable {
 }
 
 extension Subject {
-    /// Setups saved before slots, browsers and the unused-apps choice existed get one website slot per site,
-    /// Chrome, and hidden (not quit) unused apps.
+    /// Setups saved before slots, browsers, the unused-apps choice and descriptions existed get one website slot
+    /// per site, Chrome, hidden (not quit) unused apps, and no description.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let sites = try container.decode([String].self, forKey: .sites)
         self.init(id: try container.decode(UUID.self, forKey: .id),
                   name: try container.decode(String.self, forKey: .name),
+                  details: try container.decodeIfPresent(String.self, forKey: .details) ?? "",
                   preset: try container.decode(LayoutPreset.self, forKey: .preset),
                   sites: sites,
                   allowedApps: try container.decode([AllowedApp].self, forKey: .allowedApps),
