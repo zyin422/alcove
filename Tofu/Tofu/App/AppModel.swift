@@ -66,6 +66,13 @@ enum TokenSource: Equatable {
     let priorityExtractor: PriorityExtractor
     /// The interrogation that runs when a goal is ended early.
     let mirror: MirrorInterrogator
+    /// Google connection (OAuth) and the sync engine built over it; the engine is created at the end of init.
+    let googleAuth: GoogleAuth
+    @ObservationIgnored private(set) var googleSync: GoogleSync?
+    /// Transient text under the Connect button in Settings.
+    var googleStatus = ""
+    /// The loopback redirect of the connect flow in progress.
+    @ObservationIgnored private var pendingRedirectURI = ""
     /// Where the two possible bot tokens come from (the Keychain, the bundled `.env`); tests inject fakes.
     private let keychainToken: () -> String?
     private let envToken: () -> String?
@@ -110,7 +117,8 @@ enum TokenSource: Equatable {
                   keychainToken: { Keychain.get(service: Secrets.discordService, account: Secrets.discordAccount) },
                   envToken: { EnvFile.bundledValue(AppModel.envTokenKey) },
                   keychainOpenAIKey: { Keychain.get(service: Secrets.openAIService, account: Secrets.openAIAccount) },
-                  envOpenAIKey: { EnvFile.bundledValue(AppModel.envOpenAIKeyName) })
+                  envOpenAIKey: { EnvFile.bundledValue(AppModel.envOpenAIKeyName) },
+                  googleAuth: GoogleAuth(), googleAPI: nil)
         box.model = self
         if let warning = loaded.warning {
             // After launch, so the toast panel can find the screen.
@@ -128,7 +136,9 @@ enum TokenSource: Equatable {
                      assistant: ChatAssistant? = nil,
                      announcer: Announcing? = nil,
                      priorityExtractor: PriorityExtractor? = nil,
-                     mirror: MirrorInterrogator? = nil) {
+                     mirror: MirrorInterrogator? = nil,
+                     googleAuth: GoogleAuth? = nil,
+                     googleAPI: GoogleAPI? = nil) {
         let (loaded, isFirstLaunch) = Self.load(store)
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine,
                   assistant: assistant ?? ChatAssistant(apiKey: { nil }),
@@ -136,14 +146,18 @@ enum TokenSource: Equatable {
                   priorityExtractor: priorityExtractor ?? PriorityExtractor(apiKey: { nil }),
                   mirror: mirror ?? MirrorInterrogator(apiKey: { nil }),
                   keychainToken: keychainToken, envToken: envToken,
-                  keychainOpenAIKey: keychainOpenAIKey, envOpenAIKey: envOpenAIKey)
+                  keychainOpenAIKey: keychainOpenAIKey, envOpenAIKey: envOpenAIKey,
+                  googleAuth: googleAuth ?? GoogleAuth(readToken: { nil }, writeToken: { _ in }),
+                  googleAPI: googleAPI)
     }
 
     private init(store: Store, loaded: StoreLoadResult, isFirstLaunch: Bool, engine: SessionEngine,
                  assistant: ChatAssistant, announcer: Announcing, priorityExtractor: PriorityExtractor,
                  mirror: MirrorInterrogator,
                  keychainToken: @escaping () -> String?, envToken: @escaping () -> String?,
-                 keychainOpenAIKey: @escaping () -> String?, envOpenAIKey: @escaping () -> String?) {
+                 keychainOpenAIKey: @escaping () -> String?, envOpenAIKey: @escaping () -> String?,
+                 googleAuth: GoogleAuth, googleAPI: GoogleAPI?) {
+        self.googleAuth = googleAuth
         self.store = store
         self.engine = engine
         self.assistant = assistant
@@ -175,6 +189,22 @@ enum TokenSource: Equatable {
             data.settings.discordEnabled = true
             save()
         }
+        let auth = googleAuth
+        let api: GoogleAPI = googleAPI ?? GoogleClient(tokenProvider: { force in
+            try await auth.accessToken(forceRefresh: force)
+        })
+        let sync = GoogleSync(api: api,
+                              settings: { [weak self] in self?.data.settings ?? AppSettings() },
+                              isConnected: { [weak self] in self?.googleAuth.isConnected ?? false },
+                              plan: { [weak self] in
+                                  let key = DayKey.key(for: Date())
+                                  return self?.plan(for: key) ?? DayPlan(day: key)
+                              },
+                              applyPlan: { [weak self] plan in self?.applyGooglePlan(plan) },
+                              saveCalendarID: { [weak self] id in self?.updateSettings { $0.googleCalendarID = id } },
+                              onError: { message in ToastCenter.shared.show(message) })
+        googleSync = sync
+        if auth.isConnected { sync.start() }
     }
 
     /// Connects the assistant and Chrome both ways: the tab watch hands unsure sites to the assistant, and the
@@ -185,6 +215,47 @@ enum TokenSource: Equatable {
     }
 
     /// The Mac woke from sleep: while locked in, the assistant welcomes the user back (which brings up the chat).
+    var isGoogleConnected: Bool { googleAuth.isConnected }
+
+    /// Full connect flow: loopback listener, browser consent, code exchange, first sync.
+    func connectGoogle() async {
+        let server = LoopbackServer()
+        defer { server.stop() }
+        googleStatus = "Waiting for Google…"
+        do {
+            let gate = CallbackGate()
+            let port = try server.start { code, state in
+                guard let code, let state else { return }
+                Task { @MainActor in gate.fulfill((code, state)) }
+            }
+            let redirectURI = "http://127.0.0.1:\(port)"
+            pendingRedirectURI = redirectURI
+            NSWorkspace.shared.open(googleAuth.beginAuth(redirectURI: redirectURI).url)
+            let timeout = Task { @MainActor in
+                try await Task.sleep(nanoseconds: 180_000_000_000)
+                gate.fulfill(nil)
+            }
+            let result = await gate.wait()
+            timeout.cancel()
+            guard let (code, state) = result else {
+                googleStatus = "Timed out. Try again."
+                return
+            }
+            try await googleAuth.handleCallback(code: code, state: state, redirectURI: pendingRedirectURI)
+            googleStatus = ""
+            googleSync?.start()
+        } catch {
+            googleStatus = "Connection failed: \(error)"
+        }
+    }
+
+    /// Stops syncing and forgets the Google token.
+    func disconnectGoogle() {
+        googleSync?.stop()
+        googleAuth.disconnect()
+        googleStatus = ""
+    }
+
     func systemDidWake() {
         guard engine.isLocked else { return }
         assistant.greetAfterWake()
@@ -263,6 +334,9 @@ enum TokenSource: Equatable {
             data.sessions.append(session)
         }
         save()
+        if session.end != nil, session.outcome != nil {
+            googleSync?.sessionEnded(session)
+        }
     }
 
     /// True when an OpenAI key is available, so ending a goal early goes through the Mirror.
@@ -314,11 +388,26 @@ enum TokenSource: Equatable {
 
     /// Changes the plan of `day` (creating it when missing) and saves.
     func updatePlan(day: String, _ mutate: (inout DayPlan) -> Void) {
+        let before = plan(for: day) ?? DayPlan(day: day)
         if let index = data.dayPlans.firstIndex(where: { $0.day == day }) {
             mutate(&data.dayPlans[index])
         } else {
             var plan = DayPlan(day: day)
             mutate(&plan)
+            data.dayPlans.append(plan)
+        }
+        save()
+        // The mirror targets the real calendar day, not the working day, so a pending wrap-up never leaks in.
+        if day == DayKey.key(for: Date()), let after = plan(for: day) {
+            googleSync?.planChanged(from: before, to: after)
+        }
+    }
+
+    /// GoogleSync writes a pulled plan through here; unlike `updatePlan` it never reports back to the sync.
+    private func applyGooglePlan(_ plan: DayPlan) {
+        if let index = data.dayPlans.firstIndex(where: { $0.day == plan.day }) {
+            data.dayPlans[index] = plan
+        } else {
             data.dayPlans.append(plan)
         }
         save()
@@ -556,4 +645,22 @@ enum TokenSource: Equatable {
 /// Weak link from the live DiscordAnnouncer's closures back to the model (see `AppModel.init(store:)`).
 @MainActor private final class ModelBox {
     weak var model: AppModel?
+}
+
+/// Hands one value (or nil on timeout) to a single waiter; later fulfills are ignored.
+@MainActor private final class CallbackGate {
+    private var result: (String, String)??
+    private var continuation: CheckedContinuation<(String, String)?, Never>?
+
+    func fulfill(_ value: (String, String)?) {
+        guard result == nil else { return }
+        result = .some(value)
+        continuation?.resume(returning: value)
+        continuation = nil
+    }
+
+    func wait() async -> (String, String)? {
+        if let result { return result }
+        return await withCheckedContinuation { continuation = $0 }
+    }
 }
