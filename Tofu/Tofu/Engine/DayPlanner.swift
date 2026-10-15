@@ -51,6 +51,71 @@ enum DayPlanner {
         return plan.priorities.first { !$0.isDone && $0.subjectID == session.subjectID }
     }
 
+    // MARK: Wrap-up merges (Google-safe: none of these ever drops a stored priority)
+
+    /// The sheet's ticks over the stored plan; stored titles and links win, unseen linked priorities are kept.
+    static func mergeWrapUp(snapshot: [Priority], into current: [Priority]) -> [Priority] {
+        let currentByID = Dictionary(current.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let snapshotIDs = Set(snapshot.map(\.id))
+        let ticked = snapshot.map { priority in
+            guard let stored = currentByID[priority.id] else { return priority }
+            var merged = priority
+            merged.title = stored.title
+            merged.googleTaskID = stored.googleTaskID ?? priority.googleTaskID
+            return merged
+        }
+        return ticked + current.filter { !snapshotIDs.contains($0.id) && $0.googleTaskID != nil }
+    }
+
+    /// The fresh plan with only the done flips the user made in the sheet (`edited` against `original`).
+    static func applyingTicks(edited: [Priority], original: [Priority], to fresh: [Priority]) -> [Priority] {
+        let before = Dictionary(original.map { ($0.id, $0.isDone) }, uniquingKeysWith: { first, _ in first })
+        let after = Dictionary(edited.map { ($0.id, $0.isDone) }, uniquingKeysWith: { first, _ in first })
+        return fresh.map { priority in
+            guard let was = before[priority.id], let now = after[priority.id], was != now else { return priority }
+            var ticked = priority
+            ticked.isDone = now
+            return ticked
+        }
+    }
+
+    /// Unlinked tomorrow items take the id and link of an unfinished linked today item with the same title.
+    static func carryLinks(into tomorrow: [Priority], from today: [Priority]) -> [Priority] {
+        var candidates = today.filter { !$0.isDone && $0.googleTaskID != nil }
+        return tomorrow.map { priority in
+            guard priority.googleTaskID == nil,
+                  let index = candidates.firstIndex(where: { normalized($0.title) == normalized(priority.title) })
+            else { return priority }
+            let source = candidates.remove(at: index)
+            var carried = priority
+            carried.id = source.id
+            carried.googleTaskID = source.googleTaskID
+            return carried
+        }
+    }
+
+    /// `existing` plus the `added` items it lacks (by id, link or unlinked title); held ones only gain a setup.
+    static func appendNew(_ added: [Priority], to existing: [Priority]) -> [Priority] {
+        var result = existing
+        for priority in added {
+            let match = result.firstIndex { held in
+                held.id == priority.id
+                    || (priority.googleTaskID != nil && held.googleTaskID == priority.googleTaskID)
+                    || (priority.googleTaskID == nil && normalized(held.title) == normalized(priority.title))
+            }
+            if let match {
+                if result[match].subjectID == nil { result[match].subjectID = priority.subjectID }
+            } else {
+                result.append(priority)
+            }
+        }
+        return result
+    }
+
+    private static func normalized(_ title: String) -> String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
     // MARK: Spoken list -> priorities
 
     /// Splits "finish the CS128 lab, then review calc and also call mom" into separate titles.

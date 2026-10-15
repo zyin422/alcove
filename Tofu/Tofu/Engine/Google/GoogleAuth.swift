@@ -37,6 +37,8 @@ enum GoogleAuthError: Error, Equatable {
     private var verifier: String?
     private var accessTokenValue: String?
     private var accessTokenExpiry = Date.distantPast
+    /// Runs after a dead refresh token made the auth disconnect itself (AppModel flips the UI to Connect).
+    var onRevoked: (() -> Void)?
 
     init(transport: HTTPTransport = URLSessionTransport(),
          readToken: @escaping () -> String? = { Keychain.get(service: Secrets.googleService, account: Secrets.googleAccount) },
@@ -100,6 +102,7 @@ enum GoogleAuthError: Error, Equatable {
             response = try await token(params: ["grant_type": "refresh_token", "refresh_token": refresh])
         } catch GoogleAuthError.tokenEndpoint(let code) where Self.deadTokenErrors.contains(code) {
             disconnect()
+            onRevoked?()
             throw GoogleAuthError.revoked
         }
         accessTokenValue = response.accessToken

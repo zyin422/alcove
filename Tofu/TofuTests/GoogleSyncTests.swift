@@ -8,6 +8,7 @@ import XCTest
     var events: [String: [GoogleEvent]] = [:]      // calendarID -> events
     var error: Error?
     var insertEventErrors: [String: Error] = [:]   // calendarID -> error for insertEvent
+    var listEventsErrors: [String: Error] = [:]    // calendarID -> error for listEvents
     var log: [String] = []
     private var nextID = 100
 
@@ -35,6 +36,7 @@ import XCTest
     }
     func listEvents(calendarID: String, from: Date, to: Date) async throws -> [GoogleEvent] {
         try bump("listEvents \(calendarID)")
+        if let failure = listEventsErrors[calendarID] { throw failure }
         return events[calendarID] ?? []
     }
     private func bump(_ entry: String) throws { log.append(entry); if let error { throw error } }
@@ -212,6 +214,85 @@ import XCTest
         XCTAssertTrue(api.log.contains("listEvents primary"))
         XCTAssertFalse(api.log.contains("listEvents tofu-cal"))
         XCTAssertFalse(api.log.contains("listEvents ignored"))
+    }
+
+    func testOneFailingCalendarDoesNotHideTheOthers() async {
+        settings.googleTasksSyncEnabled = false
+        settings.googleSessionLogEnabled = false
+        api.calendars = [GoogleCalendarInfo(id: "shared", summary: "Shared", selected: true),
+                         GoogleCalendarInfo(id: "primary", summary: "Me", selected: true)]
+        api.listEventsErrors = ["shared": GoogleError.http(403)]
+        api.events = ["primary": [GoogleEvent(id: "e1", summary: "Lecture",
+                                              start: GoogleEventTime(dateTime: "2026-10-15T09:00:00-05:00", date: nil),
+                                              end: GoogleEventTime(dateTime: "2026-10-15T09:50:00-05:00", date: nil))]]
+        let sync = makeSync()
+        await sync.syncNow()
+        XCTAssertEqual(sync.todayEvents.map(\.id), ["e1"])
+        XCTAssertTrue(errors.isEmpty, "a partial failure is not a failed cycle: \(errors)")
+    }
+
+    func testAllCalendarsFailingReportsError() async {
+        settings.googleTasksSyncEnabled = false
+        settings.googleSessionLogEnabled = false
+        api.calendars = [GoogleCalendarInfo(id: "shared", summary: "Shared", selected: true)]
+        api.listEventsErrors = ["shared": GoogleError.http(404)]
+        await makeSync().syncNow()
+        XCTAssertEqual(errors.count, 1)
+    }
+
+    func testUncachedTofuCalendarIsExcludedByName() async {
+        settings.googleTasksSyncEnabled = false
+        settings.googleSessionLogEnabled = false
+        api.calendars = [GoogleCalendarInfo(id: "tofu-other", summary: "Tofu", selected: true)]
+        await makeSync().syncNow()
+        XCTAssertFalse(api.log.contains("listEvents tofu-other"), "\(api.log)")
+    }
+
+    func testStopClearsPulledEvents() async {
+        settings.googleTasksSyncEnabled = false
+        settings.googleSessionLogEnabled = false
+        api.calendars = [GoogleCalendarInfo(id: "primary", summary: "Me", selected: true)]
+        api.events = ["primary": [GoogleEvent(id: "e1", summary: "Lecture",
+                                              start: GoogleEventTime(dateTime: "2026-10-15T09:00:00-05:00", date: nil),
+                                              end: GoogleEventTime(dateTime: "2026-10-15T09:50:00-05:00", date: nil))]]
+        let sync = makeSync()
+        await sync.syncNow()
+        XCTAssertFalse(sync.todayEvents.isEmpty)
+        sync.stop()
+        XCTAssertTrue(sync.todayEvents.isEmpty)
+    }
+
+    func testUnchangedPullWritesNoPlan() async {
+        settings.googleSessionLogEnabled = false
+        settings.googleShowEventsEnabled = false
+        var applies = 0
+        let sync = GoogleSync(api: api, settings: { self.settings }, isConnected: { true }, plan: { self.plan },
+                              applyPlan: { applies += 1; self.plan = $0 }, saveCalendarID: { _ in })
+        await sync.syncNow()
+        XCTAssertEqual(applies, 0, "an empty Google list must not create today's plan")
+        api.tasks = [GoogleTask(id: "t1", title: "Read", status: "needsAction", completed: nil, due: nil)]
+        await sync.syncNow()
+        await sync.syncNow()
+        XCTAssertEqual(applies, 1, "the second, identical pull writes nothing")
+    }
+
+    func testInsertedTaskIsDueOnTheLocalDay() async {
+        plan.priorities = [Priority(title: "Added locally")]
+        settings.googleSessionLogEnabled = false
+        settings.googleShowEventsEnabled = false
+        await makeSync().syncNow()
+        XCTAssertEqual(api.tasks.last?.due, DayKey.key(for: Date()) + "T00:00:00.000Z")
+    }
+
+    func testStatusPushSendsOnlyDoneFlips() async {
+        var linked = Priority(title: "A"); linked.googleTaskID = "tA"
+        var gone = Priority(title: "B"); gone.googleTaskID = "tB"
+        let old = DayPlan(day: "2026-10-14", priorities: [linked, gone])
+        var done = linked; done.isDone = true; done.title = "A renamed"
+        let new = DayPlan(day: "2026-10-14", priorities: [done, Priority(title: "New")])
+        makeSync().pushStatusChanges(from: old, to: new)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(api.log, ["patchTask tA - completed"])
     }
 
     func testSyncWhenDisconnectedDoesNothing() async {
