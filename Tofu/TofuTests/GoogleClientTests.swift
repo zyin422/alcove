@@ -140,4 +140,44 @@ final class GoogleClientTests: XCTestCase {
         let path = transport.requests.first?.url?.absoluteString ?? ""
         XCTAssertTrue(path.contains("%23holiday"), "the # in calendar ids must be encoded, got \(path)")
     }
+
+    private struct ThrowingTransport: HTTPTransport {
+        func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) { throw URLError(.notConnectedToInternet) }
+    }
+
+    private func assertThrows(_ expected: GoogleError, file: StaticString = #filePath, line: UInt = #line,
+                              _ body: () async throws -> Void) async {
+        do { try await body(); XCTFail("expected \(expected)", file: file, line: line) }
+        catch let error as GoogleError { XCTAssertEqual(error, expected, file: file, line: line) }
+        catch { XCTFail("unexpected \(error)", file: file, line: line) }
+    }
+
+    func testTransportFailureMapsToTransportError() async {
+        let client = GoogleClient(tokenProvider: { _ in "at-1" }, transport: ThrowingTransport())
+        do { _ = try await client.listTasks(); XCTFail("expected transport error") }
+        catch let error as GoogleError {
+            if case .transport = error {} else { XCTFail("expected .transport, got \(error)") }
+        } catch { XCTFail("unexpected \(error)") }
+    }
+
+    func testNon401ErrorStatusMapsToHTTPError() async {
+        let transport = MockTransport { _ in (500, Data()) }
+        await assertThrows(.http(500)) { _ = try await makeClient(transport).listTasks() }
+        XCTAssertEqual(transport.requests.count, 1, "only 401 retries")
+    }
+
+    func testMalformedSuccessBodyMapsToDecoding() async {
+        let transport = MockTransport { _ in (200, MockTransport.json("not json")) }
+        await assertThrows(.decoding) { _ = try await makeClient(transport).listTasks() }
+    }
+
+    func testPageTokenIsPercentEncoded() async throws {
+        let transport = MockTransport { request in
+            request.url?.query?.contains("pageToken=") ?? false
+                ? (200, MockTransport.json("{}"))
+                : (200, MockTransport.json(#"{"items": [], "nextPageToken": "a+b&c"}"#))
+        }
+        _ = try await makeClient(transport).listTasks()
+        XCTAssertTrue(transport.requests[1].url?.absoluteString.contains("pageToken=a%2Bb%26c") ?? false)
+    }
 }
