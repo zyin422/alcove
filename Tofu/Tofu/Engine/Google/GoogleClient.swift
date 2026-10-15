@@ -69,7 +69,7 @@ final class GoogleClient: GoogleAPI {
         var pageToken: String?
         repeat {
             var query = "showCompleted=true&showHidden=true&maxResults=100"
-            if let pageToken { query += "&pageToken=\(pageToken)" }
+            if let pageToken { query += "&pageToken=\(encode(pageToken))" }
             let page: Page = try await get("\(Self.tasksBase)/lists/@default/tasks?\(query)")
             all.append(contentsOf: page.items ?? [])
             pageToken = page.nextPageToken
