@@ -168,14 +168,25 @@ import Observation
 
     private func pushPendingSessions() async throws {
         guard !pendingSessions.isEmpty else { return }
-        let calendarID = try await tofuCalendarID()
+        var calendarID = try await tofuCalendarID()
         while let session = pendingSessions.first {
-            try await api.insertEvent(calendarID: calendarID,
-                                      summary: Self.eventSummary(for: session),
-                                      description: Self.eventDescription(for: session),
-                                      start: session.start, end: session.end ?? now())
+            do {
+                try await insert(session, into: calendarID)
+            } catch GoogleError.http(404) {
+                // The cached calendar was deleted in Google: re-find or re-create it, then retry once (spec §4).
+                saveCalendarID(nil)
+                calendarID = try await tofuCalendarID()
+                try await insert(session, into: calendarID)
+            }
             pendingSessions.removeFirst()
         }
+    }
+
+    private func insert(_ session: Session, into calendarID: String) async throws {
+        try await api.insertEvent(calendarID: calendarID,
+                                  summary: Self.eventSummary(for: session),
+                                  description: Self.eventDescription(for: session),
+                                  start: session.start, end: session.end ?? now())
     }
 
     /// The cached "Tofu" calendar id, found by summary or created on first use (spec §4).
