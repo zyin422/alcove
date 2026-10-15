@@ -127,8 +127,8 @@ open build/DerivedData/Build/Products/Release/Tofu.app
 
 Tofu updates itself with [Sparkle](https://sparkle-project.org). Once a day it checks
 `https://raw.githubusercontent.com/axion66/tofu-releases/main/appcast.xml`. When a newer version exists, a card appears
-above **Stats** in the sidebar: **Update** opens Sparkle's window (release notes → Install → relaunch), **×** hides it
-until the next launch. **Tofu → Check for Updates…** checks right away. Debug builds never check.
+above **Stats** in the sidebar: **Update** opens Sparkle's window (release notes → Install → relaunch), **×** hides it;
+it comes back at the next daily check after Tofu restarts. **Tofu → Check for Updates…** checks right away. Debug builds and builds from source never check.
 
 **For friends (first install):**
 1. Download the newest `Tofu-<version>.zip` from [axion66/tofu-releases](https://github.com/axion66/tofu-releases),
@@ -146,7 +146,7 @@ scripts/release.sh --dry-run              # build + sign + appcast locally, publ
 scripts/release.sh 1.2 "What changed"     # bump, build, publish to axion66/tofu-releases, commit + tag (no source push)
 ```
 
-The script refuses a dirty tree or a reused version number, and aborts if the build would ship `discord.env`.
+The script refuses a dirty tree (untracked files count), a version that isn't newer than the current one, or an existing tag, and aborts if the build would ship `discord.env`.
 It needs, on this Mac only:
 - the **Accountabilibrosis Local Codesign** certificate — every release must be signed with it, or friends lose
   their Accessibility grant after updating;
@@ -154,6 +154,9 @@ It needs, on this Mac only:
   `SUPublicEDKey` in `project.yml`). Back it up:
   `build/ReleaseData/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/tofu-sparkle-key.txt`
   and keep the file somewhere safe. Without it, friends' copies can't verify new updates and must be reinstalled.
+- Also back up the **Accountabilibrosis Local Codesign** certificate with its private key (Keychain Access → export as
+  .p12) and note its expiry date (self-signed certs default to 1 year). A different or expired certificate costs friends
+  their Accessibility/Automation grants on the next update.
 
 ## Permissions
 
@@ -229,7 +232,7 @@ The team shares one bot. Its token lives in the repo-root `.env` file (this repo
 DISCORD_BOT_TOKEN=<the team bot token>
 ```
 
-- **Bundled at build time.** Every build copies `.env` into the app as `Resources/discord.env`. If the file is missing, the build still works and the app simply has no team token.
+- **Bundled at build time.** Every build made from source copies `.env` into the app as `Resources/discord.env`. If the file is missing, the build still works and the app simply has no team token. Release builds made by `scripts/release.sh` bundle nothing: their keys come from Settings (Keychain).
 - **Used automatically.** On a first launch (no saved data yet) with a token available, **Post lock-ins to Discord** starts out on.
 - **Your own token wins.** A token saved in **Settings › Discord** goes to the Keychain and overrides the team token. **Remove** deletes it, and the team token applies again. Settings shows which one is in use: "Using your token from Keychain", "Using the team token from .env" or "No token".
 - **Rebuild after editing `.env`.** The app only sees the copy made at build time.
@@ -271,9 +274,9 @@ The name comes from **Settings › Profile › Display name**. Discord problems 
 |---|---|
 | Subjects, sessions, settings | `~/Library/Application Support/Tofu/store.json`. Writes are atomic. An unreadable file is renamed to `store.corrupt-<timestamp>.json`, and the app starts fresh. |
 | Discord bot token (yours) | The Keychain: a generic password with service `com.tofu.discord` and account `bot-token`. It is never written to JSON or logs. It overrides the team token. |
-| Discord bot token (team) | The repo's `.env`, copied into the app bundle as `Resources/discord.env` at build time. |
+| Discord bot token (team) | The repo's `.env`, copied into the app bundle as `Resources/discord.env` at build time (not in release builds from `scripts/release.sh`; those use Settings/Keychain). |
 | OpenAI API key (yours) | The Keychain: a generic password with service `com.tofu.openai` and account `api-key`. It is never written to JSON or logs. It overrides the team key. |
-| OpenAI API key (team) | The repo's `.env` (`OPENAI_API_KEY`), bundled into the app the same way as the Discord token. |
+| OpenAI API key (team) | The repo's `.env` (`OPENAI_API_KEY`), bundled into the app the same way as the Discord token (release builds bundle nothing). |
 | Discord Application ID (only used for the invite link) | App preferences, key `discordAppID` |
 
 To start over, quit the app and delete `~/Library/Application Support/Tofu/`. To remove your own token, use **Settings › Discord › Remove**. To remove your own OpenAI key, use **Settings › Relevance check (OpenAI) › Remove**.
