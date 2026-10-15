@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Subjects (with total time); Stats, Settings and "Add subject" (⌘N) stay pinned at the bottom. Right-click deletes a subject.
+/// Subjects (with total time); an update card (when Sparkle found one), Stats, Settings and "Add subject" (⌘N) stay pinned at the bottom. Right-click deletes a subject.
 struct SidebarView: View {
     @Bindable var model: AppModel
     @State private var isAddingSubject = false
@@ -38,6 +38,13 @@ struct SidebarView: View {
         .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: Theme.Space.xs) {
+                if let version = model.updates.availableVersion {
+                    UpdateCard(version: version,
+                               onUpdate: { model.updates.checkNow() },
+                               onDismiss: { model.updates.dismiss() })
+                        .padding(.bottom, Theme.Space.s)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 pinnedRow("Stats", systemImage: "chart.bar", item: .stats)
                 pinnedRow("Settings", systemImage: "gearshape", item: .settings)
                 Button {
@@ -52,6 +59,7 @@ struct SidebarView: View {
             }
             .padding([.horizontal, .bottom], Theme.Space.m)
             .padding(.top, Theme.Space.s)
+            .animation(.spring(duration: 0.35), value: model.updates.availableVersion)
         }
         .sheet(isPresented: $isAddingSubject) {
             SubjectEditorView(model: model)
