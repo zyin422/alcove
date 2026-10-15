@@ -135,8 +135,10 @@ enum ChromeScripts {
 
     /// `listTabs` for `browser`. Arc skips pinned and favorite tabs (they live in the sidebar, and closing one
     /// would delete it). A tab whose location can't be read is still listed: a new tab often won't answer yet.
-    /// Arc's window tab list hides every space that has not been focused, so those spaces are focused once and the
-    /// space that was showing is focused again afterward. `quietArcSpaces` are spaces already found empty.
+    /// Arc's window tab list hides every space that has not been focused, so those spaces are focused once; only
+    /// when the script switched spaces is the space that was showing focused again afterward (an unconditional
+    /// restore raced the user's own space switches and snapped them back). `quietArcSpaces` are spaces already
+    /// found empty.
     static func listTabs(for browser: Browser, quietArcSpaces: [String] = []) -> String {
         let line = "set out to out & wid & sepChar & (i as text) & sepChar & ((id of t) as text) & sepChar & ((title of t) as text) & sepChar & ((URL of t) as text) & lineChar"
         switch browser {
@@ -172,6 +174,7 @@ enum ChromeScripts {
                     try
                         set savedSpace to (id of active space of front window) as text
                     end try
+                    set didFocus to false
                     set seenSpaces to {}
                     repeat with w in windows
                         try
@@ -218,6 +221,7 @@ enum ChromeScripts {
                                         if shouldFocus is true then
                                             try
                                                 focus s
+                                                set didFocus to true
                                                 set n to count of tabs of s
                                             end try
                                         end if
@@ -244,7 +248,7 @@ enum ChromeScripts {
                             end repeat
                         end try
                     end repeat
-                    if savedSpace is not "" then
+                    if savedSpace is not "" and didFocus is true then
                         try
                             tell front window
                                 focus space id savedSpace

@@ -175,6 +175,14 @@ final class CustomSetupTests: XCTestCase {
         XCTAssertEqual(ChromeScripts.listTabs(for: .arc, quietArcSpaces: []).contains("set quietSpaces to {}"), true)
     }
 
+    func testArcRestoresFocusOnlyWhenTheScriptSwitchedSpaces() {
+        let script = ChromeScripts.listTabs(for: .arc)
+        XCTAssertTrue(script.contains("set didFocus to false"))
+        XCTAssertTrue(script.contains("set didFocus to true"))
+        XCTAssertTrue(script.contains("if savedSpace is not \"\" and didFocus is true then"),
+                      "restoring focus on every poll reverts the user's own space switches")
+    }
+
     func testArcCloseReachesATabThatOnlyItsSpaceLists() {
         let script = ChromeScripts.closeTab(windowID: "W-1", tabID: "T-9", browser: .arc)
         XCTAssertTrue(script.contains("close (every tab of window id \"W-1\" whose id is \"T-9\")"))
