@@ -8,6 +8,20 @@ import Observation
     func announce(_ content: String)
 }
 
+/// What the user tried to sneak open during a lock-in.
+enum CompanionViolation: Equatable {
+    case app(name: String)
+    case tab(host: String)
+}
+
+/// Receives session events for the study companion overlay. All calls are fire-and-forget.
+@MainActor protocol CompanionReacting: AnyObject {
+    func sessionDidStart(subject: String, goalSeconds: TimeInterval?)
+    /// `violations` is the session's running total of blocked apps plus closed tabs.
+    func violationOccurred(_ kind: CompanionViolation, subject: String, violations: Int)
+    func sessionDidEnd(outcome: SessionOutcome, subject: String)
+}
+
 /// Moves the app's own windows in and out of lock-in mode.
 @MainActor protocol WindowPresenting: AnyObject {
     /// appFrame non-nil: put main window there and show LockedView. nil: hide main window, show mini timer.
@@ -78,6 +92,8 @@ import Observation
     @ObservationIgnored var onAppAllowed: ((AllowedApp) -> Void)?
     /// Resolves an app name to an installed app. Nil result means the name is unknown. Tests replace it.
     @ObservationIgnored var lookupApp: (String) -> AllowedApp? = { _ in nil }
+    /// The study companion overlay; nil (e.g. in tests) means no companion.
+    @ObservationIgnored var companion: CompanionReacting?
 
     private let workspace: WorkspaceControlling
     private let blocker: AppBlocking
@@ -195,6 +211,7 @@ import Observation
 
         if startsTimers { startTimer() }
         announcer.announce(DiscordMessages.start(name: displayName, subject: subject.name, mode: mode))
+        companion?.sessionDidStart(subject: subject.name, goalSeconds: mode.goalSeconds)
         onLockedIn?(subject)
     }
 
@@ -270,6 +287,8 @@ import Observation
         }
         let name = app.name.isEmpty ? app.bundleID : app.name
         toaster.show("🔒 \(name) is blocked during \(current.subjectName)")
+        companion?.violationOccurred(.app(name: name), subject: current.subjectName,
+                                     violations: current.blockedAttempts + current.closedTabs)
         onSessionChanged?(current)
     }
 
@@ -278,6 +297,8 @@ import Observation
         current.closedTabs += 1
         session = current
         toaster.show("Closed \(host) — not relevant to \(current.subjectName)")
+        companion?.violationOccurred(.tab(host: host), subject: current.subjectName,
+                                     violations: current.blockedAttempts + current.closedTabs)
         onSessionChanged?(current)
     }
 
@@ -401,6 +422,7 @@ import Observation
         subject = nil
         isEnding = false
         lastEnded = final
+        companion?.sessionDidEnd(outcome: outcome, subject: final.subjectName)
         onSessionChanged?(final)
         onEnded?()
         return final
