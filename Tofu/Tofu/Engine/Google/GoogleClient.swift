@@ -24,12 +24,21 @@ struct GoogleCalendarInfo: Decodable, Equatable {
 struct GoogleEventTime: Decodable, Equatable {
     var dateTime: String?       // RFC3339 with offset, timed events
     var date: String?           // "2026-10-15", all-day events
-    var parsed: Date? { dateTime.flatMap { GoogleEventTime.rfc3339.date(from: $0) } }
+    var parsed: Date? { dateTime.flatMap { GoogleEventTime.parseRFC3339($0) } }
     static let rfc3339: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
+    static let rfc3339Fractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    /// Parses an RFC3339 stamp with or without fractional seconds.
+    static func parseRFC3339(_ string: String) -> Date? {
+        rfc3339.date(from: string) ?? rfc3339Fractional.date(from: string)
+    }
 }
 
 struct GoogleEvent: Decodable, Equatable, Identifiable {

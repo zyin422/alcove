@@ -21,7 +21,7 @@ enum GoogleTaskMerge {
         let today = DayKey.key(for: now, calendar: calendar)
         let kept = remote.filter { task in
             if !task.isDone { return true }
-            guard let stamp = task.completed, let date = GoogleEventTime.rfc3339.date(from: stamp) else { return false }
+            guard let stamp = task.completed, let date = GoogleEventTime.parseRFC3339(stamp) else { return false }
             return DayKey.key(for: date, calendar: calendar) == today
         }
         let keptByID = Dictionary(kept.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })

@@ -45,6 +45,18 @@ final class GoogleTaskMergeTests: XCTestCase {
         XCTAssertEqual(priorities.map(\.isDone), [true])
     }
 
+    func testTaskCompletedTodayWithFractionalSecondsShowsAsDone() {
+        let plain = GoogleEventTime.rfc3339.string(from: now.addingTimeInterval(-60))
+        let fractional = plain.replacingOccurrences(of: "Z", with: ".000Z")
+        let (priorities, _) = GoogleTaskMerge.apply(remote: [task("t1", "Fractional", done: true, completed: fractional)],
+                                                    to: [], now: now)
+        XCTAssertEqual(priorities.map(\.isDone), [true])
+    }
+
+    func testFractionalEventTimeParses() {
+        XCTAssertNotNil(GoogleEventTime(dateTime: "2026-10-15T09:00:00.000-05:00", date: nil).parsed)
+    }
+
     func testUnlinkedLocalSurvivesAndIsQueuedForInsert() {
         let local = Priority(title: "Added in Tofu")
         let (priorities, toInsert) = GoogleTaskMerge.apply(remote: [task("t1", "Remote")], to: [local], now: now)
