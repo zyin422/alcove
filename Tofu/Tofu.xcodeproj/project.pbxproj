@@ -40,6 +40,7 @@
 		32802D5F74884990877BF52F /* EnvFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B0D7725A7673F58446A7975 /* EnvFile.swift */; };
 		3B07C20031F1272F7A1AD7F3 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F01975F2F5909EB496885AA /* SidebarView.swift */; };
 		3B5A8D1318C2A0F8BD88BA57 /* VoiceOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547C6C1AAD14BBE8E741789E /* VoiceOutput.swift */; };
+		3BF106997B5B194BA1E3FC2E /* HTTPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871758EE96A845D8D8EA1812 /* HTTPTransport.swift */; };
 		3C1CD85F0C17DC0175BD97C1 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E6E83564402BF66C38FF604 /* TodayView.swift */; };
 		3D137F35CC5D3AC38AFD99EC /* ToastCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB5287F2BFF31DA5979B00C /* ToastCenter.swift */; };
 		40ACAE232C8824532817F148 /* LockedLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7108A89CBF92DED603AA22B5 /* LockedLayoutTests.swift */; };
@@ -215,6 +216,7 @@
 		7D393339AF2AAA70CF42165C /* ClosedBrowserState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClosedBrowserState.swift; sourceTree = "<group>"; };
 		81B05F84297695BAC1374364 /* Assistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Assistant.swift; sourceTree = "<group>"; };
 		8505D223C2EC9453604CC5BB /* AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCatalog.swift; sourceTree = "<group>"; };
+		871758EE96A845D8D8EA1812 /* HTTPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPTransport.swift; sourceTree = "<group>"; };
 		8AAE867E69F8CCB9F97F31B2 /* BlockPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPolicy.swift; sourceTree = "<group>"; };
 		8F3987F212E15DA51640ECCE /* LayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEngine.swift; sourceTree = "<group>"; };
 		91D78FB6D4074AECF71F9365 /* SettingsStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStatus.swift; sourceTree = "<group>"; };
@@ -440,6 +442,7 @@
 				B9FC6341CDAE3FE40E13DF02 /* ChromeController.swift */,
 				0756803CFA0BDBB615E949EF /* ChromeScripts.swift */,
 				7D393339AF2AAA70CF42165C /* ClosedBrowserState.swift */,
+				871758EE96A845D8D8EA1812 /* HTTPTransport.swift */,
 				B555E3B379215E3FEF702195 /* RelevanceJudge.swift */,
 				A5F50C7735034F20CE45743F /* ScreenGeometry.swift */,
 				1460EAD3384D3DD8DC438F6F /* SetupLauncher.swift */,
@@ -709,6 +712,7 @@
 				076CA1970F482A2F5E447FBE /* EndOfDayView.swift in Sources */,
 				32802D5F74884990877BF52F /* EnvFile.swift in Sources */,
 				0021ACABD6C0A4D090912C9B /* GiveUpSheet.swift in Sources */,
+				3BF106997B5B194BA1E3FC2E /* HTTPTransport.swift in Sources */,
 				2A0137F7A151C9E33BE98C3E /* Keychain.swift in Sources */,
 				D7EE9FD6F3AA2DC58EB9A738 /* LayoutEngine.swift in Sources */,
 				229BF650E5DB3DA09F1A1D8B /* LockInSheet.swift in Sources */,
