@@ -20,12 +20,22 @@ struct AppSettings: Codable, Equatable {
     var companionEnabled: Bool
     /// How the companion talks.
     var companionPersonality: CompanionPersonality
+    /// Mirror the day's priorities into Google Tasks.
+    var googleTasksSyncEnabled: Bool
+    /// Write finished sessions to Google Calendar.
+    var googleSessionLogEnabled: Bool
+    /// Show Google Calendar events in the day view.
+    var googleShowEventsEnabled: Bool
+    /// The Google calendar sessions are written to, once chosen or created.
+    var googleCalendarID: String?
 
     init(displayName: String = NSFullUserName(), discordEnabled: Bool = false,
          giveUpTemplate: String = "I give up on {subject}", channelCache: [String: String] = [:],
          dayEndPromptEnabled: Bool = true, dayEndMinutes: Int = 22 * 60, lastDayPromptKey: String? = nil,
          morningScreenEnabled: Bool = true, lastMorningKey: String? = nil,
-         companionEnabled: Bool = true, companionPersonality: CompanionPersonality = .escalation) {
+         companionEnabled: Bool = true, companionPersonality: CompanionPersonality = .escalation,
+         googleTasksSyncEnabled: Bool = true, googleSessionLogEnabled: Bool = true,
+         googleShowEventsEnabled: Bool = true, googleCalendarID: String? = nil) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
         self.giveUpTemplate = giveUpTemplate
@@ -37,6 +47,10 @@ struct AppSettings: Codable, Equatable {
         self.lastMorningKey = lastMorningKey
         self.companionEnabled = companionEnabled
         self.companionPersonality = companionPersonality
+        self.googleTasksSyncEnabled = googleTasksSyncEnabled
+        self.googleSessionLogEnabled = googleSessionLogEnabled
+        self.googleShowEventsEnabled = googleShowEventsEnabled
+        self.googleCalendarID = googleCalendarID
     }
 }
 
@@ -60,7 +74,14 @@ extension AppSettings {
             companionEnabled: try container.decodeIfPresent(Bool.self, forKey: .companionEnabled)
                 ?? defaults.companionEnabled,
             companionPersonality: try container.decodeIfPresent(CompanionPersonality.self, forKey: .companionPersonality)
-                ?? defaults.companionPersonality)
+                ?? defaults.companionPersonality,
+            googleTasksSyncEnabled: try container.decodeIfPresent(Bool.self, forKey: .googleTasksSyncEnabled)
+                ?? defaults.googleTasksSyncEnabled,
+            googleSessionLogEnabled: try container.decodeIfPresent(Bool.self, forKey: .googleSessionLogEnabled)
+                ?? defaults.googleSessionLogEnabled,
+            googleShowEventsEnabled: try container.decodeIfPresent(Bool.self, forKey: .googleShowEventsEnabled)
+                ?? defaults.googleShowEventsEnabled,
+            googleCalendarID: try container.decodeIfPresent(String.self, forKey: .googleCalendarID))
     }
 }
 

@@ -106,6 +106,13 @@ Morning screen / Today view event display.
 - The sync cycle runs when connected and at least one Google toggle is on; within a
   cycle, task mirroring, event pull, and pending event push each run only when their
   own toggle is on.
+- Wrap-up interaction: the end-of-day wrap-up writes merge with the stored plans
+  and never delete synced tasks (a linked priority missing from the sheet's list is
+  kept; finishing yesterday after 4 AM adds to today's plan instead of replacing it).
+  Tomorrow's priorities carry links by title match (trimmed, case-insensitive)
+  against today's unfinished linked priorities. Completes/reopens push for any day;
+  inserts, deletes, and retitles push only for today. The morning rollover therefore
+  re-links carried items instead of re-inserting them.
 
 ### 4. Calendar push + pull
 

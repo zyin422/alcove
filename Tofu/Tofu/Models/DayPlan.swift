@@ -6,12 +6,16 @@ struct Priority: Codable, Identifiable, Hashable {
     var title: String
     var subjectID: UUID?
     var isDone: Bool
+    /// The linked Google Tasks task, once synced.
+    var googleTaskID: String?
 
-    init(id: UUID = UUID(), title: String, subjectID: UUID? = nil, isDone: Bool = false) {
+    init(id: UUID = UUID(), title: String, subjectID: UUID? = nil, isDone: Bool = false,
+         googleTaskID: String? = nil) {
         self.id = id
         self.title = title
         self.subjectID = subjectID
         self.isDone = isDone
+        self.googleTaskID = googleTaskID
     }
 }
 
