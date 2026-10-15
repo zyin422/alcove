@@ -1,23 +1,86 @@
 import AppKit
 import SwiftUI
 
-/// Sheet for creating (`subject == nil`) or editing a subject: its windows (websites or apps), their layout
-/// (a preset or a custom layout captured from the screen), the browser, and what happens to other apps.
-struct SubjectEditorView: View {
-    let model: AppModel
-    private let original: Subject?
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String
-    @State private var preset: LayoutPreset
-    @State private var usesCustomLayout: Bool
+/// Everything the subject form edits, kept apart from the saved Subject so invalid intermediate
+/// states (a cleared name, a half-typed URL) never reach the model.
+struct SubjectFormState: Equatable {
+    var name: String
+    var preset: LayoutPreset
+    var usesCustomLayout: Bool
     /// One per zone; always at least 2, only the first `preset.siteCount` are shown and saved.
-    @State private var zoneSlots: [SetupSlot]
+    var zoneSlots: [SetupSlot]
     /// The captured windows of the custom layout, back to front.
-    @State private var customSlots: [SetupSlot]
-    @State private var browser: Browser
-    @State private var unusedApps: UnusedAppsAction
-    @State private var allowedApps: [AllowedApp]
-    @State private var extraDomains: [String]
+    var customSlots: [SetupSlot]
+    var browser: Browser
+    var unusedApps: UnusedAppsAction
+    var allowedApps: [AllowedApp]
+    var extraDomains: [String]
+
+    init(subject: Subject?) {
+        let custom = subject?.usesCustomLayout ?? false
+        name = subject?.name ?? ""
+        preset = subject?.preset ?? .split
+        usesCustomLayout = custom
+        zoneSlots = SubjectValidator.zoneSlots((custom ? [] : subject?.slots ?? []).map(Self.editable))
+        customSlots = (custom ? subject?.slots ?? [] : []).map(Self.editable)
+        browser = subject?.browser ?? .chrome
+        unusedApps = subject?.unusedApps ?? .hide
+        allowedApps = subject?.allowedApps ?? []
+        extraDomains = subject?.extraDomains ?? []
+    }
+
+    /// Website windows always show at least one address field.
+    static func editable(_ slot: SetupSlot) -> SetupSlot {
+        var slot = slot
+        if slot.kind == .website && slot.urls.isEmpty { slot.urls = [""] }
+        return slot
+    }
+
+    var visibleSlots: [SetupSlot] {
+        usesCustomLayout ? customSlots : Array(zoneSlots.prefix(preset.siteCount))
+    }
+
+    var errors: [String] {
+        SubjectValidator.errors(name: name, slots: visibleSlots, customLayout: usesCustomLayout)
+    }
+
+    /// The subject as saved (URLs normalized, blanks dropped). Only meaningful when `errors` is empty.
+    func subject(id: UUID, createdAt: Date) -> Subject {
+        let slots = SubjectValidator.slotsForSave(visibleSlots)
+        return Subject(id: id,
+                       name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                       preset: preset,
+                       sites: SubjectValidator.sites(of: slots),
+                       allowedApps: allowedApps,
+                       extraDomains: extraDomains,
+                       createdAt: createdAt,
+                       slots: slots,
+                       usesCustomLayout: usesCustomLayout,
+                       browser: browser,
+                       unusedApps: unusedApps)
+    }
+
+    func slot(_ id: UUID) -> SetupSlot? {
+        customSlots.first { $0.id == id } ?? zoneSlots.first { $0.id == id }
+    }
+
+    /// Edits the slot with this id, in whichever list holds it.
+    mutating func update(_ id: UUID, _ change: (inout SetupSlot) -> Void) {
+        if let index = customSlots.firstIndex(where: { $0.id == id }) {
+            change(&customSlots[index])
+        } else if let index = zoneSlots.firstIndex(where: { $0.id == id }) {
+            change(&zoneSlots[index])
+        }
+    }
+}
+
+/// The subject form itself: windows (websites or apps), their layout (a preset or a custom layout
+/// captured from the screen), the browser, what happens to other apps, and the allowlists.
+/// Shared by the New-subject sheet and the subject page, which edits in place.
+struct SubjectForm: View {
+    @Binding var form: SubjectFormState
+    /// The sheet shows a name field; the subject page edits the name in its title instead.
+    var showsName = true
     @State private var siteDraft = ""
     @State private var isPickingApps = false
     /// The window whose app is being chosen.
@@ -29,62 +92,26 @@ struct SubjectEditorView: View {
         let id: UUID
     }
 
-    init(model: AppModel, subject: Subject?) {
-        self.model = model
-        self.original = subject
-        let custom = subject?.usesCustomLayout ?? false
-        _name = State(initialValue: subject?.name ?? "")
-        _preset = State(initialValue: subject?.preset ?? .split)
-        _usesCustomLayout = State(initialValue: custom)
-        _zoneSlots = State(initialValue: SubjectValidator.zoneSlots((custom ? [] : subject?.slots ?? []).map(Self.editable)))
-        _customSlots = State(initialValue: (custom ? subject?.slots ?? [] : []).map(Self.editable))
-        _browser = State(initialValue: subject?.browser ?? .chrome)
-        _unusedApps = State(initialValue: subject?.unusedApps ?? .hide)
-        _allowedApps = State(initialValue: subject?.allowedApps ?? [])
-        _extraDomains = State(initialValue: subject?.extraDomains ?? [])
-    }
-
-    /// Website windows always show at least one address field.
-    private static func editable(_ slot: SetupSlot) -> SetupSlot {
-        var slot = slot
-        if slot.kind == .website && slot.urls.isEmpty { slot.urls = [""] }
-        return slot
-    }
-
-    private var visibleSlots: [SetupSlot] {
-        usesCustomLayout ? customSlots : Array(zoneSlots.prefix(preset.siteCount))
-    }
-    private var errors: [String] {
-        SubjectValidator.errors(name: name, slots: visibleSlots, customLayout: usesCustomLayout)
-    }
     private var needsAccessibility: Bool {
-        !hasAccessibility && (usesCustomLayout || browser == .arc || visibleSlots.contains { $0.kind == .app })
+        !hasAccessibility && (form.usesCustomLayout || form.browser == .arc
+                              || form.visibleSlots.contains { $0.kind == .app })
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Space.l) {
-                    Text(original == nil ? "New subject" : "Edit subject").font(.title2.weight(.semibold))
-                    nameSection
-                    layoutSection
-                    windowsSection
-                    browserSection
-                    unusedAppsSection
-                    appsSection
-                    sitesAllowedSection
-                }
-                .padding(Theme.Space.l)
-            }
-            Divider()
-            footer.padding(Theme.Space.l)
+        VStack(alignment: .leading, spacing: Theme.Space.l) {
+            if showsName { nameSection }
+            layoutSection
+            windowsSection
+            browserSection
+            unusedAppsSection
+            appsSection
+            sitesAllowedSection
         }
-        .frame(width: 660, height: 780)
         .sheet(isPresented: $isPickingApps) {
-            AppPickerView(selection: $allowedApps)
+            AppPickerView(selection: $form.allowedApps)
         }
         .sheet(item: $choosingAppFor) { ref in
-            AppPickerView(choosing: { app in update(ref.id) { $0.app = app } })
+            AppPickerView(choosing: { app in form.update(ref.id) { $0.app = app } })
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             hasAccessibility = WindowPlacer.isTrusted
@@ -93,7 +120,7 @@ struct SubjectEditorView: View {
 
     private var nameSection: some View {
         section("Name") {
-            TextField("e.g. CS128", text: $name)
+            TextField("e.g. CS128", text: $form.name)
                 .textFieldStyle(.roundedBorder)
         }
     }
@@ -104,22 +131,22 @@ struct SubjectEditorView: View {
         section("Layout") {
             HStack(spacing: Theme.Space.s) {
                 ForEach(LayoutPreset.allCases) { option in
-                    tile(title: option.title, selected: !usesCustomLayout && preset == option) {
+                    tile(title: option.title, selected: !form.usesCustomLayout && form.preset == option) {
                         PresetThumbnail(preset: option)
                     } action: {
-                        preset = option
-                        usesCustomLayout = false
+                        form.preset = option
+                        form.usesCustomLayout = false
                     }
                 }
-                tile(title: "Custom", selected: usesCustomLayout) {
-                    CustomLayoutThumbnail(slots: customSlots)
+                tile(title: "Custom", selected: form.usesCustomLayout) {
+                    CustomLayoutThumbnail(slots: form.customSlots)
                 } action: {
-                    usesCustomLayout = true
+                    form.usesCustomLayout = true
                 }
             }
-            if usesCustomLayout {
+            if form.usesCustomLayout {
                 HStack(spacing: Theme.Space.m) {
-                    Button(customSlots.isEmpty ? "Capture current windows" : "Capture again") { capture() }
+                    Button(form.customSlots.isEmpty ? "Capture current windows" : "Capture again") { capture() }
                         .buttonStyle(SecondaryButtonStyle())
                         .fixedSize()
                     Text("Arrange your windows the way you like to work, then capture. The \(SubjectValidator.maxWindows) frontmost windows on your main screen are copied with their position, websites, or app and folder.")
@@ -153,8 +180,8 @@ struct SubjectEditorView: View {
 
     private func capture() {
         let captured = WorkspaceCapture.capture()
-        customSlots = captured.slots.map(Self.editable)
-        if let found = captured.browser { browser = found }
+        form.customSlots = captured.slots.map(SubjectFormState.editable)
+        if let found = captured.browser { form.browser = found }
         if captured.slots.isEmpty {
             captureNote = "No windows found on the main screen."
         } else if !WindowPlacer.isTrusted && captured.slots.contains(where: { $0.kind == .app }) {
@@ -167,13 +194,15 @@ struct SubjectEditorView: View {
     // MARK: Windows
 
     private var windowsSection: some View {
-        section(usesCustomLayout ? "Windows (back to front)" : (preset.siteCount == 1 ? "Window" : "Windows, left to right")) {
-            ForEach(Array(visibleSlots.enumerated()), id: \.element.id) { index, slot in
+        section(form.usesCustomLayout
+                ? "Windows (back to front)"
+                : (form.preset.siteCount == 1 ? "Window" : "Windows, left to right")) {
+            ForEach(Array(form.visibleSlots.enumerated()), id: \.element.id) { index, slot in
                 slotEditor(slot, number: index + 1)
             }
-            Text(usesCustomLayout
+            Text(form.usesCustomLayout
                  ? "Each window opens where it was captured; a mini timer floats on top."
-                 : (preset.appHasZone
+                 : (form.preset.appHasZone
                     ? "Each window fills its zone; this app takes the remaining zone."
                     : "Each window fills its zone; a mini timer floats on top."))
                 .font(.caption)
@@ -181,7 +210,7 @@ struct SubjectEditorView: View {
             if needsAccessibility {
                 HStack(spacing: Theme.Space.s) {
                     Image(systemName: "hand.raised")
-                    Text("Placing app\(browser == .arc ? " and Arc" : "") windows needs Accessibility permission.")
+                    Text("Placing app\(form.browser == .arc ? " and Arc" : "") windows needs Accessibility permission.")
                         .font(.caption)
                     Spacer()
                     Button("Allow…") {
@@ -208,9 +237,9 @@ struct SubjectEditorView: View {
                 .labelsHidden()
                 .frame(width: 160)
                 Spacer()
-                if usesCustomLayout {
+                if form.usesCustomLayout {
                     Button {
-                        customSlots.removeAll { $0.id == slot.id }
+                        form.customSlots.removeAll { $0.id == slot.id }
                     } label: {
                         Image(systemName: "trash")
                     }
@@ -236,7 +265,7 @@ struct SubjectEditorView: View {
                         .textFieldStyle(.roundedBorder)
                     if index > 0 {
                         Button {
-                            update(slot.id) { if index < $0.urls.count { $0.urls.remove(at: index) } }
+                            form.update(slot.id) { if index < $0.urls.count { $0.urls.remove(at: index) } }
                         } label: {
                             Image(systemName: "xmark")
                         }
@@ -245,7 +274,7 @@ struct SubjectEditorView: View {
                     }
                 }
             }
-            Button("Add tab") { update(slot.id) { $0.urls.append("") } }
+            Button("Add tab") { form.update(slot.id) { $0.urls.append("") } }
                 .buttonStyle(.borderless)
                 .font(.caption)
         }
@@ -282,22 +311,22 @@ struct SubjectEditorView: View {
         panel.prompt = "Choose"
         panel.message = "The folder (or file) the app opens when you lock in"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        update(id) { $0.folder = (url.path as NSString).abbreviatingWithTildeInPath }
+        form.update(id) { $0.folder = (url.path as NSString).abbreviatingWithTildeInPath }
     }
 
     // MARK: Browser and other apps
 
     private var browserSection: some View {
         section("Browser for websites") {
-            Picker("", selection: $browser) {
+            Picker("", selection: $form.browser) {
                 ForEach(Browser.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             .frame(width: 280)
-            if NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleID) == nil {
-                Text("\(browser.title) isn't installed on this Mac.").font(.caption).foregroundStyle(.secondary)
-            } else if browser == .arc {
+            if NSWorkspace.shared.urlForApplication(withBundleIdentifier: form.browser.bundleID) == nil {
+                Text("\(form.browser.title) isn't installed on this Mac.").font(.caption).foregroundStyle(.secondary)
+            } else if form.browser == .arc {
                 Text("Pinned Arc tabs are left alone. Tabs in every space are checked, including ones opened after you lock in.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -306,13 +335,13 @@ struct SubjectEditorView: View {
 
     private var unusedAppsSection: some View {
         section("Other apps while locked in") {
-            Picker("", selection: $unusedApps) {
+            Picker("", selection: $form.unusedApps) {
                 ForEach(UnusedAppsAction.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             .frame(width: 280)
-            Text(unusedApps == .quit
+            Text(form.unusedApps == .quit
                  ? "Apps the setup doesn't use are asked to quit (they can ask to save first). At the end you choose which ones to open again. Finder, Terminal, Xcode and Cursor are only hidden."
                  : "Apps the setup doesn't use are hidden and shown again when the session ends.")
                 .font(.caption)
@@ -322,23 +351,23 @@ struct SubjectEditorView: View {
 
     private var appsSection: some View {
         section("Allowed apps") {
-            if allowedApps.isEmpty {
-                Text("None. Only \(browser.title), Finder and the setup's own apps stay available.")
+            if form.allowedApps.isEmpty {
+                Text("None. Only \(form.browser.title), Finder and the setup's own apps stay available. Apps you unblock during a session are saved here.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(allowedApps) { app in
+                ForEach(form.allowedApps) { app in
                     HStack(spacing: Theme.Space.s) {
                         AppIcon(bundleID: app.bundleID).frame(width: 20, height: 20)
                         Text(app.name)
                         Spacer()
                         Button {
-                            allowedApps.removeAll { $0.bundleID == app.bundleID }
+                            form.allowedApps.removeAll { $0.bundleID == app.bundleID }
                         } label: {
                             Image(systemName: "xmark")
                         }
                         .buttonStyle(.borderless)
-                        .help("Remove \(app.name)")
+                        .help("Stop allowing \(app.name)")
                     }
                 }
             }
@@ -349,19 +378,21 @@ struct SubjectEditorView: View {
 
     private var sitesAllowedSection: some View {
         section("Allowed sites") {
-            Text("Left open during this work block, and remembered for next time. The sites in the windows above are already allowed.")
+            Text("Left open during this work block, and remembered for next time. The sites in the windows above are already allowed; sites you allow during a session are saved here.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            ForEach(extraDomains, id: \.self) { host in
-                HStack {
+            ForEach(form.extraDomains, id: \.self) { host in
+                HStack(spacing: Theme.Space.s) {
+                    Image(systemName: "globe").frame(width: 20)
                     Text(host).lineLimit(1)
                     Spacer()
-                    Button { extraDomains.removeAll { $0 == host } } label: { Image(systemName: "xmark") }
+                    Button { form.extraDomains.removeAll { $0 == host } } label: { Image(systemName: "xmark") }
                         .buttonStyle(.borderless)
+                        .help("Stop allowing \(host)")
                 }
             }
             HStack(spacing: Theme.Space.s) {
-                TextField("piazza.com", text: $siteDraft)
+                TextField("Add a site, e.g. piazza.com", text: $siteDraft)
                     .textFieldStyle(.roundedBorder)
                 Button("Add") { addAllowedSite() }
                     .buttonStyle(SecondaryButtonStyle())
@@ -373,30 +404,10 @@ struct SubjectEditorView: View {
     private func addAllowedSite() {
         let raw = siteDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let host = DomainMatcher.host(of: raw), !host.isEmpty else { return }
-        if !extraDomains.contains(where: { DomainMatcher.normalize($0) == host }) {
-            extraDomains.append(host)
+        if !form.extraDomains.contains(where: { DomainMatcher.normalize($0) == host }) {
+            form.extraDomains.append(host)
         }
         siteDraft = ""
-    }
-
-    private var footer: some View {
-        HStack(alignment: .top, spacing: Theme.Space.m) {
-            VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                ForEach(errors, id: \.self) { message in
-                    Text(message).font(.callout).foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            Button("Cancel") { dismiss() }
-                .buttonStyle(SecondaryButtonStyle())
-                .keyboardShortcut(.cancelAction)
-            Button("Save") { save() }
-                .buttonStyle(PrimaryButtonStyle())
-                .frame(width: 120)
-                .opacity(errors.isEmpty ? 1 : 0.35)
-                .disabled(!errors.isEmpty)
-                .keyboardShortcut(.defaultAction)
-        }
     }
 
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -408,22 +419,9 @@ struct SubjectEditorView: View {
 
     // MARK: Slot bindings
 
-    /// Edits the slot with this id, in whichever list holds it.
-    private func update(_ id: UUID, _ change: (inout SetupSlot) -> Void) {
-        if let index = customSlots.firstIndex(where: { $0.id == id }) {
-            change(&customSlots[index])
-        } else if let index = zoneSlots.firstIndex(where: { $0.id == id }) {
-            change(&zoneSlots[index])
-        }
-    }
-
-    private func slot(_ id: UUID) -> SetupSlot? {
-        customSlots.first { $0.id == id } ?? zoneSlots.first { $0.id == id }
-    }
-
     private func kindBinding(_ id: UUID) -> Binding<SetupSlot.Kind> {
-        Binding(get: { slot(id)?.kind ?? .website }, set: { kind in
-            update(id) { slot in
+        Binding(get: { form.slot(id)?.kind ?? .website }, set: { kind in
+            form.update(id) { slot in
                 slot.kind = kind
                 if kind == .website && slot.urls.isEmpty { slot.urls = [""] }
             }
@@ -432,36 +430,62 @@ struct SubjectEditorView: View {
 
     private func urlBinding(_ id: UUID, _ index: Int) -> Binding<String> {
         Binding(get: {
-            guard let urls = slot(id)?.urls, index < urls.count else { return "" }
+            guard let urls = form.slot(id)?.urls, index < urls.count else { return "" }
             return urls[index]
         }, set: { text in
-            update(id) { if index < $0.urls.count { $0.urls[index] = text } }
+            form.update(id) { if index < $0.urls.count { $0.urls[index] = text } }
         })
     }
 
     private func folderBinding(_ id: UUID) -> Binding<String> {
-        Binding(get: { slot(id)?.folder ?? "" }, set: { text in update(id) { $0.folder = text } })
+        Binding(get: { form.slot(id)?.folder ?? "" }, set: { text in form.update(id) { $0.folder = text } })
+    }
+}
+
+/// Sheet for creating a subject. Existing subjects are edited in place on their own page.
+struct SubjectEditorView: View {
+    let model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var form = SubjectFormState(subject: nil)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Space.l) {
+                    Text("New subject").font(.title2.weight(.semibold))
+                    SubjectForm(form: $form)
+                }
+                .padding(Theme.Space.l)
+            }
+            Divider()
+            footer.padding(Theme.Space.l)
+        }
+        .frame(width: 660, height: 780)
+    }
+
+    private var footer: some View {
+        HStack(alignment: .top, spacing: Theme.Space.m) {
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                ForEach(form.errors, id: \.self) { message in
+                    Text(message).font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Button("Cancel") { dismiss() }
+                .buttonStyle(SecondaryButtonStyle())
+                .keyboardShortcut(.cancelAction)
+            Button("Save") { save() }
+                .buttonStyle(PrimaryButtonStyle())
+                .frame(width: 120)
+                .opacity(form.errors.isEmpty ? 1 : 0.35)
+                .disabled(!form.errors.isEmpty)
+                .keyboardShortcut(.defaultAction)
+        }
     }
 
     private func save() {
-        guard errors.isEmpty else { return }
-        let slots = SubjectValidator.slotsForSave(visibleSlots)
-        let subject = Subject(id: original?.id ?? UUID(),
-                              name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                              preset: preset,
-                              sites: SubjectValidator.sites(of: slots),
-                              allowedApps: allowedApps,
-                              extraDomains: extraDomains,
-                              createdAt: original?.createdAt ?? Date(),
-                              slots: slots,
-                              usesCustomLayout: usesCustomLayout,
-                              browser: browser,
-                              unusedApps: unusedApps)
-        if original == nil {
-            model.addSubject(subject)
-        } else {
-            model.updateSubject(subject)
-        }
+        guard form.errors.isEmpty else { return }
+        model.addSubject(form.subject(id: UUID(), createdAt: Date()))
         dismiss()
     }
 }

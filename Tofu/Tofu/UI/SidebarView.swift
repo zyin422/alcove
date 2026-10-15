@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Subjects (with total time), then Stats and Settings. "Add subject" (⌘N) adds one; right-click deletes one.
+/// Subjects (with total time); Stats, Settings and "Add subject" (⌘N) stay pinned at the bottom. Right-click deletes a subject.
 struct SidebarView: View {
     @Bindable var model: AppModel
     @State private var isAddingSubject = false
@@ -33,26 +33,28 @@ struct SidebarView: View {
                     }
                 }
             }
-            Section {
-                Label("Stats", systemImage: "chart.bar").tag(SidebarItem.stats)
-                Label("Settings", systemImage: "gearshape").tag(SidebarItem.settings)
-            }
         }
         .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 200, ideal: 240)
-        .safeAreaInset(edge: .bottom) {
-            Button {
-                isAddingSubject = true
-            } label: {
-                Label("Add subject", systemImage: "plus").frame(maxWidth: .infinity)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: Theme.Space.xs) {
+                pinnedRow("Stats", systemImage: "chart.bar", item: .stats)
+                pinnedRow("Settings", systemImage: "gearshape", item: .settings)
+                Button {
+                    isAddingSubject = true
+                } label: {
+                    Label("Add subject", systemImage: "plus").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .keyboardShortcut("n", modifiers: .command)
+                .help("Add subject (⌘N)")
+                .padding(.top, Theme.Space.s)
             }
-            .buttonStyle(SecondaryButtonStyle())
-            .keyboardShortcut("n", modifiers: .command)
-            .help("Add subject (⌘N)")
-            .padding(Theme.Space.m)
+            .padding([.horizontal, .bottom], Theme.Space.m)
+            .padding(.top, Theme.Space.s)
         }
         .sheet(isPresented: $isAddingSubject) {
-            SubjectEditorView(model: model, subject: nil)
+            SubjectEditorView(model: model)
         }
         .confirmationDialog(
             "Delete “\(subjectToDelete?.name ?? "")”?",
@@ -66,6 +68,24 @@ struct SidebarView: View {
         } message: { _ in
             Text("Its past sessions stay in your stats.")
         }
+    }
+
+    /// A row pinned below the subject list; highlights like a List row when selected.
+    private func pinnedRow(_ title: String, systemImage: String, item: SidebarItem) -> some View {
+        Button {
+            model.selection = item
+        } label: {
+            Label(title, systemImage: systemImage)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, Theme.Space.s)
+                .frame(minHeight: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(model.selection == item ? Color.primary.opacity(0.1) : .clear)
+        )
     }
 
     /// Total time of the subject's finished sessions.
