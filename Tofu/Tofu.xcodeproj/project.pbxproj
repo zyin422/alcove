@@ -26,6 +26,7 @@
 		25FAEED1182B5A620DEF4271 /* VoiceInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6340C5C10EDF23D2BD5B5B9 /* VoiceInputTests.swift */; };
 		261E111F17D01F0123A8B454 /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 929E8A8523CA866D9132463A /* ModelsTests.swift */; };
 		2A0137F7A151C9E33BE98C3E /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BC6CBCEB7074DB115D58024 /* Keychain.swift */; };
+		2A6AB70A917132BD810553B6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 8C5A158339101B0AC179FD9A /* Sparkle */; };
 		2A833E84DA20702781FF00F1 /* OpenAIChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E4A68467CC2FF057EA1905 /* OpenAIChatClient.swift */; };
 		2AD6960E3530524CC510CB40 /* SubjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAFE3735359E2A38E0A022B /* SubjectDetailView.swift */; };
 		2B3C2DCE5051E832871887E4 /* MirrorInterrogator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941FB099775F8804956F8AB9 /* MirrorInterrogator.swift */; };
@@ -197,6 +198,7 @@
 		5F0D4994EBB41261E63DAECD /* DayPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlannerTests.swift; sourceTree = "<group>"; };
 		5F77A5BE333F400E47EA2049 /* SessionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEngineTests.swift; sourceTree = "<group>"; };
 		61A51C822D10EC6996FD9A20 /* WindowPlacer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowPlacer.swift; sourceTree = "<group>"; };
+		625DBFE6E1490E390C280DEE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		64206266327BCC09EB19061B /* DecisionsClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionsClientTests.swift; sourceTree = "<group>"; };
 		65298CBE22B9CFF19E7B829E /* DistractionList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistractionList.swift; sourceTree = "<group>"; };
 		667265F6BFF68C900A5EA6A9 /* TabTriageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabTriageTests.swift; sourceTree = "<group>"; };
@@ -279,6 +281,17 @@
 		FCBC0B82BD3CB6ED0D0977BA /* CompanionCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionCenter.swift; sourceTree = "<group>"; };
 		FED1A2B5E07A47866E41A333 /* SitePromptLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SitePromptLayoutTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		92A9A73936307B251D238C51 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2A6AB70A917132BD810553B6 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		246617B0A6335B43AA7B8B72 /* Models */ = {
@@ -493,6 +506,7 @@
 		FCED4A83CA5EDD5380C04D8D /* Tofu */ = {
 			isa = PBXGroup;
 			children = (
+				625DBFE6E1490E390C280DEE /* Info.plist */,
 				C6B0ADF2BEE1CBBB15498604 /* App */,
 				4F64C3BD997C14240EE3E174 /* Discord */,
 				3561DF7240525FEAF3119B27 /* Engine */,
@@ -515,6 +529,7 @@
 				F4B22C645151C05F68078989 /* Sources */,
 				A6B86D388921EA68F691C668 /* Bundle team .env */,
 				2D5DD2C18D10F4DB927AB3CF /* Resources */,
+				92A9A73936307B251D238C51 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -522,6 +537,7 @@
 			);
 			name = Tofu;
 			packageProductDependencies = (
+				8C5A158339101B0AC179FD9A /* Sparkle */,
 			);
 			productName = Tofu;
 			productReference = C85168B4DF35BC0B5BF7C9A8 /* Tofu.app */;
@@ -573,6 +589,9 @@
 			);
 			mainGroup = 4532DE472DB5046529AFC78E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A58B1066AFE1C56B1401BC98 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D598A3BBCAEC0073CB5B36F7 /* Products */;
 			projectDirPath = "";
@@ -613,7 +632,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "ENV_DEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/discord.env\"\nrm -f \"$ENV_DEST\"\nfor ENV_SRC in \"${SRCROOT}/../.env\" \"${SRCROOT}/../.env.local\"; do\n  if [ -f \"$ENV_SRC\" ]; then\n    mkdir -p \"$(dirname \"$ENV_DEST\")\"\n    cat \"$ENV_SRC\" >> \"$ENV_DEST\"\n    printf '\\n' >> \"$ENV_DEST\"\n  fi\ndone\nexit 0\n";
+			shellScript = "ENV_DEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/discord.env\"\nrm -f \"$ENV_DEST\"\nif [ \"${TOFU_RELEASE:-}\" = \"1\" ]; then\n  exit 0\nfi\nfor ENV_SRC in \"${SRCROOT}/../.env\" \"${SRCROOT}/../.env.local\"; do\n  if [ -f \"$ENV_SRC\" ]; then\n    mkdir -p \"$(dirname \"$ENV_DEST\")\"\n    cat \"$ENV_SRC\" >> \"$ENV_DEST\"\n    printf '\\n' >> \"$ENV_DEST\"\n  fi\ndone\nexit 0\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -928,6 +947,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Tofu/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Tofu;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Tofu opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in.";
@@ -964,6 +984,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Tofu/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Tofu;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Tofu opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in.";
@@ -1008,6 +1029,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A58B1066AFE1C56B1401BC98 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.10.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8C5A158339101B0AC179FD9A /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A58B1066AFE1C56B1401BC98 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = EC9F3F0546130ACD9F9EA3D5 /* Project object */;
 }

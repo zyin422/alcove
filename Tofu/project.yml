@@ -21,20 +21,41 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     DEAD_CODE_STRIPPING: YES
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.10.0
+
 targets:
   Tofu:
     type: application
     platform: macOS
     sources:
       - path: Tofu
+    dependencies:
+      - package: Sparkle
+    # Sparkle reads these from Info.plist; Xcode merges this file with the generated Info.plist keys below.
+    info:
+      path: Tofu/Info.plist
+      properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        SUFeedURL: https://raw.githubusercontent.com/axion66/tofu-releases/main/appcast.xml
+        SUPublicEDKey: my3cG5Hh9Yhc83xOkrv32Wq8IzQhgBZFE6Y7JXs7qow=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
     postCompileScripts:
       # Bundles the repo-root .env (team Discord bot token, committed) followed by .env.local (personal keys such
       # as OPENAI_API_KEY, gitignored) as Resources/discord.env, read by EnvFile; later keys win. Missing files are
       # fine: the app then needs keys from Settings. The script never prints the files.
+      # Release builds (TOFU_RELEASE=1, set by scripts/release.sh) are published publicly, so they bundle nothing.
       - name: Bundle team .env
         script: |
           ENV_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/discord.env"
           rm -f "$ENV_DEST"
+          if [ "${TOFU_RELEASE:-}" = "1" ]; then
+            exit 0
+          fi
           for ENV_SRC in "${SRCROOT}/../.env" "${SRCROOT}/../.env.local"; do
             if [ -f "$ENV_SRC" ]; then
               mkdir -p "$(dirname "$ENV_DEST")"
