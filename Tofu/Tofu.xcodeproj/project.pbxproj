@@ -83,6 +83,7 @@
 		8C6F5550B5B67B5E74DDE730 /* SettingsStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D78FB6D4074AECF71F9365 /* SettingsStatus.swift */; };
 		8D1EC4E336C30AC1FF45D5D7 /* SubjectValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBDEE160F6306C0293E13450 /* SubjectValidatorTests.swift */; };
 		9221F3C83BC63C9CE5347FA0 /* CustomSetupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C719076DF21430E22DB00B4D /* CustomSetupTests.swift */; };
+		942EDEF49C87AE75F7D4AB22 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24729232A7B070FD8133E306 /* SparkleUpdater.swift */; };
 		96070AC7B619B7DAF56583B0 /* DemoDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C85FDD2F9D6B698A02EBA4C /* DemoDataTests.swift */; };
 		98E644DBB620FD8D769D5F88 /* DayPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F0D4994EBB41261E63DAECD /* DayPlannerTests.swift */; };
 		990A6A4F2E98B5E9B51DB50E /* MiniTimerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF49C575A152374B57A52335 /* MiniTimerPanel.swift */; };
@@ -165,6 +166,7 @@
 		1C85FDD2F9D6B698A02EBA4C /* DemoDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoDataTests.swift; sourceTree = "<group>"; };
 		1D3E46E03EB3ED9F66AA246A /* ClosedBrowserStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClosedBrowserStateTests.swift; sourceTree = "<group>"; };
 		1DB5287F2BFF31DA5979B00C /* ToastCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastCenter.swift; sourceTree = "<group>"; };
+		24729232A7B070FD8133E306 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
 		296879449D20AD5B9C3EB37E /* LockedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockedView.swift; sourceTree = "<group>"; };
 		2B9AA8E97BA564C6D69C850B /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoData.swift; sourceTree = "<group>"; };
 		2C8CFD665E3CA39E1035BF81 /* SitePromptPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SitePromptPanel.swift; sourceTree = "<group>"; };
@@ -462,6 +464,7 @@
 				B555E3B379215E3FEF702195 /* RelevanceJudge.swift */,
 				A5F50C7735034F20CE45743F /* ScreenGeometry.swift */,
 				1460EAD3384D3DD8DC438F6F /* SetupLauncher.swift */,
+				24729232A7B070FD8133E306 /* SparkleUpdater.swift */,
 				C59525423435239474438C9E /* TabTriage.swift */,
 				CBA6BCB58FF4976250C5F924 /* VoiceInput.swift */,
 				547C6C1AAD14BBE8E741789E /* VoiceOutput.swift */,
@@ -763,6 +766,7 @@
 				6388832B6691A90B83F418B2 /* SetupLauncher.swift in Sources */,
 				3B07C20031F1272F7A1AD7F3 /* SidebarView.swift in Sources */,
 				C8CE339F77BDF8C579CCBEFA /* SitePromptPanel.swift in Sources */,
+				942EDEF49C87AE75F7D4AB22 /* SparkleUpdater.swift in Sources */,
 				9FBC62707032BA3216C82908 /* StatsEngine.swift in Sources */,
 				626F75B3C54E64B77B0FD2B5 /* StatsFormatting.swift in Sources */,
 				E6C127C63DB340432A716823 /* StatsView.swift in Sources */,
