@@ -85,6 +85,7 @@
 		8D1EC4E336C30AC1FF45D5D7 /* SubjectValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBDEE160F6306C0293E13450 /* SubjectValidatorTests.swift */; };
 		8E734D5A74E69BB6B876386E /* GoogleAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = C411130E59685F328318D009 /* GoogleAuth.swift */; };
 		9221F3C83BC63C9CE5347FA0 /* CustomSetupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C719076DF21430E22DB00B4D /* CustomSetupTests.swift */; };
+		92AC9F0189A21E98784B27EA /* LoopbackServerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80EEBCFA2E84C11678ADDAA8 /* LoopbackServerTests.swift */; };
 		96070AC7B619B7DAF56583B0 /* DemoDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C85FDD2F9D6B698A02EBA4C /* DemoDataTests.swift */; };
 		98E644DBB620FD8D769D5F88 /* DayPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F0D4994EBB41261E63DAECD /* DayPlannerTests.swift */; };
 		990A6A4F2E98B5E9B51DB50E /* MiniTimerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF49C575A152374B57A52335 /* MiniTimerPanel.swift */; };
@@ -133,6 +134,7 @@
 		E700E28C655916CE71795EEC /* CompanionSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56E82E8B6A4D18BA66902F0 /* CompanionSettingsTests.swift */; };
 		EA950785074EE7242B1F8A24 /* ChromeScriptsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C79487D8D51488648AD8E7C /* ChromeScriptsTests.swift */; };
 		EB9EEFBE25CDD59EC5501328 /* SessionSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE3817D31C482F7494C25AF4 /* SessionSummaryView.swift */; };
+		F180BF5D3419F50894C9F6CD /* LoopbackServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A7EFE50AEB152D7DE323E3B /* LoopbackServer.swift */; };
 		F430A7B9FE7F6D31263142FE /* GoogleClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 690B4A5FBA600D84CDF056E6 /* GoogleClientTests.swift */; };
 		F536A9EB2633FBC0F8C3A968 /* MainWindowPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 704DC7790BCE2C61DE026E6A /* MainWindowPresenter.swift */; };
 		F70FF5F64E8581B1DCCB753D /* SubjectEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A3515B1E522B44D81CF74A0 /* SubjectEditorView.swift */; };
@@ -169,6 +171,7 @@
 		1D3E46E03EB3ED9F66AA246A /* ClosedBrowserStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClosedBrowserStateTests.swift; sourceTree = "<group>"; };
 		1DB5287F2BFF31DA5979B00C /* ToastCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastCenter.swift; sourceTree = "<group>"; };
 		296879449D20AD5B9C3EB37E /* LockedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockedView.swift; sourceTree = "<group>"; };
+		2A7EFE50AEB152D7DE323E3B /* LoopbackServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackServer.swift; sourceTree = "<group>"; };
 		2B9AA8E97BA564C6D69C850B /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoData.swift; sourceTree = "<group>"; };
 		2C8CFD665E3CA39E1035BF81 /* SitePromptPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SitePromptPanel.swift; sourceTree = "<group>"; };
 		30D7709072348CCB8E2B37C4 /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
@@ -221,6 +224,7 @@
 		7B0D0378D8F3B5F58E79676D /* StatsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsEngine.swift; sourceTree = "<group>"; };
 		7C04CFF0600679E2A524152E /* SubjectValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectValidator.swift; sourceTree = "<group>"; };
 		7D393339AF2AAA70CF42165C /* ClosedBrowserState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClosedBrowserState.swift; sourceTree = "<group>"; };
+		80EEBCFA2E84C11678ADDAA8 /* LoopbackServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackServerTests.swift; sourceTree = "<group>"; };
 		81B05F84297695BAC1374364 /* Assistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Assistant.swift; sourceTree = "<group>"; };
 		8505D223C2EC9453604CC5BB /* AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCatalog.swift; sourceTree = "<group>"; };
 		871758EE96A845D8D8EA1812 /* HTTPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPTransport.swift; sourceTree = "<group>"; };
@@ -298,6 +302,7 @@
 			children = (
 				C411130E59685F328318D009 /* GoogleAuth.swift */,
 				481579C4998932812B4F58D6 /* GoogleClient.swift */,
+				2A7EFE50AEB152D7DE323E3B /* LoopbackServer.swift */,
 			);
 			path = Google;
 			sourceTree = "<group>";
@@ -410,6 +415,7 @@
 				7108A89CBF92DED603AA22B5 /* LockedLayoutTests.swift */,
 				BAFE8AFB3D59EC761E861F1B /* LockedUITests.swift */,
 				F1F5D1FF42DB02E092B24434 /* LockInOptionTests.swift */,
+				80EEBCFA2E84C11678ADDAA8 /* LoopbackServerTests.swift */,
 				67BB2191063363928407BE80 /* MiniTimerLayoutTests.swift */,
 				3525E77B929BF806A329C3DE /* MirrorTests.swift */,
 				E5755C17504CD05C65D17AE0 /* MockTransport.swift */,
@@ -679,6 +685,7 @@
 				704A4F74EB3B1E814DACC5A6 /* LockInOptionTests.swift in Sources */,
 				40ACAE232C8824532817F148 /* LockedLayoutTests.swift in Sources */,
 				7C0398180651016531AA97D6 /* LockedUITests.swift in Sources */,
+				92AC9F0189A21E98784B27EA /* LoopbackServerTests.swift in Sources */,
 				7999512ACB0487F43DF6C5FB /* MiniTimerLayoutTests.swift in Sources */,
 				1C770C9BD70B812194BFC2B6 /* MirrorTests.swift in Sources */,
 				513B96B02C8C84B7FC457A5B /* MockTransport.swift in Sources */,
@@ -745,6 +752,7 @@
 				D7EE9FD6F3AA2DC58EB9A738 /* LayoutEngine.swift in Sources */,
 				229BF650E5DB3DA09F1A1D8B /* LockInSheet.swift in Sources */,
 				BF83212977907AE03197B0D6 /* LockedView.swift in Sources */,
+				F180BF5D3419F50894C9F6CD /* LoopbackServer.swift in Sources */,
 				F536A9EB2633FBC0F8C3A968 /* MainWindowPresenter.swift in Sources */,
 				990A6A4F2E98B5E9B51DB50E /* MiniTimerPanel.swift in Sources */,
 				2B3C2DCE5051E832871887E4 /* MirrorInterrogator.swift in Sources */,
