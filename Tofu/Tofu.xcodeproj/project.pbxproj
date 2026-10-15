@@ -87,6 +87,7 @@
 		98E644DBB620FD8D769D5F88 /* DayPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F0D4994EBB41261E63DAECD /* DayPlannerTests.swift */; };
 		990A6A4F2E98B5E9B51DB50E /* MiniTimerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF49C575A152374B57A52335 /* MiniTimerPanel.swift */; };
 		9B81F83F3C13295E762EC286 /* SettingsStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC78C3F1E6FD18CD0BC4C3FA /* SettingsStatusTests.swift */; };
+		9C06DD24F2DDECD8FA72DB6A /* UpdateCenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EED75444BCC66D79D362F5E8 /* UpdateCenterTests.swift */; };
 		9DFA554CAB40A1B60CB1DB30 /* RelevanceJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B555E3B379215E3FEF702195 /* RelevanceJudge.swift */; };
 		9F3B877D5ECEB370F0FA2B99 /* DiscordClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BC914F53584ADA1FEA39282 /* DiscordClient.swift */; };
 		9FBC62707032BA3216C82908 /* StatsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B0D0378D8F3B5F58E79676D /* StatsEngine.swift */; };
@@ -97,6 +98,7 @@
 		AABFCC8CFD14310E997EF09A /* DistractionListTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18479562DCB40AB42C0792E7 /* DistractionListTests.swift */; };
 		ABAC03070ECE801F939766F4 /* ClosedBrowserState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D393339AF2AAA70CF42165C /* ClosedBrowserState.swift */; };
 		AC6184FDE45BEEB879E80692 /* TimeFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5AB24787EC5A848317CD677 /* TimeFormat.swift */; };
+		B1147C60687361426A9F0E30 /* UpdateCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6C55DCAAE23A869FF659F7 /* UpdateCenter.swift */; };
 		B99C353AEE5A2D119B5F8870 /* NeedPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6911435CF8A617C9089376 /* NeedPrompt.swift */; };
 		BAB19F0B4C73DFFF22C5E060 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9487E53F3358D898567EC88 /* RootView.swift */; };
 		BE4405DA6E09734BAC13117B /* MirrorTurn.swift in Sources */ = {isa = PBXBuildFile; fileRef = C831F419F2201E99C367C8CD /* MirrorTurn.swift */; };
@@ -261,6 +263,7 @@
 		D8338ED8428CF0CBA9DBB992 /* GiveUpSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiveUpSheet.swift; sourceTree = "<group>"; };
 		D906247289A3901E65EB182F /* AppPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPickerView.swift; sourceTree = "<group>"; };
 		DA205B39644F3EE439E2D52E /* AppCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCatalogTests.swift; sourceTree = "<group>"; };
+		DA6C55DCAAE23A869FF659F7 /* UpdateCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCenter.swift; sourceTree = "<group>"; };
 		DB7F60FBE9EC7758F39778AE /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		DD7D59E8433E0BC485351B9F /* PriorityExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriorityExtractor.swift; sourceTree = "<group>"; };
 		DEEEDE16CCBE3AA011F74502 /* DayPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlan.swift; sourceTree = "<group>"; };
@@ -271,6 +274,7 @@
 		E7E0CCAE88871612F5426F4B /* ChannelPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelPickerTests.swift; sourceTree = "<group>"; };
 		E9487E53F3358D898567EC88 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		EBDEE160F6306C0293E13450 /* SubjectValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectValidatorTests.swift; sourceTree = "<group>"; };
+		EED75444BCC66D79D362F5E8 /* UpdateCenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCenterTests.swift; sourceTree = "<group>"; };
 		EF49C575A152374B57A52335 /* MiniTimerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniTimerPanel.swift; sourceTree = "<group>"; };
 		F1F5D1FF42DB02E092B24434 /* LockInOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockInOptionTests.swift; sourceTree = "<group>"; };
 		F5F85B8D6184F05057C1E947 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
@@ -363,6 +367,7 @@
 				B3090659B36A3B5F9B483EE0 /* StatsFormatting.swift */,
 				7C04CFF0600679E2A524152E /* SubjectValidator.swift */,
 				A5AB24787EC5A848317CD677 /* TimeFormat.swift */,
+				DA6C55DCAAE23A869FF659F7 /* UpdateCenter.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -418,6 +423,7 @@
 				667265F6BFF68C900A5EA6A9 /* TabTriageTests.swift */,
 				D52B31A62C13EFFB5ADC48E9 /* TimeFormatTests.swift */,
 				449F8A206D39E762B96FEC06 /* ToastLayoutTests.swift */,
+				EED75444BCC66D79D362F5E8 /* UpdateCenterTests.swift */,
 				F6340C5C10EDF23D2BD5B5B9 /* VoiceInputTests.swift */,
 			);
 			path = TofuTests;
@@ -689,6 +695,7 @@
 				7CD0B9A5DBF781CEF0E55F99 /* TabTriageTests.swift in Sources */,
 				1405FB32B55F694F50D43A04 /* TimeFormatTests.swift in Sources */,
 				006DF63B59A16B38F95340B8 /* ToastLayoutTests.swift in Sources */,
+				9C06DD24F2DDECD8FA72DB6A /* UpdateCenterTests.swift in Sources */,
 				25FAEED1182B5A620DEF4271 /* VoiceInputTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -770,6 +777,7 @@
 				3D137F35CC5D3AC38AFD99EC /* ToastCenter.swift in Sources */,
 				3C1CD85F0C17DC0175BD97C1 /* TodayView.swift in Sources */,
 				47882A1D3B9B31F1C52127DB /* TofuApp.swift in Sources */,
+				B1147C60687361426A9F0E30 /* UpdateCenter.swift in Sources */,
 				D51205751BD38EAE40EB82B1 /* VoiceInput.swift in Sources */,
 				3B5A8D1318C2A0F8BD88BA57 /* VoiceOutput.swift in Sources */,
 				13173AD75F0F559FBCF7C4E7 /* WindowPlacer.swift in Sources */,
