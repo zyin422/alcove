@@ -50,34 +50,7 @@ struct StatsView: View {
     }
 }
 
-/// Cards + 14-day mini chart filtered to one subject (used in SubjectDetailView).
-struct SubjectStatsSection: View {
-    let model: AppModel
-    let subjectID: UUID
-
-    var body: some View {
-        let sessions = model.data.sessions.filter { $0.subjectID == subjectID }
-        let stats = StatsEngine(now: max(model.engine.now, Date()))
-        VStack(alignment: .leading, spacing: Theme.Space.m) {
-            Text("Stats").font(Theme.captionFont).foregroundStyle(.secondary)
-            if StatsFormatting.hasTrackedSessions(sessions) {
-                let summary = stats.summary(sessions)
-                LazyVGrid(columns: statsGridColumns, alignment: .leading, spacing: Theme.Space.m) {
-                    StatCard(title: "Total", value: TimeFormat.short(StatsFormatting.totalSeconds(sessions)))
-                    StatCard(title: "Sessions", value: "\(summary.sessionCount)")
-                    StatCard(title: "Average", value: TimeFormat.short(summary.average))
-                    StatCard(title: "Streak", value: StatsFormatting.streak(summary.currentStreak))
-                }
-                Text(StatsFormatting.rangeCaption(.day)).font(Theme.captionFont).foregroundStyle(.secondary)
-                StatsDayChart(buckets: stats.buckets(sessions, range: .day))
-            } else {
-                Text(StatsFormatting.emptyMessage).foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-/// Adaptive card grid shared by both stats views.
+/// Adaptive card grid for the summary cards.
 private let statsGridColumns = [GridItem(.adaptive(minimum: 140), spacing: Theme.Space.m, alignment: .top)]
 
 /// X axis with at most `maxLabels` untruncated bucket labels (the newest always shown).
@@ -119,22 +92,6 @@ private struct StatsStackedChart: View {
             }
         }
         .frame(height: 260)
-    }
-}
-
-/// Single-series bars (total minutes per day) for the subject detail.
-private struct StatsDayChart: View {
-    let buckets: [StatsBucket]
-
-    var body: some View {
-        Chart(buckets) { bucket in
-            BarMark(x: .value("Day", bucket.label), y: .value("Minutes", bucket.totalMinutes))
-                .foregroundStyle(Color.primary)
-        }
-        .chartXScale(domain: buckets.map(\.label))
-        .chartXAxis { bucketAxis(buckets, maxLabels: StatsFormatting.maxAxisLabels(.day)) }
-        .chartYAxisLabel("min")
-        .frame(height: 140)
     }
 }
 
