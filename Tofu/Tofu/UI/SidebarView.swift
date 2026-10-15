@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Subjects (with total time), then Stats and Settings. "+" adds a subject; right-click deletes one.
+/// Subjects (with total time), then Stats and Settings. "Add subject" (⌘N) adds one; right-click deletes one.
 struct SidebarView: View {
     @Bindable var model: AppModel
     @State private var isAddingSubject = false
@@ -50,16 +50,6 @@ struct SidebarView: View {
             .keyboardShortcut("n", modifiers: .command)
             .help("Add subject (⌘N)")
             .padding(Theme.Space.m)
-        }
-        .toolbar {
-            ToolbarItem {
-                Button {
-                    isAddingSubject = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .help("Add subject")
-            }
         }
         .sheet(isPresented: $isAddingSubject) {
             SubjectEditorView(model: model, subject: nil)
