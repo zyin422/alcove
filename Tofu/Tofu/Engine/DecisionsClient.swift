@@ -40,7 +40,8 @@ final class DecisionsClient {
     static let maxDescriptionLength = 500
     static let maxURLLength = 500
     static let maxSiteNameLength = 100
-    static let maxDetailsLength = 600
+    /// Room for a full `SubjectValidator.maxDetailsWords`-word description.
+    static let maxDetailsLength = 3000
 
     private let apiKey: String
     private let transport: HTTPTransport

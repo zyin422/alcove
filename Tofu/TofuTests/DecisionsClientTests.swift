@@ -189,7 +189,7 @@ final class DecisionsClientTests: XCTestCase {
         let text = DecisionsClient.instructions(subject: "CS128", details: "Intro CS in C++:\n  pointers,   classes")
         XCTAssertTrue(text.contains("\"Intro CS in C++: pointers, classes\""), text)
 
-        let long = DecisionsClient.instructions(subject: "CS128", details: String(repeating: "x", count: 900))
+        let long = DecisionsClient.instructions(subject: "CS128", details: String(repeating: "x", count: DecisionsClient.maxDetailsLength + 300))
         XCTAssertTrue(long.contains(String(repeating: "x", count: DecisionsClient.maxDetailsLength)))
         XCTAssertFalse(long.contains(String(repeating: "x", count: DecisionsClient.maxDetailsLength + 1)))
     }
