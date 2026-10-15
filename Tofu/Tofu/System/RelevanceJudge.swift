@@ -31,7 +31,7 @@ import Foundation
         self.metadataFetcher = metadataFetcher ?? { url in await PageMetadata.fetch(url: url, transport: transport) }
     }
 
-    func judge(page: PageInfo, subject: String) async -> RelevanceVerdict {
+    func judge(page: PageInfo, subject: String, details: String = "") async -> RelevanceVerdict {
         guard let key = apiKey()?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
             return .unknown("No OpenAI API key")
         }
@@ -46,7 +46,7 @@ import Foundation
         }
         do {
             let probability = try await DecisionsClient(apiKey: key, transport: transport)
-                .offTaskProbability(page: page, subject: subject)
+                .offTaskProbability(page: page, subject: subject, details: details)
             return Self.verdict(offTaskProbability: probability)
         } catch {
             return .unknown(String(describing: error))

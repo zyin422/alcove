@@ -206,7 +206,7 @@ enum CompanionViolation: Equatable {
         // Without Chrome (or without permission to script it) every poll would fail, so skip the watch.
         resumesTabWatch = chromeError != .notInstalled && chromeError != .automationDenied
         if resumesTabWatch {
-            chrome.startTabWatch(subject: subject.name, studySites: studySites(of: subject))
+            chrome.startTabWatch(subject: subject.name, details: subject.details, studySites: studySites(of: subject))
         }
 
         if startsTimers { startTimer() }
@@ -332,7 +332,7 @@ enum CompanionViolation: Equatable {
         }
         blocker.start(allowed: sessionAllowed)
         if resumesTabWatch, let subject {
-            chrome.startTabWatch(subject: subject.name, studySites: studySites(of: subject))
+            chrome.startTabWatch(subject: subject.name, details: subject.details, studySites: studySites(of: subject))
         }
     }
 

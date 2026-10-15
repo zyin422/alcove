@@ -11,7 +11,7 @@ final class SessionEngineTests: XCTestCase {
         let sites = preset.siteCount == 2
             ? ["https://cs128.org/schedule", "https://docs.python.org/3/"]
             : ["https://cs128.org/schedule"]
-        return Subject(name: "CS128", preset: preset, sites: sites,
+        return Subject(name: "CS128", details: "Intro CS in C++", preset: preset, sites: sites,
                        allowedApps: [AllowedApp(bundleID: "com.microsoft.VSCode", name: "Visual Studio Code")],
                        extraDomains: ["piazza.com"])
     }
@@ -100,6 +100,7 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(h.blocker.startedWith,
                        [ownID, "com.google.Chrome", "com.apple.finder", "com.apple.systempreferences", "com.microsoft.VSCode"])
         XCTAssertEqual(h.chrome.watchedSubject, "CS128")
+        XCTAssertEqual(h.chrome.watchedDetails, "Intro CS in C++")
         XCTAssertEqual(h.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/", "piazza.com"])
         XCTAssertEqual(h.announcer.messages, ["🔒 **Alex** is locked in on **CS128**"])
         XCTAssertEqual(h.toaster.messages, [])
