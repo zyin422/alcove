@@ -7,6 +7,7 @@ import XCTest
     var calendars: [GoogleCalendarInfo] = []
     var events: [String: [GoogleEvent]] = [:]      // calendarID -> events
     var error: Error?
+    var insertEventErrors: [String: Error] = [:]   // calendarID -> error for insertEvent
     var log: [String] = []
     private var nextID = 100
 
@@ -30,6 +31,7 @@ import XCTest
     }
     func insertEvent(calendarID: String, summary: String, description: String, start: Date, end: Date) async throws {
         try bump("insertEvent \(calendarID) \(summary)")
+        if let failure = insertEventErrors[calendarID] { throw failure }
     }
     func listEvents(calendarID: String, from: Date, to: Date) async throws -> [GoogleEvent] {
         try bump("listEvents \(calendarID)")
@@ -155,6 +157,30 @@ import XCTest
         api.log.removeAll()
         await sync.syncNow()
         XCTAssertFalse(api.log.contains { $0.hasPrefix("insertEvent") }, "pushed once, not again")
+    }
+
+    func testDeletedCachedCalendarIsRecreatedAndRetriedOnce() async {
+        settings.googleTasksSyncEnabled = false
+        settings.googleShowEventsEnabled = false
+        settings.googleCalendarID = "dead-cal"
+        api.calendars = []
+        api.insertEventErrors = ["dead-cal": GoogleError.http(404)]
+        var saved: [String?] = []
+        let sync = GoogleSync(api: api, settings: { self.settings }, isConnected: { true }, plan: { self.plan },
+                              applyPlan: { self.plan = $0 },
+                              saveCalendarID: { saved.append($0); self.settings.googleCalendarID = $0 },
+                              onError: { self.errors.append($0) })
+        var session = Session(subjectID: UUID(), subjectName: "X", mode: .open, start: Date().addingTimeInterval(-600))
+        session.end = Date(); session.outcome = .completed
+        sync.sessionEnded(session)
+        await sync.syncNow()
+        XCTAssertEqual(api.log.filter { $0 == "insertEvent dead-cal Focus: X" }.count, 1, "\(api.log)")
+        XCTAssertEqual(api.log.filter { $0 == "insertEvent tofu-cal Focus: X" }.count, 1, "\(api.log)")
+        XCTAssertEqual(saved, [nil, "tofu-cal"])
+        XCTAssertTrue(errors.isEmpty)
+        api.log.removeAll()
+        await sync.syncNow()
+        XCTAssertFalse(api.log.contains { $0.hasPrefix("insertEvent") }, "queue drained")
     }
 
     func testExistingTofuCalendarIsReusedNotRecreated() async {
