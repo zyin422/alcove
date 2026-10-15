@@ -98,7 +98,7 @@ struct AppPickerView: View {
     }
 }
 
-/// An installed app's icon in grayscale (the UI stays monochrome), or a placeholder if it is not installed.
+/// An installed app's icon in full color, or a placeholder if it is not installed.
 struct AppIcon: View {
     let bundleID: String
 
@@ -108,7 +108,6 @@ struct AppIcon: View {
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
-                .saturation(0)
         } else {
             Image(systemName: "app.dashed")
                 .resizable()
