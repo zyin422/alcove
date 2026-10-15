@@ -170,7 +170,7 @@ struct SettingsView: View {
         } header: {
             Text("Study companion")
         } footer: {
-            Text("She floats bottom-right while you're locked in, cheers you on, and calls you out when something gets blocked. Drop your own character art into the images folder as neutral.png, annoyed.png, pleased.png and dark.png (transparent PNGs look best); without them a built-in portrait is drawn. “Tsundere → yandere” turns dark after \(CompanionScript.escalationThreshold) blocked attempts in a session.")
+            Text("She floats bottom-right while you're locked in, cheers you on, and calls you out when something gets blocked. Drop your own character art into the images folder as neutral.png, annoyed.png, pleased.png and dark.png (transparent PNGs look best); without them the included Emilia portraits are used. “Tsundere → yandere” turns dark after \(CompanionScript.escalationThreshold) blocked attempts in a session.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
