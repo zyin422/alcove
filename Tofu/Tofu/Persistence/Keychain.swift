@@ -7,6 +7,8 @@ enum Secrets {
     static let discordAccount = "bot-token"
     static let openAIService = "com.tofu.openai"
     static let openAIAccount = "api-key"
+    static let googleService = "com.tofu.google"
+    static let googleAccount = "refresh-token"
 }
 
 /// Minimal generic-password wrapper around the login keychain.
