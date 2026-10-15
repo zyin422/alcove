@@ -22,7 +22,7 @@ import AppKit
 
     /// Creates MainWindowPresenter(model:), retains it, assigns model.engine.presenter, lets the assistant bring the
     /// chat screen forward (model.onShowChat) and welcomes the user back when the Mac wakes during a lock-in.
-    /// No-op under tests.
+    /// Starts Sparkle (release builds only). No-op under tests.
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard !Self.isRunningTests else { return }
         let presenter = MainWindowPresenter(model: model)
@@ -43,6 +43,10 @@ import AppKit
         self.morning = morning
         model.onShowMorning = { [weak morning] in morning?.show() }
         model.onHideMorning = { [weak morning] in morning?.hide() }
+        #if !DEBUG
+        // A dev build must not replace itself, so only release builds check for updates.
+        model.updates.driver = SparkleUpdater(center: model.updates)
+        #endif
         endOfDayTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.storedModel?.checkEndOfDay() }
         }
