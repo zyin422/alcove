@@ -35,7 +35,7 @@ struct TofuApp: App {
     }
 }
 
-/// "Check for Updates…" in the app menu; disabled in Debug builds, where Sparkle isn't running.
+/// "Check for Updates…" in the app menu; disabled unless this is a release build (made by scripts/release.sh), where Sparkle isn't running.
 private struct CheckForUpdatesButton: View {
     let updates: UpdateCenter
 
