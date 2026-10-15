@@ -46,6 +46,8 @@ enum TokenSource: Equatable {
     let engine: SessionEngine
     /// The chat screen's assistant (gpt-4.1-mini). Wired to Chrome and the session by AppModel.
     let assistant: ChatAssistant
+    /// The sidebar update card's state. AppDelegate connects Sparkle in release builds.
+    let updates = UpdateCenter()
     /// Brings the chat screen to the front while locked in (the assistant needs the user; the Mac woke up).
     /// AppDelegate connects it to the window presenter.
     @ObservationIgnored var onShowChat: (() -> Void)?
