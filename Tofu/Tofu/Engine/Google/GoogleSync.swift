@@ -98,16 +98,27 @@ import Observation
     }
 
     private func syncTasks() async throws {
+        let snapshot = plan().priorities
+        let snapshotIDs = Set(snapshot.map(\.id))
         let remote = try await api.listTasks()
-        var (priorities, toInsert) = GoogleTaskMerge.apply(remote: remote, to: plan().priorities, now: now())
+        var (merged, toInsert) = GoogleTaskMerge.apply(remote: remote, to: snapshot, now: now())
         for pending in toInsert {
             let inserted = try await api.insertTask(title: pending.title, due: dueStamp())
-            if let index = priorities.firstIndex(where: { $0.id == pending.id }) {
-                priorities[index].googleTaskID = inserted.id
+            if let index = merged.firstIndex(where: { $0.id == pending.id }) {
+                merged[index].googleTaskID = inserted.id
             }
         }
+        // Rebuild from a fresh read: edits made during the awaits survive, new local priorities insert next cycle.
         var updated = plan()
-        updated.priorities = priorities
+        let mergedByID = Dictionary(merged.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let freshIDs = Set(updated.priorities.map(\.id))
+        var result: [Priority] = []
+        for priority in updated.priorities {
+            if !snapshotIDs.contains(priority.id) { result.append(priority) }
+            else if let replacement = mergedByID[priority.id] { result.append(replacement) }
+        }
+        result.append(contentsOf: merged.filter { !snapshotIDs.contains($0.id) && !freshIDs.contains($0.id) })
+        updated.priorities = result
         applyRemote(updated)
     }
 
@@ -120,8 +131,15 @@ import Observation
     }
 
     private func push(_ diff: PlanDiff) async {
+        // Single-flight with syncNow: never interleave with a sync cycle.
+        while isSyncing { await Task.yield() }
+        isSyncing = true
+        defer { isSyncing = false }
         do {
             for priority in diff.inserts {
+                // A sync cycle may have inserted and linked it while this push waited.
+                guard let current = plan().priorities.first(where: { $0.id == priority.id }),
+                      current.googleTaskID == nil else { continue }
                 let inserted = try await api.insertTask(title: priority.title, due: dueStamp())
                 var updated = plan()
                 if let index = updated.priorities.firstIndex(where: { $0.id == priority.id }) {
