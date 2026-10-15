@@ -9,6 +9,8 @@ struct EndOfDayView: View {
 
     @State private var step = Step.recap
     @State private var today: [Priority] = []
+    /// The day's list as the sheet opened, so saving applies only the user's ticks to the fresh plan.
+    @State private var original: [Priority] = []
     @State private var spoken = ""
     @State private var tomorrow: [Priority] = []
     @State private var isMakingList = false
@@ -33,7 +35,10 @@ struct EndOfDayView: View {
         }
         .padding(Theme.Space.l)
         .frame(width: 520, height: 560, alignment: .topLeading)
-        .onAppear { today = model.todayPlan().priorities }
+        .onAppear {
+            today = model.todayPlan().priorities
+            original = today
+        }
         .onDisappear {
             voiceIn.stop()
             voiceOut.stop()
@@ -318,7 +323,10 @@ struct EndOfDayView: View {
                 Spacer()
                 Button(model.data.settings.discordEnabled ? "Post & finish" : "Save & finish") {
                     voiceOut.stop()
-                    model.wrapUpDay(today: today, tomorrow: tomorrow)
+                    // Sync may have changed the plan while the sheet was open: tick the fresh plan, not the copy.
+                    let fresh = DayPlanner.applyingTicks(edited: today, original: original,
+                                                         to: model.todayPlan().priorities)
+                    model.wrapUpDay(today: fresh, tomorrow: tomorrow)
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .frame(width: 180)

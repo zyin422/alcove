@@ -69,6 +69,8 @@ enum TokenSource: Equatable {
     /// Google connection (OAuth) and the sync engine built over it; the engine is created at the end of init.
     let googleAuth: GoogleAuth
     @ObservationIgnored private(set) var googleSync: GoogleSync?
+    /// Whether a Google refresh token is held; stored so Settings and Today redraw on connect, disconnect and revoke.
+    private(set) var isGoogleConnected = false
     /// Transient text under the Connect button in Settings.
     var googleStatus = ""
     /// The loopback redirect of the connect flow in progress.
@@ -204,6 +206,11 @@ enum TokenSource: Equatable {
                               saveCalendarID: { [weak self] id in self?.updateSettings { $0.googleCalendarID = id } },
                               onError: { message in ToastCenter.shared.show(message) })
         googleSync = sync
+        isGoogleConnected = auth.isConnected
+        auth.onRevoked = { [weak self] in
+            self?.isGoogleConnected = false
+            self?.googleSync?.stop()
+        }
         if auth.isConnected { sync.start() }
     }
 
@@ -214,9 +221,6 @@ enum TokenSource: Equatable {
         assistant.sites = chrome
     }
 
-    /// The Mac woke from sleep: while locked in, the assistant welcomes the user back (which brings up the chat).
-    var isGoogleConnected: Bool { googleAuth.isConnected }
-
     /// Full connect flow: loopback listener, browser consent, code exchange, first sync.
     func connectGoogle() async {
         let server = LoopbackServer()
@@ -225,24 +229,33 @@ enum TokenSource: Equatable {
         do {
             let gate = CallbackGate()
             let port = try server.start { code, state in
-                guard let code, let state else { return }
-                Task { @MainActor in gate.fulfill((code, state)) }
+                guard let state else { return }
+                // A redirect with a state but no code is Google's error redirect (the user denied access).
+                let outcome: ConnectOutcome = code.map { .code($0, state) } ?? .denied
+                Task { @MainActor in gate.fulfill(outcome) }
             }
             let redirectURI = "http://127.0.0.1:\(port)"
             pendingRedirectURI = redirectURI
             NSWorkspace.shared.open(googleAuth.beginAuth(redirectURI: redirectURI).url)
             let timeout = Task { @MainActor in
                 try await Task.sleep(nanoseconds: 180_000_000_000)
-                gate.fulfill(nil)
+                gate.fulfill(.timedOut)
             }
             let result = await gate.wait()
             timeout.cancel()
-            guard let (code, state) = result else {
+            let code: String, state: String
+            switch result {
+            case .code(let value, let returnedState): (code, state) = (value, returnedState)
+            case .denied:
+                googleStatus = "Google access was denied."
+                return
+            case .timedOut:
                 googleStatus = "Timed out. Try again."
                 return
             }
             try await googleAuth.handleCallback(code: code, state: state, redirectURI: pendingRedirectURI)
             googleStatus = ""
+            isGoogleConnected = true
             googleSync?.start()
         } catch {
             googleStatus = "Connection failed: \(error)"
@@ -253,9 +266,11 @@ enum TokenSource: Equatable {
     func disconnectGoogle() {
         googleSync?.stop()
         googleAuth.disconnect()
+        isGoogleConnected = false
         googleStatus = ""
     }
 
+    /// The Mac woke from sleep: while locked in, the assistant welcomes the user back (which brings up the chat).
     func systemDidWake() {
         guard engine.isLocked else { return }
         assistant.greetAfterWake()
@@ -397,9 +412,12 @@ enum TokenSource: Equatable {
             data.dayPlans.append(plan)
         }
         save()
-        // The mirror targets the real calendar day, not the working day, so a pending wrap-up never leaks in.
-        if day == DayKey.key(for: Date()), let after = plan(for: day) {
+        // The mirror targets the real calendar day, not the working day; other days only push done/undone flips.
+        guard let after = plan(for: day) else { return }
+        if day == DayKey.key(for: Date()) {
             googleSync?.planChanged(from: before, to: after)
+        } else {
+            googleSync?.pushStatusChanges(from: before, to: after)
         }
     }
 
@@ -408,6 +426,8 @@ enum TokenSource: Equatable {
         if let index = data.dayPlans.firstIndex(where: { $0.day == plan.day }) {
             data.dayPlans[index] = plan
         } else {
+            // An empty pull never creates a plan: an empty un-wrapped day would force a wrap-up next morning.
+            guard !plan.priorities.isEmpty else { return }
             data.dayPlans.append(plan)
         }
         save()
@@ -489,8 +509,11 @@ enum TokenSource: Equatable {
     /// From the morning screen: ties the priority to `subjectID` (when it had another or none), closes the
     /// screen and locks in on that setup.
     func start(priority: Priority, subjectID: UUID, mode: SessionMode, now: Date = Date()) async {
-        let day = data.dayPlans.first { $0.priorities.contains { $0.id == priority.id } }?.day
-            ?? DayKey.key(for: now)
+        // A carried-over priority shares its id with the previous day's copy, so today's plan wins.
+        let todayKey = DayKey.key(for: now)
+        let day = plan(for: todayKey)?.priorities.contains { $0.id == priority.id } == true
+            ? todayKey
+            : data.dayPlans.first { $0.priorities.contains { $0.id == priority.id } }?.day ?? todayKey
         if priority.subjectID != subjectID {
             updatePlan(day: day) { plan in
                 guard let index = plan.priorities.firstIndex(where: { $0.id == priority.id }) else { return }
@@ -502,15 +525,25 @@ enum TokenSource: Equatable {
     }
 
     /// Ends the day: stores today's ticks, saves tomorrow's priorities, and posts the recap to the group chat.
-    func wrapUpDay(today: [Priority], tomorrow: [Priority], now: Date = Date()) {
+    func wrapUpDay(today snapshot: [Priority], tomorrow: [Priority], now: Date = Date()) {
         let todayKey = DayPlanner.workingDay(now: now, plans: data.dayPlans)
-        let alreadyDone = Set((plan(for: todayKey)?.priorities ?? []).filter(\.isDone).map(\.id))
+        let current = plan(for: todayKey)?.priorities ?? []
+        let alreadyDone = Set(current.filter(\.isDone).map(\.id))
+        let today = DayPlanner.mergeWrapUp(snapshot: snapshot, into: current)
         updatePlan(day: todayKey) { plan in
             plan.priorities = today
             plan.wrappedUp = true
         }
-        let kept = tomorrow.filter { !$0.title.trimmingCharacters(in: .whitespaces).isEmpty }
-        updatePlan(day: DayKey.next(todayKey)) { $0.priorities = kept }
+        let kept = DayPlanner.carryLinks(
+            into: tomorrow.filter { !$0.title.trimmingCharacters(in: .whitespaces).isEmpty }, from: today)
+        // Both writes merge with the stored plans, so a Google-synced priority is never removed (no task deletes).
+        let nextKey = DayKey.next(todayKey)
+        if nextKey == DayKey.key(for: Date()) {
+            // Finishing yesterday after 4 AM: the next day is the live, synced plan, so add to it, never replace.
+            updatePlan(day: nextKey) { $0.priorities = DayPlanner.appendNew(kept, to: $0.priorities) }
+        } else {
+            updatePlan(day: nextKey) { $0.priorities = kept }
+        }
         let summary = DaySummary.summarize(day: todayKey, sessions: data.sessions, priorities: today)
         for priority in today where priority.isDone && !alreadyDone.contains(priority.id) {
             postPriorityUpdate(priority)
@@ -647,19 +680,26 @@ enum TokenSource: Equatable {
     weak var model: AppModel?
 }
 
-/// Hands one value (or nil on timeout) to a single waiter; later fulfills are ignored.
-@MainActor private final class CallbackGate {
-    private var result: (String, String)??
-    private var continuation: CheckedContinuation<(String, String)?, Never>?
+/// How the browser consent step ended: a code with its state, a denial, or no answer in time.
+private enum ConnectOutcome {
+    case code(String, String)
+    case denied
+    case timedOut
+}
 
-    func fulfill(_ value: (String, String)?) {
+/// Hands one outcome to a single waiter; later fulfills are ignored.
+@MainActor private final class CallbackGate {
+    private var result: ConnectOutcome?
+    private var continuation: CheckedContinuation<ConnectOutcome, Never>?
+
+    func fulfill(_ value: ConnectOutcome) {
         guard result == nil else { return }
-        result = .some(value)
+        result = value
         continuation?.resume(returning: value)
         continuation = nil
     }
 
-    func wait() async -> (String, String)? {
+    func wait() async -> ConnectOutcome {
         if let result { return result }
         return await withCheckedContinuation { continuation = $0 }
     }

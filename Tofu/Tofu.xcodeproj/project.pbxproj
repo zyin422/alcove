@@ -84,6 +84,7 @@
 		815F4538F514008FB06BBD50 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33F3F4E61454B25C8C74029A /* ChatView.swift */; };
 		81BDBF0125247C95A485DE0B /* CompanionScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = D34E993DCF230B82BEAF637A /* CompanionScript.swift */; };
 		81CF2EC9FAA2B6D96739486A /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BEFBFC052C5E07974C207CB /* SmokeTests.swift */; };
+		883C8283AFA5BD4E2BE25059 /* GoogleWrapUpSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE83D57B34CD978913B664E4 /* GoogleWrapUpSyncTests.swift */; };
 		88589F95117AD5125BD82121 /* AppCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA205B39644F3EE439E2D52E /* AppCatalogTests.swift */; };
 		89AE9335D0E55815F097E89F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3905A1C97366F01467C861B0 /* Assets.xcassets */; };
 		8BA6475C5A0ED3E14BB82DCE /* OpenAIChatClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C498AAB5840567A04F664A60 /* OpenAIChatClientTests.swift */; };
@@ -266,6 +267,7 @@
 		B88AE6BA8F493BA25A26FB68 /* DiscordMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordMessages.swift; sourceTree = "<group>"; };
 		B9FC6341CDAE3FE40E13DF02 /* ChromeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeController.swift; sourceTree = "<group>"; };
 		BAFE8AFB3D59EC761E861F1B /* LockedUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockedUITests.swift; sourceTree = "<group>"; };
+		BE83D57B34CD978913B664E4 /* GoogleWrapUpSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleWrapUpSyncTests.swift; sourceTree = "<group>"; };
 		BF37777A3BE96A1BBDA76BAD /* GoogleAuthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthTests.swift; sourceTree = "<group>"; };
 		C0EE67DD0C2D58D1321817E5 /* DayPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlanner.swift; sourceTree = "<group>"; };
 		C411130E59685F328318D009 /* GoogleAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuth.swift; sourceTree = "<group>"; };
@@ -431,6 +433,7 @@
 				2317EE5435B89A50A218AF32 /* GoogleSyncTests.swift */,
 				3B6A5635B0728FCF82A42728 /* GoogleTaskMergeTests.swift */,
 				4F3EBE44A4B1F05CAE6BAD1E /* GoogleWiringTests.swift */,
+				BE83D57B34CD978913B664E4 /* GoogleWrapUpSyncTests.swift */,
 				42A590B3784E42DDD0F9AB22 /* KeychainTests.swift */,
 				335FED808CB8C5A799D6FEFA /* LayoutEngineTests.swift */,
 				7108A89CBF92DED603AA22B5 /* LockedLayoutTests.swift */,
@@ -705,6 +708,7 @@
 				416D16359B131ACD86651227 /* GoogleSyncTests.swift in Sources */,
 				343A518CD12063BAB132417C /* GoogleTaskMergeTests.swift in Sources */,
 				7085403F2C986B7271CC9F87 /* GoogleWiringTests.swift in Sources */,
+				883C8283AFA5BD4E2BE25059 /* GoogleWrapUpSyncTests.swift in Sources */,
 				6045D15F858535360FB912E8 /* KeychainTests.swift in Sources */,
 				2DF79EC4E26C3E7736B9CFB6 /* LayoutEngineTests.swift in Sources */,
 				704A4F74EB3B1E814DACC5A6 /* LockInOptionTests.swift in Sources */,

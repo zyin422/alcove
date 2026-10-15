@@ -52,8 +52,9 @@ import Observation
         Task { await syncNow() }
     }
 
-    /// Tears down the timer and the activation observer.
+    /// Tears down the timer and the activation observer, and forgets the pulled events.
     func stop() {
+        todayEvents = []
         timer?.invalidate()
         timer = nil
         if let activeObserver { NotificationCenter.default.removeObserver(activeObserver) }
@@ -86,8 +87,9 @@ import Observation
         lastCycleFailed = true
     }
 
+    /// Today's local day as a UTC-midnight stamp, the date-only form Google Tasks stores for `due`.
     private func dueStamp() -> String {
-        GoogleEventTime.rfc3339.string(from: Calendar.current.startOfDay(for: now()))
+        DayKey.key(for: now()) + "T00:00:00.000Z"
     }
 
     /// Writes a plan through `applyPlan` without letting it echo back into `planChanged`.
@@ -118,15 +120,25 @@ import Observation
             else if let replacement = mergedByID[priority.id] { result.append(replacement) }
         }
         result.append(contentsOf: merged.filter { !snapshotIDs.contains($0.id) && !freshIDs.contains($0.id) })
+        // Nothing changed (this also covers an empty list with no plan yet): no write, no plan created.
+        guard result != updated.priorities else { return }
         updated.priorities = result
         applyRemote(updated)
     }
 
     /// AppModel calls this after every mutation of today's plan; remote applies are guarded internally.
     func planChanged(from old: DayPlan, to new: DayPlan) {
-        guard !isApplyingRemote, isConnected(), settings().googleTasksSyncEnabled else { return }
-        let diff = GoogleTaskMerge.diff(from: old.priorities, to: new.priorities)
-        guard !diff.isEmpty else { return }
+        schedule(GoogleTaskMerge.diff(from: old.priorities, to: new.priorities))
+    }
+
+    /// AppModel calls this for other days: only done/undone flips of linked priorities reach Google.
+    func pushStatusChanges(from old: DayPlan, to new: DayPlan) {
+        let full = GoogleTaskMerge.diff(from: old.priorities, to: new.priorities)
+        schedule(PlanDiff(completes: full.completes, reopens: full.reopens))
+    }
+
+    private func schedule(_ diff: PlanDiff) {
+        guard !isApplyingRemote, isConnected(), settings().googleTasksSyncEnabled, !diff.isEmpty else { return }
         Task { await push(diff) }
     }
 
@@ -207,9 +219,21 @@ import Observation
         let dayStart = Calendar.current.startOfDay(for: now())
         let dayEnd = dayStart.addingTimeInterval(86_400)
         var all: [GoogleEvent] = []
-        for calendar in calendars where calendar.selected == true && calendar.id != tofuID {
-            all.append(contentsOf: try await api.listEvents(calendarID: calendar.id, from: dayStart, to: dayEnd))
+        var lastError: Error?
+        var succeeded = 0
+        for calendar in calendars
+        where calendar.selected == true && calendar.id != tofuID && calendar.summary != "Tofu" {
+            // One unreadable calendar (403/404) must not hide the others; only all of them failing is an error.
+            do {
+                all.append(contentsOf: try await api.listEvents(calendarID: calendar.id, from: dayStart, to: dayEnd))
+                succeeded += 1
+            } catch GoogleAuthError.revoked {
+                throw GoogleAuthError.revoked
+            } catch {
+                lastError = error
+            }
         }
+        if succeeded == 0, let lastError { throw lastError }
         todayEvents = all.sorted { GoogleEventFormat.sortKey($0, calendar: .current) < GoogleEventFormat.sortKey($1, calendar: .current) }
     }
 
