@@ -16,11 +16,16 @@ struct AppSettings: Codable, Equatable {
     var morningScreenEnabled: Bool
     /// `DayKey` of the last day the morning screen was shown, so it shows once per day.
     var lastMorningKey: String?
+    /// Show the study companion overlay while locked in.
+    var companionEnabled: Bool
+    /// How the companion talks.
+    var companionPersonality: CompanionPersonality
 
     init(displayName: String = NSFullUserName(), discordEnabled: Bool = false,
          giveUpTemplate: String = "I give up on {subject}", channelCache: [String: String] = [:],
          dayEndPromptEnabled: Bool = true, dayEndMinutes: Int = 22 * 60, lastDayPromptKey: String? = nil,
-         morningScreenEnabled: Bool = true, lastMorningKey: String? = nil) {
+         morningScreenEnabled: Bool = true, lastMorningKey: String? = nil,
+         companionEnabled: Bool = true, companionPersonality: CompanionPersonality = .escalation) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
         self.giveUpTemplate = giveUpTemplate
@@ -30,6 +35,8 @@ struct AppSettings: Codable, Equatable {
         self.lastDayPromptKey = lastDayPromptKey
         self.morningScreenEnabled = morningScreenEnabled
         self.lastMorningKey = lastMorningKey
+        self.companionEnabled = companionEnabled
+        self.companionPersonality = companionPersonality
     }
 }
 
@@ -49,7 +56,11 @@ extension AppSettings {
             lastDayPromptKey: try container.decodeIfPresent(String.self, forKey: .lastDayPromptKey),
             morningScreenEnabled: try container.decodeIfPresent(Bool.self, forKey: .morningScreenEnabled)
                 ?? defaults.morningScreenEnabled,
-            lastMorningKey: try container.decodeIfPresent(String.self, forKey: .lastMorningKey))
+            lastMorningKey: try container.decodeIfPresent(String.self, forKey: .lastMorningKey),
+            companionEnabled: try container.decodeIfPresent(Bool.self, forKey: .companionEnabled)
+                ?? defaults.companionEnabled,
+            companionPersonality: try container.decodeIfPresent(CompanionPersonality.self, forKey: .companionPersonality)
+                ?? defaults.companionPersonality)
     }
 }
 

@@ -42,6 +42,7 @@ Built for **Code Ada 2026, Off the Clock** track.
   - When there is no verdict, the app asks you. See Relevance check below.
 - **Session modes:** open-ended, or a goal. A goal counts down and completes on its own. Ending it early opens the Mirror; a forfeit is posted as a bail.
 - **Discord announcements** through your own bot. Lock-in, completion and bail messages go to one text channel per server.
+- **Study companion:** an anime girl floats bottom-right while you're locked in. She greets you, chats idly, praises you at the halfway mark, and scolds you when an app or tab gets blocked. Personality in Settings: tsundere, yandere, or tsundere → yandere (she turns dark after 3 blocked attempts). Drop your own character art (e.g. Emilia) into `Application Support/Tofu/companion/` as `neutral.png`, `annoyed.png`, `pleased.png`, `dark.png` — the "Open images folder" button in Settings takes you there; without images a built-in portrait is drawn.
 - **Stats:**
   - Day, Week and Month bar charts, stacked by subject.
   - Today and this week.

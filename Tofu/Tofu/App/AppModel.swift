@@ -102,6 +102,7 @@ enum TokenSource: Equatable {
                                    ownBundleID: Bundle.main.bundleIdentifier ?? "com.tofu.app",
                                    visibleFrame: { ScreenGeometry.mainVisibleFrame() },
                                    primaryHeight: { ScreenGeometry.primaryHeight() })
+        engine.companion = CompanionCenter(settings: { box.model?.data.settings ?? AppSettings() })
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine, assistant: assistant,
                   announcer: announcer,
                   priorityExtractor: PriorityExtractor(apiKey: { [box] in box.model?.openAIKey }),

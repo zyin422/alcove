@@ -23,6 +23,7 @@ struct SettingsView: View {
             discordSection
             discordSetupSection
             accountabilitySection
+            companionSection
             endOfDaySection
             relevanceSection
             chromeSection
@@ -120,6 +121,28 @@ struct SettingsView: View {
             Text("Accountability")
         } footer: {
             Text("With an API key, ending a goal early opens the Mirror, and the session stops only if you confirm a forfeit. This phrase is the fallback with no key. {subject} becomes the subject name.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var companionSection: some View {
+        Section {
+            Toggle("Show the study companion", isOn: companionEnabled)
+            Picker("Personality", selection: companionPersonality) {
+                ForEach(CompanionPersonality.allCases) { personality in
+                    Text(personality.title).tag(personality)
+                }
+            }
+            .disabled(!model.data.settings.companionEnabled)
+            Button("Open images folder") {
+                CompanionArt.ensureDirectory()
+                NSWorkspace.shared.open(CompanionArt.imagesDirectory())
+            }
+        } header: {
+            Text("Study companion")
+        } footer: {
+            Text("She floats bottom-right while you're locked in, cheers you on, and calls you out when something gets blocked. Drop your own character art into the images folder as neutral.png, annoyed.png, pleased.png and dark.png (transparent PNGs look best); without them a built-in portrait is drawn. “Tsundere → yandere” turns dark after \(CompanionScript.escalationThreshold) blocked attempts in a session.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -241,6 +264,16 @@ struct SettingsView: View {
     private var discordEnabled: Binding<Bool> {
         Binding(get: { model.data.settings.discordEnabled },
                 set: { newValue in model.updateSettings { $0.discordEnabled = newValue } })
+    }
+
+    private var companionEnabled: Binding<Bool> {
+        Binding(get: { model.data.settings.companionEnabled },
+                set: { newValue in model.updateSettings { $0.companionEnabled = newValue } })
+    }
+
+    private var companionPersonality: Binding<CompanionPersonality> {
+        Binding(get: { model.data.settings.companionPersonality },
+                set: { newValue in model.updateSettings { $0.companionPersonality = newValue } })
     }
 
     private var dayEndPromptEnabled: Binding<Bool> {
