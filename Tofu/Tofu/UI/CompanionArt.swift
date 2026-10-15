@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Where the companion's portrait images live. The user drops `neutral.png`, `annoyed.png`,
 /// `pleased.png` and `dark.png` there (e.g. their favorite character); missing files fall back
-/// to the built-in drawn portrait.
+/// to the bundled Emilia art, then the built-in drawn portrait.
 enum CompanionArt {
     /// ~/Library/Application Support/Tofu/companion
     static func imagesDirectory() -> URL {
@@ -15,13 +15,18 @@ enum CompanionArt {
         try? FileManager.default.createDirectory(at: imagesDirectory(), withIntermediateDirectories: true)
     }
 
-    /// The user's image for `expression`, or nil to use the built-in drawn portrait.
-    static func image(for expression: CompanionExpression) -> NSImage? {
-        NSImage(contentsOf: imagesDirectory().appendingPathComponent("\(expression.rawValue).png"))
+    /// Custom PNGs override the bundled portrait independently for each expression.
+    static func image(for expression: CompanionExpression, directory: URL = imagesDirectory()) -> NSImage? {
+        NSImage(contentsOf: directory.appendingPathComponent("\(expression.rawValue).png"))
+            ?? bundledImage(for: expression)
+    }
+
+    static func bundledImage(for expression: CompanionExpression) -> NSImage? {
+        NSImage(named: "Companion-\(expression.rawValue)")
     }
 }
 
-/// The companion's face: the user's PNG when present, otherwise the built-in drawn portrait.
+/// The companion's face: custom PNG, bundled Emilia art, or the drawn fallback.
 struct CompanionPortrait: View {
     let expression: CompanionExpression
 
