@@ -36,6 +36,31 @@ enum SubjectValidator {
     /// A setup opens at most this many windows; a capture keeps the frontmost ones.
     static let maxWindows = 4
 
+    // MARK: Description
+
+    /// A subject's description is capped at this many words.
+    static let maxDetailsWords = 300
+
+    /// Whitespace-separated words in `text`.
+    static func wordCount(_ text: String) -> Int {
+        text.split(whereSeparator: \.isWhitespace).count
+    }
+
+    /// `text` cut just before its `(limit + 1)`th word; unchanged when it has `limit` words or fewer.
+    static func limitingWords(_ text: String, to limit: Int = maxDetailsWords) -> String {
+        var count = 0
+        var inWord = false
+        for index in text.indices {
+            let isSpace = text[index].isWhitespace
+            if !isSpace && !inWord {
+                count += 1
+                if count > limit { return String(text[..<index]) }
+            }
+            inWord = !isSpace
+        }
+        return text
+    }
+
     /// Messages in display order for a setup made of window slots; empty means it can be saved.
     /// `slots` are the visible ones (one per zone, or the captured windows of a custom layout).
     static func errors(name: String, slots: [SetupSlot], customLayout: Bool) -> [String] {

@@ -131,13 +131,34 @@ struct SubjectForm: View {
 
     private var detailsSection: some View {
         section("Description") {
-            TextField("e.g. Intro CS in C++: pointers, classes, linked lists. Goal: finish MP3 and study for the midterm.",
-                      text: $form.details, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(2...5)
-            Text("What this subject is and what you're working toward. Tabs you open are checked against it, so a page about the topic stays open even when its title doesn't mention \(form.name.isEmpty ? "the name" : form.name).")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            TextEditor(text: $form.details)
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .padding(Theme.Space.s)
+                .frame(minHeight: 120)
+                .background(alignment: .topLeading) {
+                    if form.details.isEmpty {
+                        Text("e.g. Intro CS in C++: pointers, classes, linked lists. Goal: finish MP3 and study for the midterm.")
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, Theme.Space.s + 5)
+                            .padding(.vertical, Theme.Space.s)
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Color(nsColor: .textBackgroundColor)))
+                .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
+                .onChange(of: form.details) { _, text in
+                    let capped = SubjectValidator.limitingWords(text)
+                    if capped != text { form.details = capped }
+                }
+            HStack(alignment: .firstTextBaseline) {
+                Text("What this subject is and what you're working toward. Tabs you open are checked against it, so a page about the topic stays open even when its title doesn't mention \(form.name.isEmpty ? "the name" : form.name).")
+                Spacer(minLength: Theme.Space.m)
+                Text("\(SubjectValidator.wordCount(form.details)) / \(SubjectValidator.maxDetailsWords) words")
+                    .monospacedDigit()
+                    .fixedSize()
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 

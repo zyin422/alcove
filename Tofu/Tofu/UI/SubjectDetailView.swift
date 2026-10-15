@@ -44,7 +44,7 @@ struct SubjectDetailView: View {
             }
             .padding(Theme.Space.xl)
             .frame(maxWidth: 820, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
         .navigationTitle(subject.name)
         .onChange(of: form) { autosave() }

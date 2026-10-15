@@ -45,6 +45,21 @@ final class CustomSetupTests: XCTestCase {
                        "Data structures: trees and graphs")
     }
 
+    func testDescriptionIsCappedAtTheWordLimit() {
+        XCTAssertEqual(SubjectValidator.wordCount("  Intro CS\nin  C++ "), 4)
+        XCTAssertEqual(SubjectValidator.limitingWords("one two\nthree four", to: 2), "one two\n")
+        XCTAssertEqual(SubjectValidator.limitingWords("one two ", to: 2), "one two ")
+        XCTAssertEqual(SubjectValidator.limitingWords("one two", to: 5), "one two")
+
+        let long = Array(repeating: "word", count: SubjectValidator.maxDetailsWords + 20).joined(separator: " ")
+        XCTAssertEqual(SubjectValidator.wordCount(SubjectValidator.limitingWords(long)), SubjectValidator.maxDetailsWords)
+    }
+
+    func testDecisionsPromptKeepsAFullLengthDescription() {
+        let full = Array(repeating: "pointers", count: SubjectValidator.maxDetailsWords).joined(separator: " ")
+        XCTAssertTrue(DecisionsClient.instructions(subject: "CS128", details: full).contains(full))
+    }
+
     func testAllowedSetUsesTheSetupBrowserAndApps() {
         let subject = Subject(name: "CS128", slots: [.app(vscode)], browser: .arc)
         let allowed = BlockPolicy.allowedSet(for: subject, ownBundleID: "own")
