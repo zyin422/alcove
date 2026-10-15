@@ -68,6 +68,11 @@ struct MorningView: View {
                     .foregroundStyle(.secondary)
             }
 
+            if model.data.settings.googleShowEventsEnabled,
+               let events = model.googleSync?.todayEvents, !events.isEmpty {
+                eventsBlock(events)
+            }
+
             if open.isEmpty {
                 emptyState
             } else {
@@ -91,6 +96,23 @@ struct MorningView: View {
 
     private var firstName: String {
         model.displayName.split(separator: " ").first.map(String.init) ?? model.displayName
+    }
+
+    /// Read-only list of the first few of today's Google Calendar events.
+    private func eventsBlock(_ events: [GoogleEvent]) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            Text("Today's events").font(.headline)
+            ForEach(events.prefix(5)) { event in
+                HStack(spacing: Theme.Space.s) {
+                    Text(GoogleEventFormat.timeLabel(event))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 140, alignment: .leading)
+                    Text(event.summary ?? "(untitled)")
+                }
+            }
+        }
+        .frame(maxWidth: 560, alignment: .leading)
     }
 
     private func card(_ priority: Priority) -> some View {
