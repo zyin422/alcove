@@ -46,6 +46,11 @@ struct TodayView: View {
                               onShiftMonth: { shiftMonth($0) }, onSelect: { showDay($0) })
             }
 
+            if model.data.settings.googleShowEventsEnabled, plan.day == todayKey,
+               let events = model.googleSync?.todayEvents, !events.isEmpty {
+                eventsBlock(events)
+            }
+
             if plan.priorities.isEmpty {
                 Text(emptyMessage).foregroundStyle(.secondary)
             } else {
@@ -69,6 +74,22 @@ struct TodayView: View {
         .navigationTitle("Today")
         .sheet(item: $lockInSubject) { subject in
             LockInSheet(model: model, subject: subject)
+        }
+    }
+
+    /// Read-only list of today's Google Calendar events.
+    private func eventsBlock(_ events: [GoogleEvent]) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            Text("Today's events").font(.headline)
+            ForEach(events) { event in
+                HStack(spacing: Theme.Space.s) {
+                    Text(GoogleEventFormat.timeLabel(event))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 140, alignment: .leading)
+                    Text(event.summary ?? "(untitled)")
+                }
+            }
         }
     }
 

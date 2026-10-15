@@ -16,12 +16,15 @@ struct SettingsView: View {
     @State private var chromeStatus = SettingsStatus.chromeUnchecked
     @State private var isRequestingChrome = false
     @State private var hasAccessibility = WindowPlacer.isTrusted
+    /// True while a Google sign-in is in flight, so Connect can't start a second one.
+    @State private var isConnectingGoogle = false
 
     var body: some View {
         Form {
             profileSection
             discordSection
             discordSetupSection
+            googleSection
             accountabilitySection
             companionSection
             endOfDaySection
@@ -108,6 +111,31 @@ struct SettingsView: View {
                 }
                 .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private var googleSection: some View {
+        Section {
+            if model.isGoogleConnected {
+                Label("Connected", systemImage: "checkmark.circle.fill")
+                Toggle("Sync tasks with Google Tasks", isOn: googleTasksSyncEnabled)
+                Toggle("Log sessions to Google Calendar", isOn: googleSessionLogEnabled)
+                Toggle("Show today's events", isOn: googleShowEventsEnabled)
+                Button("Disconnect") { model.disconnectGoogle() }
+            } else {
+                HStack(spacing: Theme.Space.s) {
+                    Button("Connect Google…", action: connectGoogle)
+                        .disabled(isConnectingGoogle)
+                    Text(model.googleStatus)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Google")
+        } footer: {
+            Text("Today's plan mirrors your default Google Tasks list, finished sessions are logged to a “Tofu” calendar, and today's events show on the morning screen. Sign-in shows “UIUC Collective Mind” — that's the shared app this uses. If Google disconnects you after a week, just connect again.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -271,6 +299,21 @@ struct SettingsView: View {
                 set: { newValue in model.updateSettings { $0.companionEnabled = newValue } })
     }
 
+    private var googleTasksSyncEnabled: Binding<Bool> {
+        Binding(get: { model.data.settings.googleTasksSyncEnabled },
+                set: { newValue in model.updateSettings { $0.googleTasksSyncEnabled = newValue } })
+    }
+
+    private var googleSessionLogEnabled: Binding<Bool> {
+        Binding(get: { model.data.settings.googleSessionLogEnabled },
+                set: { newValue in model.updateSettings { $0.googleSessionLogEnabled = newValue } })
+    }
+
+    private var googleShowEventsEnabled: Binding<Bool> {
+        Binding(get: { model.data.settings.googleShowEventsEnabled },
+                set: { newValue in model.updateSettings { $0.googleShowEventsEnabled = newValue } })
+    }
+
     private var companionPersonality: Binding<CompanionPersonality> {
         Binding(get: { model.data.settings.companionPersonality },
                 set: { newValue in model.updateSettings { $0.companionPersonality = newValue } })
@@ -353,6 +396,15 @@ struct SettingsView: View {
     private func removeOpenAIKey() {
         model.setOpenAIKey(nil)
         openAIKeySource = model.openAIKeySource
+    }
+
+    /// Starts the Google sign-in; Connect stays disabled until it finishes.
+    private func connectGoogle() {
+        isConnectingGoogle = true
+        Task { @MainActor in
+            await model.connectGoogle()
+            isConnectingGoogle = false
+        }
     }
 
     /// GET /users/@me then /users/@me/guilds with the saved token; shows the result text.
