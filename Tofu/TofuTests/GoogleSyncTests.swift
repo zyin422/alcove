@@ -86,6 +86,39 @@ import XCTest
         XCTAssertFalse(api.log.contains { $0.hasPrefix("insertTask") }, "remote apply must not echo back: \(api.log)")
     }
 
+    func testReentrantPlanChangedDuringApplyPushesNothing() async {
+        var local = Priority(title: "Read"); local.googleTaskID = "t1"
+        plan.priorities = [local]
+        api.tasks = [GoogleTask(id: "t1", title: "Read", status: "completed", completed: GoogleEventTime.rfc3339.string(from: Date()), due: nil)]
+        settings.googleSessionLogEnabled = false
+        settings.googleShowEventsEnabled = false
+        var holder: GoogleSync?
+        let sync = GoogleSync(api: api, settings: { self.settings }, isConnected: { true }, plan: { self.plan },
+                              applyPlan: { new in
+                                  let old = self.plan
+                                  self.plan = new
+                                  holder?.planChanged(from: old, to: new)   // AppModel's updatePlan echo
+                              },
+                              saveCalendarID: { _ in })
+        holder = sync
+        await sync.syncNow()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(plan.priorities.first?.isDone == true)
+        XCTAssertFalse(api.log.contains { $0.hasPrefix("patchTask") || $0.hasPrefix("insertTask") || $0.hasPrefix("deleteTask") }, "\(api.log)")
+    }
+
+    func testSyncDuringPushDoesNotDoubleInsert() async {
+        settings.googleSessionLogEnabled = false
+        settings.googleShowEventsEnabled = false
+        let old = plan
+        plan.priorities = [Priority(title: "New")]
+        let sync = makeSync()
+        sync.planChanged(from: old, to: plan)   // schedules a push
+        await sync.syncNow()                    // inserts and links first
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(api.log.filter { $0.hasPrefix("insertTask") }.count, 1, "\(api.log)")
+    }
+
     func testPlanChangedPushesDiff() async {
         var linked = Priority(title: "A"); linked.googleTaskID = "tA"
         let old = DayPlan(day: plan.day, priorities: [linked])
