@@ -199,7 +199,7 @@ import Observation
         for calendar in calendars where calendar.selected == true && calendar.id != tofuID {
             all.append(contentsOf: try await api.listEvents(calendarID: calendar.id, from: dayStart, to: dayEnd))
         }
-        todayEvents = all.sorted { ($0.start.parsed ?? dayStart) < ($1.start.parsed ?? dayStart) }
+        todayEvents = all.sorted { GoogleEventFormat.sortKey($0, calendar: .current) < GoogleEventFormat.sortKey($1, calendar: .current) }
     }
 
     /// Completed sessions, or bailed ones of at least 5 minutes; never demo, interrupted or unfinished.
