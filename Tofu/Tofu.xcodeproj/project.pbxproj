@@ -45,6 +45,7 @@
 		3C1CD85F0C17DC0175BD97C1 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E6E83564402BF66C38FF604 /* TodayView.swift */; };
 		3D137F35CC5D3AC38AFD99EC /* ToastCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB5287F2BFF31DA5979B00C /* ToastCenter.swift */; };
 		40ACAE232C8824532817F148 /* LockedLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7108A89CBF92DED603AA22B5 /* LockedLayoutTests.swift */; };
+		416D16359B131ACD86651227 /* GoogleSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2317EE5435B89A50A218AF32 /* GoogleSyncTests.swift */; };
 		458E32CFEAA3BCA1700994B0 /* PageMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43389BD063DC49FE095567EC /* PageMetadataTests.swift */; };
 		467E1025D3E0DD08449AD6B0 /* ChatAssistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D628A6F5DA438E12F3E4152 /* ChatAssistant.swift */; };
 		47882A1D3B9B31F1C52127DB /* TofuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5246C6F0FED891CBCE2684A1 /* TofuApp.swift */; };
@@ -126,6 +127,7 @@
 		D7A5CD0154337B8A98FD0F92 /* PriorityExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7D59E8433E0BC485351B9F /* PriorityExtractor.swift */; };
 		D7EE9FD6F3AA2DC58EB9A738 /* LayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3987F212E15DA51640ECCE /* LayoutEngine.swift */; };
 		DC5D5AADF7499871B887FFC9 /* CompanionLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E46AAAA22CCC12604F6B786 /* CompanionLayoutTests.swift */; };
+		DC76F1962FBCCBE8BA5FFC3B /* GoogleSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C4C65190CD9F14DBADF1A04 /* GoogleSync.swift */; };
 		DCBBE1E82D215DAEADF31B8C /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F85B8D6184F05057C1E947 /* Store.swift */; };
 		DE94F5D9A7B2EA6BED2EA594 /* MirrorPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = E749A366FA4A51D1319A715B /* MirrorPrompt.swift */; };
 		E08F16B93297F58C8116DDE9 /* CompanionArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EA4051CC75F07BB011EB39 /* CompanionArt.swift */; };
@@ -172,6 +174,7 @@
 		1C85FDD2F9D6B698A02EBA4C /* DemoDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoDataTests.swift; sourceTree = "<group>"; };
 		1D3E46E03EB3ED9F66AA246A /* ClosedBrowserStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClosedBrowserStateTests.swift; sourceTree = "<group>"; };
 		1DB5287F2BFF31DA5979B00C /* ToastCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastCenter.swift; sourceTree = "<group>"; };
+		2317EE5435B89A50A218AF32 /* GoogleSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSyncTests.swift; sourceTree = "<group>"; };
 		296879449D20AD5B9C3EB37E /* LockedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockedView.swift; sourceTree = "<group>"; };
 		2A7EFE50AEB152D7DE323E3B /* LoopbackServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackServer.swift; sourceTree = "<group>"; };
 		2B9AA8E97BA564C6D69C850B /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoData.swift; sourceTree = "<group>"; };
@@ -216,6 +219,7 @@
 		67BB2191063363928407BE80 /* MiniTimerLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniTimerLayoutTests.swift; sourceTree = "<group>"; };
 		690B4A5FBA600D84CDF056E6 /* GoogleClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleClientTests.swift; sourceTree = "<group>"; };
 		6BC914F53584ADA1FEA39282 /* DiscordClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordClient.swift; sourceTree = "<group>"; };
+		6C4C65190CD9F14DBADF1A04 /* GoogleSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSync.swift; sourceTree = "<group>"; };
 		6E07F02E0712E8E9CF8E5A51 /* DiscordAnnouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordAnnouncer.swift; sourceTree = "<group>"; };
 		6E81AF5C21F983CB5CA4D017 /* PageMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageMetadata.swift; sourceTree = "<group>"; };
 		6F4A884E8C63F9A45B31DFFC /* DomainMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainMatcherTests.swift; sourceTree = "<group>"; };
@@ -306,6 +310,7 @@
 			children = (
 				C411130E59685F328318D009 /* GoogleAuth.swift */,
 				481579C4998932812B4F58D6 /* GoogleClient.swift */,
+				6C4C65190CD9F14DBADF1A04 /* GoogleSync.swift */,
 				EC5C3E821EB2DBF830EEE3FB /* GoogleTaskMerge.swift */,
 				2A7EFE50AEB152D7DE323E3B /* LoopbackServer.swift */,
 			);
@@ -415,6 +420,7 @@
 				BF37777A3BE96A1BBDA76BAD /* GoogleAuthTests.swift */,
 				690B4A5FBA600D84CDF056E6 /* GoogleClientTests.swift */,
 				EDC28378815400516AC3C294 /* GoogleModelsTests.swift */,
+				2317EE5435B89A50A218AF32 /* GoogleSyncTests.swift */,
 				3B6A5635B0728FCF82A42728 /* GoogleTaskMergeTests.swift */,
 				42A590B3784E42DDD0F9AB22 /* KeychainTests.swift */,
 				335FED808CB8C5A799D6FEFA /* LayoutEngineTests.swift */,
@@ -686,6 +692,7 @@
 				6CC66486E86E5CD9C776C30B /* GoogleAuthTests.swift in Sources */,
 				F430A7B9FE7F6D31263142FE /* GoogleClientTests.swift in Sources */,
 				B827D8BF56BC9E51503A6EAB /* GoogleModelsTests.swift in Sources */,
+				416D16359B131ACD86651227 /* GoogleSyncTests.swift in Sources */,
 				343A518CD12063BAB132417C /* GoogleTaskMergeTests.swift in Sources */,
 				6045D15F858535360FB912E8 /* KeychainTests.swift in Sources */,
 				2DF79EC4E26C3E7736B9CFB6 /* LayoutEngineTests.swift in Sources */,
@@ -754,6 +761,7 @@
 				0021ACABD6C0A4D090912C9B /* GiveUpSheet.swift in Sources */,
 				8E734D5A74E69BB6B876386E /* GoogleAuth.swift in Sources */,
 				AA95A96015B913C3311A273A /* GoogleClient.swift in Sources */,
+				DC76F1962FBCCBE8BA5FFC3B /* GoogleSync.swift in Sources */,
 				7283FF2D45EEED4519B326EA /* GoogleTaskMerge.swift in Sources */,
 				3BF106997B5B194BA1E3FC2E /* HTTPTransport.swift in Sources */,
 				2A0137F7A151C9E33BE98C3E /* Keychain.swift in Sources */,
