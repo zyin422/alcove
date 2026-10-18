@@ -4,7 +4,7 @@ import SwiftUI
 enum LockInOption: Hashable, CaseIterable, Identifiable {
     case openEnded, minutes25, minutes50, minutes90, custom
 
-    /// Allowed range for `custom`, in minutes (stepper step 1).
+    /// Allowed range for `custom`, in minutes.
     static let customRange = 1...240
 
     /// `minutes` limited to `customRange`.
@@ -49,6 +49,13 @@ struct LockInSheet: View {
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 Text("Lock in").font(Theme.captionFont).foregroundStyle(.secondary)
                 Text(subject.name).font(Theme.titleFont).lineLimit(1)
+                if !subject.details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(subject.details)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Picker("Length", selection: $option) {
@@ -60,16 +67,7 @@ struct LockInSheet: View {
             .labelsHidden()
 
             if option == .custom {
-                HStack(spacing: Theme.Space.s) {
-                    TextField("Minutes", value: typedMinutes, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .multilineTextAlignment(.trailing)
-                        .monospacedDigit()
-                        .frame(width: 64)
-                    Text("min").foregroundStyle(.secondary)
-                    Stepper("Minutes", value: $customMinutes, in: LockInOption.customRange, step: 1)
-                        .labelsHidden()
-                }
+                CustomMinutesField(minutes: $customMinutes)
             }
 
             VStack(alignment: .leading, spacing: Theme.Space.s) {
@@ -100,12 +98,6 @@ struct LockInSheet: View {
         .frame(width: 480)
     }
 
-    /// Typed minutes, clamped to the custom range before they reach the stepper.
-    private var typedMinutes: Binding<Int> {
-        Binding(get: { customMinutes },
-                set: { customMinutes = LockInOption.clampedMinutes($0) })
-    }
-
     private func note(_ text: String) -> some View {
         Text(text)
             .font(.callout)
@@ -120,5 +112,27 @@ struct LockInSheet: View {
         let model = model
         dismiss()
         Task { await model.lockIn(subjectID: subjectID, mode: mode) }
+    }
+}
+
+/// A small box for a custom lock-in length. The typed number is kept inside `LockInOption.customRange`.
+struct CustomMinutesField: View {
+    @Binding var minutes: Int
+
+    var body: some View {
+        HStack(spacing: Theme.Space.s) {
+            TextField("Minutes", value: typed, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .frame(width: 64)
+                .accessibilityLabel("Minutes")
+            Text("min").foregroundStyle(.secondary)
+        }
+    }
+
+    private var typed: Binding<Int> {
+        Binding(get: { minutes },
+                set: { minutes = LockInOption.clampedMinutes($0) })
     }
 }

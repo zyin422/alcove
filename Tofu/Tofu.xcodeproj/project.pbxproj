@@ -12,6 +12,7 @@
 		0742C667BF3F12904614B3BC /* AppBlocker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13EE41F95DD88AF6746CBF80 /* AppBlocker.swift */; };
 		076CA1970F482A2F5E447FBE /* EndOfDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2A2F7C1A111FCE320CDCCB /* EndOfDayView.swift */; };
 		07F9780CB0733E49A18A2F30 /* StoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1D0B432B65B15BBEDB152F /* StoreTests.swift */; };
+		088ADCB75B59705C9AD6B9FF /* DoNotDisturb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F1AE38838CBE8344B94C9DB /* DoNotDisturb.swift */; };
 		0A018200502C976C33BB86EB /* AppPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D906247289A3901E65EB182F /* AppPickerView.swift */; };
 		0DA8D54AE351FE5C362CC75D /* ScreenGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E55EBD6998DB5A91B92BA299 /* ScreenGeometryTests.swift */; };
 		11CF2F472559A0BDBDC5E99E /* BlockPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D278221C8DFAA96EECB59B6F /* BlockPolicyTests.swift */; };
@@ -99,6 +100,7 @@
 		98E644DBB620FD8D769D5F88 /* DayPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F0D4994EBB41261E63DAECD /* DayPlannerTests.swift */; };
 		990A6A4F2E98B5E9B51DB50E /* MiniTimerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF49C575A152374B57A52335 /* MiniTimerPanel.swift */; };
 		9B81F83F3C13295E762EC286 /* SettingsStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC78C3F1E6FD18CD0BC4C3FA /* SettingsStatusTests.swift */; };
+		9BDCCF7EAF02F630AE7B4EF3 /* DoNotDisturbTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 615FC4398997B862F37606A6 /* DoNotDisturbTests.swift */; };
 		9C06DD24F2DDECD8FA72DB6A /* UpdateCenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EED75444BCC66D79D362F5E8 /* UpdateCenterTests.swift */; };
 		9DFA554CAB40A1B60CB1DB30 /* RelevanceJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B555E3B379215E3FEF702195 /* RelevanceJudge.swift */; };
 		9F3B877D5ECEB370F0FA2B99 /* DiscordClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BC914F53584ADA1FEA39282 /* DiscordClient.swift */; };
@@ -191,6 +193,7 @@
 		2A7EFE50AEB152D7DE323E3B /* LoopbackServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackServer.swift; sourceTree = "<group>"; };
 		2B9AA8E97BA564C6D69C850B /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoData.swift; sourceTree = "<group>"; };
 		2C8CFD665E3CA39E1035BF81 /* SitePromptPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SitePromptPanel.swift; sourceTree = "<group>"; };
+		2F1AE38838CBE8344B94C9DB /* DoNotDisturb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoNotDisturb.swift; sourceTree = "<group>"; };
 		30D7709072348CCB8E2B37C4 /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
 		335FED808CB8C5A799D6FEFA /* LayoutEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEngineTests.swift; sourceTree = "<group>"; };
 		33F3F4E61454B25C8C74029A /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
@@ -226,6 +229,7 @@
 		5DB31E11B05667C451A36791 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		5F0D4994EBB41261E63DAECD /* DayPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlannerTests.swift; sourceTree = "<group>"; };
 		5F77A5BE333F400E47EA2049 /* SessionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEngineTests.swift; sourceTree = "<group>"; };
+		615FC4398997B862F37606A6 /* DoNotDisturbTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoNotDisturbTests.swift; sourceTree = "<group>"; };
 		61A51C822D10EC6996FD9A20 /* WindowPlacer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowPlacer.swift; sourceTree = "<group>"; };
 		625DBFE6E1490E390C280DEE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		64206266327BCC09EB19061B /* DecisionsClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionsClientTests.swift; sourceTree = "<group>"; };
@@ -449,6 +453,7 @@
 				AAA082A246CF1A661E1325AB /* DiscordMessagesTests.swift */,
 				18479562DCB40AB42C0792E7 /* DistractionListTests.swift */,
 				6F4A884E8C63F9A45B31DFFC /* DomainMatcherTests.swift */,
+				615FC4398997B862F37606A6 /* DoNotDisturbTests.swift */,
 				09BED9839B0F9770E2CBB2C6 /* EnvFileTests.swift */,
 				D32634217BD107FEA39F9BC4 /* Fakes.swift */,
 				BF37777A3BE96A1BBDA76BAD /* GoogleAuthTests.swift */,
@@ -522,6 +527,7 @@
 				B9FC6341CDAE3FE40E13DF02 /* ChromeController.swift */,
 				0756803CFA0BDBB615E949EF /* ChromeScripts.swift */,
 				7D393339AF2AAA70CF42165C /* ClosedBrowserState.swift */,
+				2F1AE38838CBE8344B94C9DB /* DoNotDisturb.swift */,
 				871758EE96A845D8D8EA1812 /* HTTPTransport.swift */,
 				B555E3B379215E3FEF702195 /* RelevanceJudge.swift */,
 				A5F50C7735034F20CE45743F /* ScreenGeometry.swift */,
@@ -732,6 +738,7 @@
 				AAAF9DE17841AFD3969F0733 /* DiscordClientTests.swift in Sources */,
 				A20E4CCAD2C1E71B6BDC3A49 /* DiscordMessagesTests.swift in Sources */,
 				AABFCC8CFD14310E997EF09A /* DistractionListTests.swift in Sources */,
+				9BDCCF7EAF02F630AE7B4EF3 /* DoNotDisturbTests.swift in Sources */,
 				7F13E55E24808646876099F6 /* DomainMatcherTests.swift in Sources */,
 				E2E1A84C6C3E35FE8C4EFA9A /* EnvFileTests.swift in Sources */,
 				504D923390AC088535DB37B8 /* Fakes.swift in Sources */,
@@ -806,6 +813,7 @@
 				9F3B877D5ECEB370F0FA2B99 /* DiscordClient.swift in Sources */,
 				BF0FCED68A6123286A3641E5 /* DiscordMessages.swift in Sources */,
 				721A8A6D24B8D69E4FCE3ED9 /* DistractionList.swift in Sources */,
+				088ADCB75B59705C9AD6B9FF /* DoNotDisturb.swift in Sources */,
 				2CD6B9F4930CA1DF74AB35DF /* DomainMatcher.swift in Sources */,
 				076CA1970F482A2F5E447FBE /* EndOfDayView.swift in Sources */,
 				32802D5F74884990877BF52F /* EnvFile.swift in Sources */,
@@ -1043,6 +1051,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Tofu;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Tofu opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in.";
+				INFOPLIST_KEY_NSFocusStatusUsageDescription = "Tofu checks whether a Focus is already on so a work block does not turn off Do Not Disturb you set yourself.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tofu listens when you press the mic so you can talk to your study buddy.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Your speech is turned into text on this Mac so you can talk to your study buddy.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
@@ -1082,6 +1091,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Tofu;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Tofu opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in.";
+				INFOPLIST_KEY_NSFocusStatusUsageDescription = "Tofu checks whether a Focus is already on so a work block does not turn off Do Not Disturb you set yourself.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Tofu listens when you press the mic so you can talk to your study buddy.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Your speech is turned into text on this Mac so you can talk to your study buddy.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";

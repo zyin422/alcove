@@ -83,10 +83,12 @@ final class ModelsTests: XCTestCase {
 
     func testSubjectDefaults() {
         let subject = Subject(name: "CS128")
+        XCTAssertEqual(subject.details, "")
         XCTAssertEqual(subject.preset, .split)
         XCTAssertEqual(subject.sites, [])
         XCTAssertEqual(subject.allowedApps, [])
         XCTAssertEqual(subject.extraDomains, [])
         XCTAssertEqual(AllowedApp(bundleID: "com.apple.Notes", name: "Notes").id, "com.apple.Notes")
     }
+
 }

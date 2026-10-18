@@ -105,6 +105,7 @@ enum TokenSource: Equatable {
             DispatchQueue.main.async { chrome.restoreAfterSession() }
         }
         Self.connect(assistant, with: chrome)
+        let doNotDisturb = ShortcutDoNotDisturb(notify: { ToastCenter.shared.show($0) })
         let engine = SessionEngine(workspace: WorkspaceController(), blocker: AppBlocker(),
                                    chrome: chrome,
                                    toaster: ToastCenter.shared,
@@ -112,8 +113,11 @@ enum TokenSource: Equatable {
                                    launcher: SetupLauncher(),
                                    ownBundleID: Bundle.main.bundleIdentifier ?? "com.tofu.app",
                                    visibleFrame: { ScreenGeometry.mainVisibleFrame() },
-                                   primaryHeight: { ScreenGeometry.primaryHeight() })
+                                   primaryHeight: { ScreenGeometry.primaryHeight() },
+                                   doNotDisturb: doNotDisturb)
         engine.companion = CompanionCenter(settings: { box.model?.data.settings ?? AppSettings() })
+        // Before the first block, so the Shortcuts import is not hidden by app blocking.
+        DispatchQueue.main.async { doNotDisturb.prepare() }
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine, assistant: assistant,
                   announcer: announcer,
                   priorityExtractor: PriorityExtractor(apiKey: { [box] in box.model?.openAIKey }),
@@ -178,7 +182,9 @@ enum TokenSource: Equatable {
             self?.upsertSession(session)
         }
         // The chat lives and dies with the lock-in, and can pull the chat screen forward.
-        engine.onLockedIn = { [weak self] subject in self?.assistant.beginSession(subject: subject.name) }
+        engine.onLockedIn = { [weak self] subject in
+            self?.assistant.beginSession(subject: subject.name, details: subject.details)
+        }
         engine.onSiteAllowed = { [weak self] host in self?.persistAllowedHost(host) }
         engine.onAppAllowed = { [weak self] app in self?.persistAllowedApp(app) }
         engine.lookupApp = { [weak self] name in self?.installedApp(named: name) }

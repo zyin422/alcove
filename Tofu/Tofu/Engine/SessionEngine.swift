@@ -31,8 +31,8 @@ enum CompanionViolation: Equatable {
 }
 
 /// The lock-in state machine (spec §6): idle -> locked -> idle.
-/// Orchestrates app hiding, Chrome tiling and tab watch, app blocking, the 1 s tick, the 30 s heartbeat
-/// and announcements. Every side effect goes through an injected protocol so the engine is unit-testable.
+/// Orchestrates app hiding, Chrome tiling and tab watch, app blocking, Do Not Disturb, the 1 s tick,
+/// the 30 s heartbeat and announcements. Every side effect goes through an injected protocol so the engine is unit-testable.
 @Observable @MainActor final class SessionEngine: AppUnblocking {
     static let heartbeatInterval: TimeInterval = 30
 
@@ -46,10 +46,11 @@ enum CompanionViolation: Equatable {
 
     var isLocked: Bool { session != nil }
 
-    /// Seconds since the session started, as of the last tick (0 when idle).
+    /// Seconds of work since the session started, as of the last tick (0 when idle). A break does not add to this.
     var elapsed: TimeInterval {
         guard let session else { return 0 }
-        return max(0, now.timeIntervalSince(session.start))
+        let until = pauseStartedAt ?? now
+        return max(0, until.timeIntervalSince(session.start) - pausedAccumulated)
     }
 
     /// nil in open mode; clamped at 0.
@@ -69,6 +70,9 @@ enum CompanionViolation: Equatable {
         session?.mode.goalSeconds != nil && !goalReached
     }
 
+    /// Work time required between breaks. The countdown does not move during a break.
+    static let breakCooldown: TimeInterval = 25 * 60
+
     /// When the current break ends. Nil while monitoring is running.
     private(set) var breakEndsAt: Date?
     /// Seconds left in the break, nil when there isn't one.
@@ -77,6 +81,8 @@ enum CompanionViolation: Equatable {
         return max(0, breakEndsAt.timeIntervalSince(now))
     }
     var isOnBreak: Bool { breakEndsAt != nil }
+    /// True once 25 minutes of work have passed since the block started, or since the last break ended.
+    var canTakeBreak: Bool { isLocked && !isOnBreak && elapsed >= nextBreakElapsed }
 
     @ObservationIgnored weak var presenter: WindowPresenting?
     /// Called on create, every heartbeat, counter changes, and end. AppModel persists it.
@@ -100,6 +106,9 @@ enum CompanionViolation: Equatable {
     private let chrome: ChromeControlling
     private let toaster: Toasting
     private let announcer: Announcing
+    private let doNotDisturb: DoNotDisturbControlling
+    /// True after this block asked Do Not Disturb to turn on, so the matching end turns it off.
+    @ObservationIgnored private var silencing = false
     /// Opens the setup's apps; nil = app windows are skipped.
     private let launcher: SetupLaunching?
     private let ownBundleID: String
@@ -115,6 +124,12 @@ enum CompanionViolation: Equatable {
     @ObservationIgnored private var quitApps: [RunningAppInfo] = []
     /// Apps the user brought forward that were hidden as off-task. Offered, unchecked, at the end.
     @ObservationIgnored private var blockedDuringSession: [RunningAppInfo] = []
+    /// Work time excluded because a break was running. The countdown stays put until the break ends.
+    @ObservationIgnored private var pausedAccumulated: TimeInterval = 0
+    /// When the current break started. Nil while the countdown is moving.
+    @ObservationIgnored private var pauseStartedAt: Date?
+    /// Elapsed work time at which the next break can be taken. Starts at 25 minutes.
+    @ObservationIgnored private var nextBreakElapsed: TimeInterval = SessionEngine.breakCooldown
     /// The allowlist from lock-in, so a break can resume blocking with the same set.
     @ObservationIgnored private var sessionAllowed: Set<String> = []
     /// True when the tab watch was started, so a break resumes it.
@@ -128,12 +143,14 @@ enum CompanionViolation: Equatable {
          clock: @escaping () -> Date = Date.init,
          visibleFrame: @escaping () -> CGRect? = { nil },
          primaryHeight: @escaping () -> CGFloat = { 0 },
-         startsTimers: Bool = true) {
+         startsTimers: Bool = true,
+         doNotDisturb: DoNotDisturbControlling) {
         self.workspace = workspace
         self.blocker = blocker
         self.chrome = chrome
         self.toaster = toaster
         self.announcer = announcer
+        self.doNotDisturb = doNotDisturb
         self.launcher = launcher
         self.ownBundleID = ownBundleID
         self.clock = clock
@@ -157,6 +174,9 @@ enum CompanionViolation: Equatable {
         self.subject = subject
         self.displayName = displayName
         isEnding = false
+        pausedAccumulated = 0
+        pauseStartedAt = nil
+        nextBreakElapsed = Self.breakCooldown
         onSessionChanged?(newSession)
 
         quitApps = []
@@ -201,6 +221,8 @@ enum CompanionViolation: Equatable {
         sessionAllowed = allowed
         breakEndsAt = nil
         blocker.start(allowed: allowed)
+        doNotDisturb.beginBlock()
+        silencing = true
 
         chrome.onTabClosed = { [weak self] host in self?.recordClosedTab(host) }
         // Without Chrome (or without permission to script it) every poll would fail, so skip the watch.
@@ -304,34 +326,48 @@ enum CompanionViolation: Equatable {
 
     // MARK: Break
 
-    /// Pauses app blocking and the tab watch for `minutes` (1...15). The session clock keeps running.
-    /// Calling it again restarts the countdown.
-    func beginBreak(minutes: Int) {
-        guard isLocked else { return }
-        let clamped = min(max(minutes, 1), 15)
+    /// Pauses app blocking, the tab watch, and the countdown for `minutes` (1...15).
+    /// Available only after 25 minutes of work, then again 25 minutes after the previous break ends.
+    /// Apps that were already hidden stay hidden. Returns false when a break is not available.
+    @discardableResult
+    func beginBreak(minutes: Int) -> Bool {
+        now = clock()
+        guard canTakeBreak else {
+            if isLocked && !isOnBreak {
+                toaster.show("A break opens after 25 minutes of work.")
+            }
+            return false
+        }
+        let clamped = min(max(minutes, 1), MirrorTurn.breakRange.upperBound)
+        pauseStartedAt = now
         blocker.stop()
         chrome.pauseTabWatch()
-        let hidden = appsHiddenForTheBlock()
-        if !hidden.isEmpty { workspace.unhide(hidden) }
-        breakEndsAt = clock().addingTimeInterval(TimeInterval(clamped * 60))
-        now = clock()
+        breakEndsAt = now.addingTimeInterval(TimeInterval(clamped * 60))
+        return true
     }
 
-    /// Apps this block hid at the start, plus apps hidden when the user brought them forward.
-    private func appsHiddenForTheBlock() -> [String] {
-        var seen = Set<String>()
-        return (hiddenByUs + blockedDuringSession.map(\.bundleID)).filter { seen.insert($0).inserted }
+    /// Ends the break now and closes apps and tabs that are not part of the work block.
+    func endBreak() {
+        guard isOnBreak else { return }
+        now = clock()
+        resumeMonitoring()
     }
 
     private func resumeMonitoring() {
+        if let started = pauseStartedAt {
+            pausedAccumulated += max(0, now.timeIntervalSince(started))
+            pauseStartedAt = nil
+        }
         breakEndsAt = nil
+        nextBreakElapsed = elapsed + Self.breakCooldown
         guard session != nil else { return }
-        // Anything opened during the break is hidden again. Quitting a second time would throw away work.
+        // Apps opened during the break are hidden. Apps hidden at lock-in were never brought back.
         for id in workspace.hideOthers(allowed: sessionAllowed) where !hiddenByUs.contains(id) {
             hiddenByUs.append(id)
         }
         blocker.start(allowed: sessionAllowed)
         if resumesTabWatch, let subject {
+            chrome.closeUnrelatedTabs()
             chrome.startTabWatch(subject: subject.name, details: subject.details, studySites: studySites(of: subject))
         }
     }
@@ -394,7 +430,14 @@ enum CompanionViolation: Equatable {
         timer?.invalidate()
         timer = nil
         breakEndsAt = nil
+        pauseStartedAt = nil
+        pausedAccumulated = 0
+        nextBreakElapsed = Self.breakCooldown
         blocker.stop()
+        if silencing {
+            doNotDisturb.endBlock()
+            silencing = false
+        }
         chrome.stopTabWatch()
 
         let endDate = clock()

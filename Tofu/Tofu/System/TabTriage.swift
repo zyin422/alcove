@@ -107,6 +107,13 @@ struct TabTriage {
         recordAnswer(host: host, needed: false)
     }
 
+    /// A study site, or a host the user allowed during this block. Everything else is closed when a break ends.
+    func isRelated(_ tab: ChromeTab) -> Bool {
+        if DomainMatcher.isAllowed(tab.url, allowed: studyDomains) { return true }
+        guard let host = DomainMatcher.host(of: tab.url) else { return false }
+        return neededHosts.contains(host)
+    }
+
     /// True when the tab's host has an answer (kept or closed), so its URLs need no verdict.
     func isHostAnswered(_ tab: ChromeTab) -> Bool {
         guard let host = DomainMatcher.host(of: tab.url) else { return false }

@@ -25,6 +25,14 @@ final class TabTriageTests: XCTestCase {
         XCTAssertEqual(triage.tabsToCheck(tabs), [])
     }
 
+    func testRelatedTabsAreStudySitesAndHostsAllowedDuringTheBlock() {
+        var triage = makeTriage(sites: ["https://cs128.org"])
+        XCTAssertTrue(triage.isRelated(tab("https://cs128.org/schedule")))
+        XCTAssertFalse(triage.isRelated(tab("https://reddit.com")))
+        triage.allowHost("reddit.com")
+        XCTAssertTrue(triage.isRelated(tab("https://www.reddit.com/r/swift")))
+    }
+
     func testStudySiteHostsAndSubdomainsAreSkipped() {
         var triage = makeTriage(sites: ["https://cs128.org/schedule", "piazza.com"])
         let tabs = [tab("https://cs128.org/other", id: 1), tab("https://www.cs128.org/x", id: 2),

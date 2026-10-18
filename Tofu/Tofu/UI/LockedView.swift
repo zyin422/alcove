@@ -202,6 +202,11 @@ struct LockedView: View {
                 .font(Theme.captionFont)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
+            Button("End break") { engine.endBreak() }
+                .buttonStyle(SecondaryButtonStyle())
+        } else if engine.canTakeBreak {
+            Button("Take a break") { _ = engine.beginBreak(minutes: MirrorTurn.breakDefault) }
+                .buttonStyle(SecondaryButtonStyle())
         }
     }
 

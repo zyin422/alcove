@@ -73,6 +73,38 @@ final class ClosedBrowserStateTests: XCTestCase {
         XCTAssertFalse(controller.hasLeftovers)
     }
 
+    @MainActor func testArcReopensClosedTabsInTheWindowAlreadyOpen() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("closed-\(UUID().uuidString).json")
+        let separator = String(ChromeScripts.fieldSeparator)
+        var scripts: [String] = []
+        var stillOpen = true
+        let controller = ChromeController(
+            judge: FakeJudge(), prompter: FakePrompter(), alwaysBlocked: ["youtube.com"],
+            rememberedURL: url, browser: .arc,
+            runScript: { source in
+                scripts.append(source)
+                if source.contains("set sepChar") {
+                    guard stillOpen else { return .success("") }
+                    let line = ["W-1", "1", "T-1", "", "https://youtube.com/watch?v=1"].joined(separator: separator)
+                    return .success(line)
+                }
+                return .success("")
+            },
+            chromeIsRunning: { true })
+        controller.startTabWatch(subject: "CS128", studySites: ["https://cs128.org"])
+        controller.stopTabWatch()
+        stillOpen = false
+
+        scripts = []
+        controller.restoreAfterSession()
+        let reopen = scripts.first { $0.contains("https://youtube.com/watch?v=1") && $0.contains("make new tab") }
+        XCTAssertNotNil(reopen)
+        XCTAssertTrue(reopen?.contains("if (count of windows) is 0 then") == true)
+        XCTAssertTrue(reopen?.contains("tell front window") == true)
+        XCTAssertFalse(reopen?.contains("tell application \"Arc\"\n    make new window") == true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
     func testCloseScripts() {
         XCTAssertEqual(ChromeScripts.closeAllWindows(for: .chrome), "tell application \"Google Chrome\" to close every window")
         XCTAssertTrue(ChromeScripts.closeAllWindows(for: .arc).contains("close front window"))

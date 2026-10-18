@@ -191,6 +191,17 @@ import XCTest
         XCTAssertEqual(h.closedHosts, ["reddit.com"])
     }
 
+    func testDescriptionIsPartOfTheRelevanceCheck() async {
+        let page = tab("https://reddit.com/r/all", id: 1)
+        let h = WatchHarness(tabs: [page])
+        h.controller.startTabWatch(subject: "CS128", details: "Writing the problem sets", studySites: [])
+        defer { h.controller.stopTabWatch() }
+        h.controller.pollTabs()
+        await settle()
+        XCTAssertEqual(h.judge.judgedSubjects, ["CS128"])
+        XCTAssertEqual(h.judge.judgedDetails, ["Writing the problem sets"])
+    }
+
     func testRelevantVerdictKeepsTheTabAndIsNotAskedAgain() async {
         let video = tab("https://youtube.com/watch?v=lecture", id: 5)
         let h = WatchHarness(tabs: [video])
@@ -714,9 +725,8 @@ import XCTest
         XCTAssertEqual(h.log.closeScripts, [])
     }
 
-    func testArcWatchRemembersAnEmptySpaceSoTheNextPollDoesNotFocusIt() {
+    func testArcWatchStaysOnTheFrontSpaceUntilTheMinuteSweep() {
         let separator = String(ChromeScripts.fieldSeparator)
-        let marker = ChromeScripts.arcEmptySpaceMarker + separator + "SPACE-1\n"
         let poker = ["W-1", "1", "T-poker", "Poker", "https://www.pokerstars.com/"].joined(separator: separator)
         var listings: [String] = []
         let controller = ChromeController(judge: FakeJudge(), prompter: FakePrompter(),
@@ -724,18 +734,29 @@ import XCTest
                                           runScript: { source in
                                               if source.contains("set sepChar") {
                                                   listings.append(source)
-                                                  return .success(marker + poker + "\n")
+                                                  return .success(poker + "\n")
                                               }
                                               return .success("")
                                           },
                                           chromeIsRunning: { true })
         controller.startTabWatch(subject: "MATH241", studySites: ["https://canvas.illinois.edu"])
         defer { controller.stopTabWatch() }
-        controller.pollTabs()
 
-        XCTAssertEqual(listings.count, 2, "locking in lists tabs immediately, then the timer's poll can be driven by hand")
-        XCTAssertFalse(listings[0].contains("SPACE-1"))
-        XCTAssertTrue(listings[1].contains("\"SPACE-1\""))
-        XCTAssertEqual(controller.openTabsSummary, [], "the poker tab was closed as soon as it was listed")
+        XCTAssertEqual(listings.count, 1)
+        XCTAssertTrue(listings[0].contains("id of active space of front window"))
+        XCTAssertTrue(listings[0].contains("if ((id of s) as text) is sid then"))
+        XCTAssertFalse(listings[0].contains("focus"))
+        XCTAssertEqual(controller.openTabsSummary, [], "an off-task tab on screen is closed on the fast check")
+
+        for _ in 1..<(ChromeController.arcFullSweepEvery - 1) {
+            controller.pollTabs()
+        }
+        XCTAssertEqual(listings.count, ChromeController.arcFullSweepEvery - 1)
+        XCTAssertTrue(listings.allSatisfy { $0.contains("if ((id of s) as text) is sid then") && !$0.contains("focus") })
+
+        controller.pollTabs()
+        XCTAssertEqual(listings.count, ChromeController.arcFullSweepEvery)
+        XCTAssertTrue(listings.last?.contains("spaces of w") == true)
+        XCTAssertFalse(listings.last?.contains("focus") == true)
     }
 }

@@ -83,7 +83,7 @@ final class SessionEngineTests: XCTestCase {
         let presenter = FakePresenter()
         let engine = SessionEngine(workspace: FakeWorkspace(), blocker: FakeBlocker(), chrome: chrome,
                                    toaster: FakeToaster(), announcer: FakeAnnouncer(), ownBundleID: ownID,
-                                   startsTimers: false)
+                                   startsTimers: false, doNotDisturb: IdleDoNotDisturb())
         engine.presenter = presenter
         await engine.start(subject: makeSubject(.thirds), mode: .open, displayName: "Alex")
 
@@ -509,8 +509,90 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertNil(h.engine.lastEnded)
         XCTAssertTrue(h.workspace.unhideCalls.isEmpty)
         XCTAssertEqual(h.blocker.stopCount, 0)
+        XCTAssertEqual(h.doNotDisturb.beginCount, 0)
+        XCTAssertEqual(h.doNotDisturb.endCount, 0)
         XCTAssertTrue(h.announcer.messages.isEmpty)
         XCTAssertEqual(h.engine.elapsed, 0)
+    }
+
+    func testDoNotDisturbTurnsOnForTheBlockAndOffWhenItEnds() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        XCTAssertEqual(h.doNotDisturb.beginCount, 1)
+        XCTAssertEqual(h.doNotDisturb.endCount, 0)
+
+        h.clock.advance(SessionEngine.breakCooldown)
+        XCTAssertTrue(h.engine.beginBreak(minutes: 5))
+        XCTAssertEqual(h.doNotDisturb.endCount, 0, "a break stays inside the work block")
+
+        await h.engine.finish()
+        XCTAssertEqual(h.doNotDisturb.beginCount, 1)
+        XCTAssertEqual(h.doNotDisturb.endCount, 1)
+
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 25), displayName: "Alex")
+        await h.engine.bail()
+        XCTAssertEqual(h.doNotDisturb.beginCount, 2)
+        XCTAssertEqual(h.doNotDisturb.endCount, 2)
+
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        h.engine.terminateNow()
+        XCTAssertEqual(h.doNotDisturb.beginCount, 3)
+        XCTAssertEqual(h.doNotDisturb.endCount, 3)
+    }
+
+    func testBreakPausesTheCountdownAndWaitsTwentyFiveMinutes() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 50), displayName: "Alex")
+        h.clock.advance(24 * 60)
+        XCTAssertFalse(h.engine.beginBreak(minutes: 5))
+        XCTAssertFalse(h.engine.isOnBreak)
+        XCTAssertEqual(h.toaster.messages, ["A break opens after 25 minutes of work."])
+
+        h.clock.advance(60)
+        XCTAssertTrue(h.engine.beginBreak(minutes: 5))
+        let worked = h.engine.elapsed
+        h.clock.advance(4 * 60)
+        h.engine.tick()
+        XCTAssertEqual(h.engine.elapsed, worked, accuracy: 0.001)
+        XCTAssertEqual(h.engine.remaining ?? 0, 25 * 60, accuracy: 1)
+        XCTAssertFalse(h.engine.goalReached)
+        XCTAssertTrue(h.engine.isOnBreak)
+
+        h.engine.endBreak()
+        XCTAssertFalse(h.engine.isOnBreak)
+        XCTAssertEqual(h.engine.elapsed, worked, accuracy: 0.001)
+        XCTAssertFalse(h.engine.canTakeBreak)
+        XCTAssertTrue(h.workspace.unhideCalls.isEmpty)
+        XCTAssertTrue(h.workspace.relaunchCalls.isEmpty)
+        XCTAssertEqual(h.chrome.closeUnrelatedCount, 1)
+        XCTAssertEqual(h.toaster.messages, ["A break opens after 25 minutes of work."])
+
+        h.clock.advance(SessionEngine.breakCooldown - 1)
+        h.engine.tick()
+        XCTAssertFalse(h.engine.canTakeBreak)
+        h.clock.advance(1)
+        h.engine.tick()
+        XCTAssertTrue(h.engine.canTakeBreak)
+        XCTAssertEqual(h.toaster.messages, ["A break opens after 25 minutes of work."])
+    }
+
+    func testASecondStartDoesNotTurnDoNotDisturbOnAgain() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+
+        XCTAssertEqual(h.doNotDisturb.beginCount, 1)
+        XCTAssertEqual(h.doNotDisturb.endCount, 0)
+    }
+
+    func testDoNotDisturbStaysOffWhenTheSessionEndsWhileStarting() async {
+        let h = EngineHarness()
+        h.chrome.onPrepare = { h.engine.terminateNow() }
+
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+
+        XCTAssertEqual(h.doNotDisturb.beginCount, 0)
+        XCTAssertEqual(h.doNotDisturb.endCount, 0)
     }
 
     func testFinishOffersWhatWasClosedAndReopensOnlyWhatIsChecked() async {

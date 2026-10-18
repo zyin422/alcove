@@ -145,6 +145,20 @@ final class CustomSetupTests: XCTestCase {
         XCTAssertEqual(script.components(separatedBy: "make new window").count - 1, 1)
     }
 
+    func testArcReopenAddsTabsToTheWindowAlreadyOpen() {
+        let script = ChromeScripts.openTabs(urls: ["https://a.com", "https://b.com"])
+        XCTAssertTrue(script.hasPrefix("tell application \"Arc\""))
+        XCTAssertTrue(script.contains("if (count of windows) is 0 then"))
+        let onlyWhenEmpty = script.range(of: "if (count of windows) is 0 then")!
+        let made = script.range(of: "make new window")!
+        XCTAssertLessThan(onlyWhenEmpty.lowerBound, made.lowerBound)
+        XCTAssertEqual(script.components(separatedBy: "make new window").count - 1, 1)
+        XCTAssertFalse(script.contains("tell application \"Arc\"\n    make new window"))
+        XCTAssertTrue(script.contains("tell front window"))
+        XCTAssertTrue(script.contains("if already is false then make new tab"))
+        XCTAssertNotNil(NSAppleScript(source: script))
+    }
+
     func testArcOpensEverySiteOnceInOneWindow() {
         let plans = ChromeController.openingPlans(browser: .arc, windows: [
             BrowserWindowPlan(urls: ["https://a.com", "cs128.org", "https://a.com"], bounds: nil),
@@ -157,7 +171,7 @@ final class CustomSetupTests: XCTestCase {
 
     func testArcListTabsSurvivesATabThatWillNotAnswer() {
         let script = ChromeScripts.listTabs(for: .arc)
-        XCTAssertTrue(script.contains("repeat with t in tabs of w"))
+        XCTAssertTrue(script.contains("repeat with t in tabs of s"))
         XCTAssertFalse(script.contains("item i of tabList"))
         XCTAssertTrue(script.contains("end try"))
     }
@@ -186,29 +200,34 @@ final class CustomSetupTests: XCTestCase {
         XCTAssertTrue(script.contains("set bounds of w to {0, 0, 10, 10}"))
     }
 
-    func testArcListsEverySpaceAndStillSkipsPinnedTabs() {
-        let script = ChromeScripts.listTabs(for: .arc, quietArcSpaces: ["SPACE-1"])
-        XCTAssertTrue(script.contains("repeat with t in tabs of w"))
-        XCTAssertTrue(script.contains("spaces of w"))
+    func testArcFrontSpaceListIsOnePassAndSkipsPinnedTabs() {
+        let script = ChromeScripts.listTabs(for: .arc)
         XCTAssertTrue(script.contains("id of active space of front window"))
-        XCTAssertTrue(script.contains("focus s"))
-        XCTAssertTrue(script.contains("focus space id savedSpace"))
+        XCTAssertTrue(script.contains("if ((id of s) as text) is sid then"))
+        XCTAssertTrue(script.contains("repeat with t in tabs of s"))
         XCTAssertTrue(script.contains("\"pinned\""))
         XCTAssertTrue(script.contains("\"topApp\""))
-        XCTAssertTrue(script.contains("\"#space\""))
-        XCTAssertTrue(script.contains("\"SPACE-1\""))
+        XCTAssertFalse(script.contains("title of t"), "the fast check does not read page titles")
+        XCTAssertFalse(script.contains("focus"))
         XCTAssertFalse(script.contains("is \"unpinned\""), "a tab whose location cannot be read is still listed")
         XCTAssertFalse(ChromeScripts.listTabs(for: .chrome).contains("unpinned"))
-        XCTAssertNotNil(NSAppleScript(source: script), "the Arc tab list must compile")
-        XCTAssertEqual(ChromeScripts.listTabs(for: .arc, quietArcSpaces: []).contains("set quietSpaces to {}"), true)
+        XCTAssertNotNil(NSAppleScript(source: script), "the front-space list must compile")
     }
 
-    func testArcRestoresFocusOnlyWhenTheScriptSwitchedSpaces() {
-        let script = ChromeScripts.listTabs(for: .arc)
-        XCTAssertTrue(script.contains("set didFocus to false"))
-        XCTAssertTrue(script.contains("set didFocus to true"))
-        XCTAssertTrue(script.contains("if savedSpace is not \"\" and didFocus is true then"),
-                      "restoring focus on every poll reverts the user's own space switches")
+    func testArcEverySpaceListDoesNotSwitchSpaces() {
+        let script = ChromeScripts.listTabs(for: .arc, arcListing: .everySpace)
+        XCTAssertTrue(script.contains("spaces of w"))
+        XCTAssertTrue(script.contains("repeat with t in tabs of s"))
+        XCTAssertTrue(script.contains("\"pinned\""))
+        XCTAssertTrue(script.contains("title of t"))
+        XCTAssertFalse(script.contains("focus"))
+        XCTAssertFalse(script.contains("set quietSpaces"))
+        XCTAssertNotNil(NSAppleScript(source: script), "the every-space list must compile")
+    }
+
+    func testArcPollNeverSwitchesSpaces() {
+        XCTAssertFalse(ChromeScripts.listTabs(for: .arc).contains("focus"))
+        XCTAssertFalse(ChromeScripts.listTabs(for: .arc, arcListing: .everySpace).contains("focus"))
     }
 
     func testArcCloseReachesATabThatOnlyItsSpaceLists() {

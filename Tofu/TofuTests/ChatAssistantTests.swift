@@ -125,6 +125,16 @@ final class ChatAssistantTests: XCTestCase {
         XCTAssertFalse(rig.assistant.isThinking)
     }
 
+    func testDescriptionReachesTheModelAndTheGreetingStaysTheName() async throws {
+        let rig = makeRig([(200, chatTextBody("On it."))])
+        rig.assistant.beginSession(subject: "CS128", details: "Writing the problem sets")
+        XCTAssertEqual(rig.assistant.messages[0].text,
+                       "Hi! You're locked in on CS128. I'm here if you get stuck — and I'll check in on sites that look off-topic.")
+        await rig.assistant.send("where do I start?")
+        let system = try XCTUnwrap(try wireMessages(rig).first?["content"] as? String)
+        XCTAssertTrue(system.contains("CS128. Writing the problem sets"))
+    }
+
     func testBeginSessionResetsEarlierConversation() async {
         let rig = makeRig()
         rig.assistant.beginSession(subject: "CS128")
