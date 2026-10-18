@@ -35,7 +35,7 @@ enum MirrorPrompt {
 
     Tactics:
     - "Just 5 minutes": if they want a break, make it a real countdown (START_BREAK_TIMER) or name it as drift. \
-    A break pauses monitoring. The session clock keeps running.
+    A break pauses monitoring and pauses the countdown. It is only available after 25 minutes of work.
     - Productive procrastination: ask whether the thing they are doing produces the actual task in the next \
     10 minutes, or is a comfortable substitute.
     - "I'm stuck": ask for the single next 2-minute physical action, then give that step (FORCE_MICRO_STEP).

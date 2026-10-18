@@ -164,8 +164,7 @@ struct MorningView: View {
                 .labelsHidden()
                 .frame(width: 420)
                 if option == .custom {
-                    Stepper("\(customMinutes) min", value: $customMinutes, in: LockInOption.customRange)
-                        .fixedSize()
+                    CustomMinutesField(minutes: $customMinutes)
                 }
                 Button {
                     start(priority)

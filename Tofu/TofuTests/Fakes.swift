@@ -85,6 +85,8 @@ import Foundation
         watchedSites = studySites
     }
     func pauseTabWatch() { stopWatchCount += 1 }
+    private(set) var closeUnrelatedCount = 0
+    func closeUnrelatedTabs() { closeUnrelatedCount += 1 }
     func stopTabWatch() { stopWatchCount += 1 }
     func restoreAfterSession() { restoreCount += 1 }
     func takeClosedBrowser() -> ClosedBrowserState? {
@@ -167,6 +169,13 @@ import Foundation
     func announce(_ content: String) { messages.append(content) }
 }
 
+@MainActor final class FakeDoNotDisturb: DoNotDisturbControlling {
+    private(set) var beginCount = 0
+    private(set) var endCount = 0
+    func beginBlock() { beginCount += 1 }
+    func endBlock() { endCount += 1 }
+}
+
 @MainActor final class FakePresenter: WindowPresenting {
     var entered: [CGRect?] = []
     var exitCount = 0
@@ -189,6 +198,7 @@ final class TestClock {
     let announcer = FakeAnnouncer()
     let presenter = FakePresenter()
     let launcher = FakeLauncher()
+    let doNotDisturb = FakeDoNotDisturb()
     let clock = TestClock()
     let engine: SessionEngine
 
@@ -198,7 +208,8 @@ final class TestClock {
                                announcer: announcer, launcher: launcher, ownBundleID: "com.tofu.app",
                                clock: { clock.now },
                                visibleFrame: { CGRect(x: 0, y: 0, width: 1000, height: 800) },
-                               primaryHeight: { 800 }, startsTimers: false)
+                               primaryHeight: { 800 }, startsTimers: false,
+                               doNotDisturb: doNotDisturb)
         engine.presenter = presenter
     }
 }

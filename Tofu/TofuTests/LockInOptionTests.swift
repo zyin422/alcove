@@ -13,7 +13,7 @@ final class LockInOptionTests: XCTestCase {
         XCTAssertEqual(LockInOption.minutes90.mode(customMinutes: 45), .goal(minutes: 90))
     }
 
-    func testCustomUsesTheStepperValueClampedToItsRange() {
+    func testCustomUsesTheTypedMinutesClampedToItsRange() {
         XCTAssertEqual(LockInOption.customRange, 1...240)
         XCTAssertEqual(LockInOption.custom.mode(customMinutes: 45), .goal(minutes: 45))
         XCTAssertEqual(LockInOption.custom.mode(customMinutes: 1), .goal(minutes: 1))

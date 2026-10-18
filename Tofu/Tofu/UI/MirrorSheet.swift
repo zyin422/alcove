@@ -157,8 +157,7 @@ struct MirrorSheet: View {
         case .dismiss:
             dismiss()
         case .takeBreak(let minutes):
-            model.engine.beginBreak(minutes: minutes)
-            dismiss()
+            if model.engine.beginBreak(minutes: minutes) { dismiss() }
         case .forfeit:
             let engine = model.engine
             dismiss()

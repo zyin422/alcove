@@ -97,6 +97,30 @@ enum ChromeScripts {
     /// would duplicate it). Nothing after the window exists can fail, so a retry can't add another window of tabs.
     private static func arcOpenWindowScript(urls: [String]) -> String {
         var lines = [tell(.arc), "    make new window", "    delay 0.3", "    try", "        tell front window"]
+        lines += arcMakeMissingTabs(urls)
+        lines += ["        end tell", "    end try", "    try", "        return (id of front window) as text",
+                  "    on error", "        return \"opened\"", "    end try", "end tell"]
+        return lines.joined(separator: "\n")
+    }
+
+    /// Puts `urls` into the Arc window that is already open. A window is made only when Arc has none, so ending
+    /// a session does not open a second window beside the one the block was using.
+    static func openTabs(urls: [String]) -> String {
+        var lines = [tell(.arc),
+                     "    if (count of windows) is 0 then",
+                     "        make new window",
+                     "        delay 0.3",
+                     "    end if",
+                     "    try",
+                     "        tell front window"]
+        lines += arcMakeMissingTabs(urls)
+        lines += ["        end tell", "    end try", "end tell"]
+        return lines.joined(separator: "\n")
+    }
+
+    /// Inside `tell front window`: makes each URL that is not already open, last URL first.
+    private static func arcMakeMissingTabs(_ urls: [String]) -> [String] {
+        var lines: [String] = []
         for url in urls.reversed() {
             let quoted = "\"\(escape(url))\""
             lines += ["            set already to false",
@@ -114,9 +138,7 @@ enum ChromeScripts {
                       "            end repeat",
                       "            if already is false then make new tab with properties {URL:\(quoted)}"]
         }
-        lines += ["        end tell", "    end try", "    try", "        return (id of front window) as text",
-                  "    on error", "        return \"opened\"", "    end try", "end tell"]
-        return lines.joined(separator: "\n")
+        return lines
     }
 
     /// ASCII 31 (unit separator): splits the fields of a `listTabs` line. Unlike a tab it practically never
@@ -129,18 +151,24 @@ enum ChromeScripts {
     /// Chrome's own classes.
     static let listTabs: String = listTabs(for: .chrome)
 
-    /// First field of a `listTabs` line that names an Arc space with no tabs. Not a tab: `parseTabs` ignores it.
-    /// The next poll passes these ids back as `quietArcSpaces` so an empty space is not focused again.
+    /// First field of a `listTabs` line that is not a tab. `parseTabs` ignores it.
     static let arcEmptySpaceMarker = "#space"
+
+    /// How much of Arc a listing reads. Chrome ignores this: its window list is already one cheap pass.
+    enum ArcListing: Equatable {
+        /// The space on screen. One pass, tab id and URL. This is the check that runs every couple of seconds.
+        case frontSpace
+        /// Every space, without focusing one. About once a minute, and for a close that has to find a tab.
+        case everySpace
+    }
 
     /// `listTabs` for `browser`. Arc skips pinned and favorite tabs (they live in the sidebar, and closing one
     /// would delete it). A tab whose location can't be read is still listed: a new tab often won't answer yet.
-    /// Arc's window tab list hides every space that has not been focused, so those spaces are focused once; only
-    /// when the script switched spaces is the space that was showing focused again afterward (an unconditional
-    /// restore raced the user's own space switches and snapped them back). `quietArcSpaces` are spaces already
-    /// found empty.
-    static func listTabs(for browser: Browser, quietArcSpaces: [String] = []) -> String {
-        let line = "set out to out & wid & sepChar & (i as text) & sepChar & ((id of t) as text) & sepChar & ((title of t) as text) & sepChar & ((URL of t) as text) & lineChar"
+    /// The front-space listing does not read titles and does not walk other spaces, so it stays off Arc's
+    /// address bar. The every-space listing reads each space's own tabs and never focuses a space.
+    static func listTabs(for browser: Browser, arcListing: ArcListing = .frontSpace) -> String {
+        let titled = "set out to out & wid & sepChar & (i as text) & sepChar & ((id of t) as text) & sepChar & ((title of t) as text) & sepChar & ((URL of t) as text) & lineChar"
+        let urlOnly = "set out to out & wid & sepChar & (i as text) & sepChar & ((id of t) as text) & sepChar & \"\" & sepChar & ((URL of t) as text) & lineChar"
         switch browser {
         case .chrome:
             return """
@@ -153,7 +181,7 @@ enum ChromeScripts {
                         set tabList to every tab of w
                         repeat with i from 1 to count of tabList
                             set t to item i of tabList
-                            \(line)
+                            \(titled)
                         end repeat
                     end repeat
                 end tell
@@ -162,108 +190,81 @@ enum ChromeScripts {
         case .arc:
             // `item i of every tab` makes Arc refuse `location` for the whole script, so nothing would be
             // remembered or closed. Walk the tabs directly, and skip a tab that still won't answer.
-            let quiet = appleScriptList(quietArcSpaces)
-            let marker = arcEmptySpaceMarker
-            return """
+            let header = """
                 set sepChar to ASCII character 31
                 set lineChar to linefeed
                 set out to ""
-                set quietSpaces to \(quiet)
-                tell application "Arc"
-                    set savedSpace to ""
-                    try
-                        set savedSpace to (id of active space of front window) as text
-                    end try
-                    set didFocus to false
-                    set seenSpaces to {}
-                    repeat with w in windows
-                        try
-                            set wid to (id of w) as text
-                            set i to 0
-                            repeat with t in tabs of w
-                                set i to i + 1
-                                try
-                                    set includeTab to true
-                                    try
-                                        set loc to ((location of t) as text)
-                                        if loc is "pinned" or loc is "topApp" then set includeTab to false
-                                    end try
-                                    if includeTab is true then
-                                        \(line)
-                                    end if
-                                end try
-                            end repeat
-                        end try
-                    end repeat
-                    repeat with w in windows
-                        try
-                            set wid to (id of w) as text
-                            repeat with s in spaces of w
-                                try
-                                    set sid to (id of s) as text
-                                    set seen to false
-                                    repeat with previous in seenSpaces
-                                        if (previous as text) is sid then set seen to true
-                                    end repeat
-                                    if seen is false then
-                                        set end of seenSpaces to sid
-                                        set n to 0
-                                        try
-                                            set n to count of tabs of s
-                                        end try
-                                        set shouldFocus to false
-                                        if n is 0 and sid is not savedSpace then
-                                            set shouldFocus to true
-                                            repeat with q in quietSpaces
-                                                if (q as text) is sid then set shouldFocus to false
-                                            end repeat
-                                        end if
-                                        if shouldFocus is true then
-                                            try
-                                                focus s
-                                                set didFocus to true
-                                                set n to count of tabs of s
-                                            end try
-                                        end if
-                                        if n is 0 then
-                                            set out to out & "\(marker)" & sepChar & sid & lineChar
-                                        else
-                                            set i to 0
-                                            repeat with t in tabs of s
-                                                set i to i + 1
-                                                try
-                                                    set includeTab to true
-                                                    try
-                                                        set loc to ((location of t) as text)
-                                                        if loc is "pinned" or loc is "topApp" then set includeTab to false
-                                                    end try
-                                                    if includeTab is true then
-                                                        \(line)
-                                                    end if
-                                                end try
-                                            end repeat
-                                        end if
-                                    end if
-                                end try
-                            end repeat
-                        end try
-                    end repeat
-                    if savedSpace is not "" and didFocus is true then
-                        try
-                            tell front window
-                                focus space id savedSpace
-                            end tell
-                        end try
-                    end if
-                end tell
-                return out
                 """
+            switch arcListing {
+            case .frontSpace:
+                // A stored `front window` reference will not list its tabs. The tabs of the space on screen
+                // answer when that space is visited from `spaces`, the same way the slower pass reads them.
+                return header + "\n" + """
+                    tell application "Arc"
+                        try
+                            set wid to (id of front window) as text
+                            set sid to (id of active space of front window) as text
+                            repeat with w in windows
+                                try
+                                    if ((id of w) as text) is wid then
+                                        repeat with s in spaces of w
+                                            try
+                                                if ((id of s) as text) is sid then
+                                                    set i to 0
+                                                    repeat with t in tabs of s
+                                                        set i to i + 1
+                                                        try
+                                                            set includeTab to true
+                                                            try
+                                                                set loc to ((location of t) as text)
+                                                                if loc is "pinned" or loc is "topApp" then set includeTab to false
+                                                            end try
+                                                            if includeTab is true then
+                                                                \(urlOnly)
+                                                            end if
+                                                        end try
+                                                    end repeat
+                                                end if
+                                            end try
+                                        end repeat
+                                    end if
+                                end try
+                            end repeat
+                        end try
+                    end tell
+                    return out
+                    """
+            case .everySpace:
+                return header + "\n" + """
+                    tell application "Arc"
+                        repeat with w in windows
+                            try
+                                set wid to (id of w) as text
+                                repeat with s in spaces of w
+                                    try
+                                        set i to 0
+                                        repeat with t in tabs of s
+                                            set i to i + 1
+                                            try
+                                                set includeTab to true
+                                                try
+                                                    set loc to ((location of t) as text)
+                                                    if loc is "pinned" or loc is "topApp" then set includeTab to false
+                                                end try
+                                                if includeTab is true then
+                                                    \(titled)
+                                                end if
+                                            end try
+                                        end repeat
+                                    end try
+                                end repeat
+                            end try
+                        end repeat
+                    end tell
+                    return out
+                    """
+            }
         }
-    }
-
-    /// An AppleScript list literal of escaped strings. `{}` when there is nothing to skip.
-    private static func appleScriptList(_ values: [String]) -> String {
-        "{" + values.map { "\"\(escape($0))\"" }.joined(separator: ", ") + "}"
     }
 
     /// Closes the tab with the browser's id `tabID` in the window. Addressing by id (not index) means a tab whose

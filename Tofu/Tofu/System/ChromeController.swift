@@ -22,6 +22,8 @@ struct BrowserWindowPlan: Equatable {
     func startTabWatch(subject: String, details: String, studySites: [String])
     /// Stops polling for a break. Allow and close decisions made while paused still apply when the watch resumes.
     func pauseTabWatch()
+    /// Closes every open tab that is not a study site or a host allowed during this block.
+    func closeUnrelatedTabs()
     func stopTabWatch()
     /// Opens again the windows `prepare` closed and the tabs the watch closed.
     func restoreAfterSession()
@@ -45,6 +47,8 @@ struct BrowserWindowPlan: Equatable {
     /// AppleScript error number for "Not authorized to send Apple events" (Automation denied).
     static let automationDeniedErrorNumber = -1743
     static let tabPollInterval: TimeInterval = 2
+    /// Front-space polls between readings of Arc's other spaces. 30 × 2 s is about a minute.
+    static let arcFullSweepEvery = 30
     static let openRetries = 3
     static let launchTimeout: TimeInterval = 5
 
@@ -54,8 +58,8 @@ struct BrowserWindowPlan: Equatable {
     weak var asker: SiteAsking?
     /// The browser of the latest `prepare` (Chrome until then).
     private(set) var browser: Browser = .chrome
-    /// Arc spaces that listed no tabs. Passed into the next list so an empty space is not focused on every poll.
-    private var quietArcSpaces: [String] = []
+    /// Front-space polls since the last reading of Arc's other spaces. The next poll is that reading at `arcFullSweepEvery`.
+    private var pollsSinceFullSweep = 0
     /// What to open again at the end; mirrored to `rememberedURL` on every change.
     private(set) var remembered: ClosedBrowserState?
     private let rememberedURL: URL?
@@ -178,7 +182,7 @@ struct BrowserWindowPlan: Equatable {
     func prepare(browser: Browser, windows: [BrowserWindowPlan]) async -> ChromeError? {
         sessionAnswers = [:]
         self.browser = browser
-        quietArcSpaces = []
+        pollsSinceFullSweep = 0
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleID) else {
             return .notInstalled
         }
@@ -191,9 +195,9 @@ struct BrowserWindowPlan: Equatable {
             waited += 0.1
         }
 
-        switch Self.run(ChromeScripts.listTabs(for: browser, quietArcSpaces: quietArcSpaces)) {
+        let snapshot: ChromeScripts.ArcListing = browser == .arc ? .everySpace : .frontSpace
+        switch Self.run(ChromeScripts.listTabs(for: browser, arcListing: snapshot)) {
         case .success(let output):
-            if browser == .arc { quietArcSpaces = ChromeScripts.emptyArcSpaceIDs(in: output) }
             closeExistingWindows(ChromeScripts.parseTabs(output, browser: browser))
         case .failure(.automationDenied):
             return .automationDenied
@@ -308,11 +312,21 @@ struct BrowserWindowPlan: Equatable {
         }
         RunLoop.main.add(timer, forMode: .common)
         tabTimer = timer
+        pollsSinceFullSweep = 0
         pollTabs()
     }
 
     func pauseTabWatch() {
         haltPolling()
+    }
+
+    func closeUnrelatedTabs() {
+        guard chromeIsRunning(), case .success(let output) = listTabsNow(arcListing: .everySpace) else { return }
+        let tabs = ChromeScripts.parseTabs(output, browser: browser)
+        lastTabs = tabs
+        for tab in tabs where !triage.isRelated(tab) {
+            close(tab)
+        }
     }
 
     /// Stops polling and forgets this lock-in's site decisions. Verdicts still on their way are ignored.
@@ -344,16 +358,15 @@ struct BrowserWindowPlan: Equatable {
     func pollTabs() {
         guard chromeIsRunning() else { return }
         guard pollsOffMainThread else {
-            applyPoll(listTabsNow())
+            applyPoll(listTabsNow(arcListing: nextArcListing()))
             return
         }
         guard !pollInFlight else { return }
         pollInFlight = true
         let generation = pollGeneration
         let token = watchToken
-        let source = ChromeScripts.listTabs(for: browser, quietArcSpaces: quietArcSpaces)
+        let source = ChromeScripts.listTabs(for: browser, arcListing: nextArcListing())
         let run = runScript
-        let isArc = browser == .arc
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let result = run(source)
             DispatchQueue.main.async {
@@ -361,16 +374,24 @@ struct BrowserWindowPlan: Equatable {
                     guard let self, self.pollGeneration == generation else { return }
                     self.pollInFlight = false
                     guard self.watchToken == token else { return }
-                    if case .success(let output) = result, isArc {
-                        self.quietArcSpaces = ChromeScripts.emptyArcSpaceIDs(in: output)
-                    }
                     self.applyPoll(result)
                 }
             }
         }
     }
 
-    /// Applies a finished tab listing. `listTabsNow` has already recorded empty Arc spaces when it ran the script.
+    /// The space on screen, until `arcFullSweepEvery` polls have run. Then every space, once.
+    private func nextArcListing() -> ChromeScripts.ArcListing {
+        guard browser == .arc else { return .frontSpace }
+        pollsSinceFullSweep += 1
+        if pollsSinceFullSweep >= Self.arcFullSweepEvery {
+            pollsSinceFullSweep = 0
+            return .everySpace
+        }
+        return .frontSpace
+    }
+
+    /// Applies a finished tab listing.
     private func applyPoll(_ result: Result<String, ChromeError>) {
         switch result {
         case .success(let output):
@@ -387,13 +408,10 @@ struct BrowserWindowPlan: Equatable {
         }
     }
 
-    /// The current tab list. For Arc, remembers spaces that had no tabs so the next poll does not focus them.
-    private func listTabsNow() -> Result<String, ChromeError> {
-        let result = runScript(ChromeScripts.listTabs(for: browser, quietArcSpaces: quietArcSpaces))
-        if case .success(let output) = result, browser == .arc {
-            quietArcSpaces = ChromeScripts.emptyArcSpaceIDs(in: output)
-        }
-        return result
+    /// The current tab list. `.everySpace` is for a close that has to see tabs that are not on screen.
+    private func listTabsNow(arcListing: ChromeScripts.ArcListing = .frontSpace) -> Result<String, ChromeError> {
+        let listing: ChromeScripts.ArcListing = browser == .arc ? arcListing : .frontSpace
+        return runScript(ChromeScripts.listTabs(for: browser, arcListing: listing))
     }
 
     /// Closes every tab of `tabs` that is already known to be off-task (see `TabTriage.shouldCloseImmediately`).
@@ -423,7 +441,7 @@ struct BrowserWindowPlan: Equatable {
     /// Closes the tab only if it is still open at the same address, so a tab the user already closed (or sent
     /// elsewhere) while the verdict was pending is neither counted nor touched.
     private func closeIfStillOpen(_ tab: ChromeTab) {
-        guard chromeIsRunning(), case .success(let output) = listTabsNow() else { return }
+        guard chromeIsRunning(), case .success(let output) = listTabsNow(arcListing: .everySpace) else { return }
         // Arc tab ids are unique across windows; the window a tab was listed under can change between polls.
         guard let current = ChromeScripts.parseTabs(output, browser: browser).first(where: { listed in
             let sameTab = browser.hasTextTabIDs ? listed.tabID == tab.tabID
@@ -517,7 +535,7 @@ struct BrowserWindowPlan: Equatable {
         guard acceptsSiteDecisions, !host.isEmpty else { return }
         sessionAnswers[host] = false
         triage.closeHost(host)
-        guard tabTimer != nil, chromeIsRunning(), case .success(let output) = listTabsNow() else { return }
+        guard tabTimer != nil, chromeIsRunning(), case .success(let output) = listTabsNow(arcListing: .everySpace) else { return }
         let tabs = ChromeScripts.parseTabs(output, browser: browser)
         lastTabs = tabs
         closeKnownOffTask(in: tabs)
@@ -557,12 +575,16 @@ struct BrowserWindowPlan: Equatable {
     private func reopen(_ state: ClosedBrowserState) {
         guard !state.isEmpty else { return }
         var open = Set<String>()
+        let listing: ChromeScripts.ArcListing = state.browser == .arc ? .everySpace : .frontSpace
         if browserIsRunningOverride?() ?? Self.isRunning(state.browser),
-           case .success(let output) = runScript(ChromeScripts.listTabs(for: state.browser, quietArcSpaces: quietArcSpaces)) {
+           case .success(let output) = runScript(ChromeScripts.listTabs(for: state.browser, arcListing: listing)) {
             open = Set(ChromeScripts.parseTabs(output, browser: state.browser).map(\.url))
         }
         for urls in state.windowsToReopen(alreadyOpen: open) {
-            _ = runScript(ChromeScripts.openWindow(urls: urls, bounds: nil, browser: state.browser))
+            let script = state.browser == .arc
+                ? ChromeScripts.openTabs(urls: urls)
+                : ChromeScripts.openWindow(urls: urls, bounds: nil, browser: state.browser)
+            _ = runScript(script)
         }
     }
 
