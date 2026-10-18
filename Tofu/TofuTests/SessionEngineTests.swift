@@ -307,6 +307,19 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(changes.last?.closedTabs, 1)
     }
 
+    func testSpiritHearsAClosedTabAndAHiddenAppWithoutASecondToast() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        var notices: [SpiritNotice] = []
+        h.engine.onSpirit = { notices.append($0) }
+
+        h.chrome.simulateTabClosed("youtube.com")
+        h.blocker.simulateBlocked("com.hnc.Discord", name: "Discord")
+
+        XCTAssertEqual(notices, [.tabClosed("youtube.com"), .appHidden("Discord")])
+        XCTAssertTrue(h.toaster.messages.isEmpty)
+    }
+
     func testHeartbeatEvery30Seconds() async {
         let h = EngineHarness()
         await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")

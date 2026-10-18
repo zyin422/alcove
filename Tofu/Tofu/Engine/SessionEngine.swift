@@ -90,6 +90,9 @@ enum CompanionViolation: Equatable {
     /// Called once per lock-in after everything is set up (windows, Chrome, blocker, tab watch, timer, announcement).
     /// Not called when the session ended while Chrome was being prepared. AppModel starts the chat assistant here.
     @ObservationIgnored var onLockedIn: ((Subject) -> Void)?
+    /// A tab was closed, an app was hidden, or the spirit should ask something. The floating circle listens.
+    /// When this is set, those events are not also toasted.
+    @ObservationIgnored var onSpirit: ((SpiritNotice) -> Void)?
     /// Called after a session ends, however it ends (finish, bail, goal reached, app quit), once the engine is idle again.
     @ObservationIgnored var onEnded: (() -> Void)?
     /// A site was allowed during the lock-in. AppModel saves it on the work block.
@@ -308,7 +311,11 @@ enum CompanionViolation: Equatable {
             blockedDuringSession.append(app)
         }
         let name = app.name.isEmpty ? app.bundleID : app.name
-        toaster.show("🔒 \(name) is blocked during \(current.subjectName)")
+        if onSpirit != nil {
+            onSpirit?(.appHidden(name))
+        } else {
+            toaster.show("🔒 \(name) is blocked during \(current.subjectName)")
+        }
         companion?.violationOccurred(.app(name: name), subject: current.subjectName,
                                      violations: current.blockedAttempts + current.closedTabs)
         onSessionChanged?(current)
@@ -318,7 +325,11 @@ enum CompanionViolation: Equatable {
         guard var current = session else { return }
         current.closedTabs += 1
         session = current
-        toaster.show("Closed \(host) — not relevant to \(current.subjectName)")
+        if onSpirit != nil {
+            onSpirit?(.tabClosed(host))
+        } else {
+            toaster.show("Closed \(host) — not relevant to \(current.subjectName)")
+        }
         companion?.violationOccurred(.tab(host: host), subject: current.subjectName,
                                      violations: current.blockedAttempts + current.closedTabs)
         onSessionChanged?(current)

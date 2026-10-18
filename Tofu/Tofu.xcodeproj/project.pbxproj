@@ -159,6 +159,8 @@
 		F773EDE5A159D1B2A9A47EDC /* TabTriage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59525423435239474438C9E /* TabTriage.swift */; };
 		F85667F6A29E33B5B6F41E85 /* ClosedBrowserStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3E46E03EB3ED9F66AA246A /* ClosedBrowserStateTests.swift */; };
 		FF1A101385DF4E9A1D525E01 /* DiscordAnnouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E07F02E0712E8E9CF8E5A51 /* DiscordAnnouncer.swift */; };
+		C40EFEC3EA4146CD84AB66BA /* SpiritPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F00424349648BC8C07B055 /* SpiritPanel.swift */; };
+		693EF797DD8F4ED189785309 /* SpiritLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCEFC5696800495B8DCD0597 /* SpiritLayoutTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -326,6 +328,8 @@
 		FB2C314B3F0FF5115EDC3747 /* DiscordClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordClientTests.swift; sourceTree = "<group>"; };
 		FCBC0B82BD3CB6ED0D0977BA /* CompanionCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionCenter.swift; sourceTree = "<group>"; };
 		FED1A2B5E07A47866E41A333 /* SitePromptLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SitePromptLayoutTests.swift; sourceTree = "<group>"; };
+		C8F00424349648BC8C07B055 /* SpiritPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiritPanel.swift; sourceTree = "<group>"; };
+		DCEFC5696800495B8DCD0597 /* SpiritLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiritLayoutTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -388,6 +392,7 @@
 				4E55A76B51F0AFEFA3D26BB3 /* SettingsView.swift */,
 				9F01975F2F5909EB496885AA /* SidebarView.swift */,
 				2C8CFD665E3CA39E1035BF81 /* SitePromptPanel.swift */,
+				C8F00424349648BC8C07B055 /* SpiritPanel.swift */,
 				D2E6D8B2D62D75C4FD697038 /* StatsView.swift */,
 				AFAFE3735359E2A38E0A022B /* SubjectDetailView.swift */,
 				1A3515B1E522B44D81CF74A0 /* SubjectEditorView.swift */,
@@ -483,6 +488,7 @@
 				AC78C3F1E6FD18CD0BC4C3FA /* SettingsStatusTests.swift */,
 				FED1A2B5E07A47866E41A333 /* SitePromptLayoutTests.swift */,
 				1BEFBFC052C5E07974C207CB /* SmokeTests.swift */,
+				DCEFC5696800495B8DCD0597 /* SpiritLayoutTests.swift */,
 				763DE1CD25DB1CBB24F9E3D0 /* StatsEngineTests.swift */,
 				FAD5F8FCA2A903FFDA619DCE /* StatsFormattingTests.swift */,
 				FB1D0B432B65B15BBEDB152F /* StoreTests.swift */,
@@ -769,6 +775,7 @@
 				9B81F83F3C13295E762EC286 /* SettingsStatusTests.swift in Sources */,
 				6EF6500D420E850E77B54D59 /* SitePromptLayoutTests.swift in Sources */,
 				81CF2EC9FAA2B6D96739486A /* SmokeTests.swift in Sources */,
+				693EF797DD8F4ED189785309 /* SpiritLayoutTests.swift in Sources */,
 				D69B1BD8FC65E3A318593BA8 /* StatsEngineTests.swift in Sources */,
 				C2FEFEC0DBCE9A84371FC4CA /* StatsFormattingTests.swift in Sources */,
 				07F9780CB0733E49A18A2F30 /* StoreTests.swift in Sources */,
@@ -853,6 +860,7 @@
 				6388832B6691A90B83F418B2 /* SetupLauncher.swift in Sources */,
 				3B07C20031F1272F7A1AD7F3 /* SidebarView.swift in Sources */,
 				C8CE339F77BDF8C579CCBEFA /* SitePromptPanel.swift in Sources */,
+				C40EFEC3EA4146CD84AB66BA /* SpiritPanel.swift in Sources */,
 				942EDEF49C87AE75F7D4AB22 /* SparkleUpdater.swift in Sources */,
 				9FBC62707032BA3216C82908 /* StatsEngine.swift in Sources */,
 				626F75B3C54E64B77B0FD2B5 /* StatsFormatting.swift in Sources */,

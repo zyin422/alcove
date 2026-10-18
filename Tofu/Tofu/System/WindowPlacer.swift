@@ -172,6 +172,15 @@ enum AccessibilityGate {
         if let previous { AXUIElementSetAttributeValue(app, key, previous) }
     }
 
+    /// The largest on-screen window of `bundleID`, in window-list coordinates (top-left, y down).
+    /// Nil when the app is not running or has no sizeable window.
+    static func largestOnScreenFrame(bundleID: String) -> CGRect? {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else { return nil }
+        return onScreenFrames(pid: app.processIdentifier).max {
+            $0.width * $0.height < $1.width * $1.height
+        }
+    }
+
     /// On-screen window frames for `pid` (top-left global, the same space as Accessibility).
     static func onScreenFrames(pid: pid_t) -> [CGRect] {
         let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly, .excludeDesktopElements)

@@ -10,6 +10,9 @@ import AppKit
     /// Main window frame before lock-in; restored by exitLocked.
     private var savedFrame: NSRect?
     private var panel: MiniTimerPanel?
+    private var spirit: SpiritPanel?
+    /// True when the circle is standing in for the mini timer, so opening chat centers the window.
+    private var spiritReplacesTimer = false
 
     init(model: AppModel) {
         self.model = model
@@ -24,13 +27,15 @@ import AppKit
         }
         if let appFrame {
             closePanel()
+            closeSpirit()
             guard let window else { return }
             window.setFrame(appFrame, display: true, animate: true)
             bringToFront(window)
             reapplyFrameAfterSwiftUIUpdate(appFrame, to: window)
         } else {
             window?.orderOut(nil)
-            showPanel()
+            closePanel()
+            showSpirit(replacesTimer: true)
         }
     }
 
@@ -44,7 +49,7 @@ import AppKit
             NSApp.activate()
             return
         }
-        if panel != nil, let visible = ScreenGeometry.mainVisibleFrame() {
+        if (panel != nil || spiritReplacesTimer), let visible = ScreenGeometry.mainVisibleFrame() {
             window.setFrame(LockedLayout.centeredFrame(size: LockedLayout.windowSize, in: visible), display: true)
         }
         bringToFront(window)
@@ -61,6 +66,7 @@ import AppKit
     /// Close mini timer, restore main window frame, bring app to front.
     func exitLocked() {
         closePanel()
+        closeSpirit()
         let window = lockedWindow ?? Self.visibleMainWindow()
         let frame = savedFrame
         savedFrame = nil
@@ -102,6 +108,41 @@ import AppKit
     private func closePanel() {
         panel?.orderOut(nil)
         panel = nil
+    }
+
+    /// The circle that replaces the mini timer, or appears only long enough to say something.
+    private func showSpirit(replacesTimer: Bool) {
+        closeSpirit()
+        spiritReplacesTimer = replacesTimer
+        let spirit = SpiritPanel(engine: model.engine,
+                                 onOpen: { [weak self] in self?.showMainWindow() },
+                                 onEnd: { [weak self] in self?.requestEnd() })
+        spirit.hidesWhenQuiet = !replacesTimer
+        if replacesTimer { spirit.showDrifting() }
+        self.spirit = spirit
+    }
+
+    private func closeSpirit() {
+        spirit?.hideSpirit()
+        spirit = nil
+        spiritReplacesTimer = false
+    }
+
+    /// Flies to the browser window, grows, and says what happened. Arc cannot report a tab's pixels,
+    /// so the circle stops on the top edge of the browser window.
+    func note(_ notice: SpiritNotice) {
+        guard model.engine.isLocked else { return }
+        if spirit == nil { showSpirit(replacesTimer: false) }
+        let window = model.engine.subject.map { WindowPlacer.largestOnScreenFrame(bundleID: $0.browser.bundleID) } ?? nil
+        switch notice {
+        case .tabClosed(let host):
+            spirit?.approach(quartzWindow: window, text: SpiritLines.closedTab(host), mood: .roll, linger: 3.5)
+        case .appHidden(let name):
+            spirit?.approach(quartzWindow: window, text: SpiritLines.appHidden(name), mood: .bounce, linger: 3.5)
+        case .question(let host, let title):
+            spirit?.approach(quartzWindow: window, text: SpiritLines.question(host: host, title: title),
+                             mood: .bounce, linger: nil)
+        }
     }
 
     /// RootView swaps to LockedView on SwiftUI's next update. Until then the previous content's minimum

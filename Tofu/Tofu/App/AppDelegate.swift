@@ -29,10 +29,14 @@ import AppKit
         self.presenter = presenter
         model.engine.presenter = presenter
         model.onShowChat = { [weak presenter] in presenter?.showMainWindow() }
+        model.engine.onSpirit = { [weak presenter] notice in presenter?.note(notice) }
         let sitePrompt = SitePromptController(assistant: model.assistant)
         self.sitePrompt = sitePrompt
         sitePrompt.onOpenChat = { [weak presenter] in presenter?.showMainWindow() }
-        model.assistant.onSiteAsked = { [weak sitePrompt] site in sitePrompt?.present(site) }
+        model.assistant.onSiteAsked = { [weak sitePrompt, weak presenter] site in
+            sitePrompt?.present(site)
+            presenter?.note(.question(host: site.host, title: site.title))
+        }
         model.assistant.onAssistantMessage = { [weak sitePrompt] text in sitePrompt?.assistantSaid(text) }
         model.onSessionEnded = { [weak self, weak sitePrompt] in
             sitePrompt?.hide()
