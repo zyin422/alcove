@@ -22,6 +22,9 @@ struct SettingsView: View {
     @State private var chromePermission = AutomationPermission.appNotRunning
     @State private var hasScreenRecording = CGPreflightScreenCaptureAccess()
     @State private var isConfirmingForget = false
+    /// Both Tofu Do Not Disturb shortcuts are installed (read with `shortcuts list` when Settings appears).
+    @State private var hasDoNotDisturbShortcuts = false
+    @State private var isAddingShortcuts = false
     /// Mirrors TofuApp's menu-bar timer switch.
     @AppStorage("menuBarTimer") private var menuBarTimer = true
 
@@ -35,6 +38,7 @@ struct SettingsView: View {
             accountabilitySection
             companionSection
             screenMemorySection
+            doNotDisturbSection
             endOfDaySection
             chromeSection
             accessibilitySection
@@ -55,7 +59,8 @@ struct SettingsView: View {
             googleConnected: model.isGoogleConnected,
             screenMemoryEnabled: model.data.settings.screenMemoryEnabled, screenRecording: hasScreenRecording,
             googleServices: GoogleService.allCases.filter { model.googleState(of: $0) == .on },
-            googleNotGranted: GoogleService.allCases.filter { model.googleState(of: $0) == .notGranted }))
+            googleNotGranted: GoogleService.allCases.filter { model.googleState(of: $0) == .notGranted },
+            doNotDisturbShortcuts: hasDoNotDisturbShortcuts))
         return Section {
             ForEach(items) { item in
                 HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
@@ -219,6 +224,23 @@ struct SettingsView: View {
         }
     }
 
+    /// The only place that opens Shortcuts: Tofu never does it on its own (it used to on every launch).
+    private var doNotDisturbSection: some View {
+        Section {
+            LabeledContent("Shortcuts") {
+                Text(hasDoNotDisturbShortcuts ? "Added" : "Not added")
+            }
+            Button(isAddingShortcuts ? "Opening Shortcuts…" : "Add Do Not Disturb shortcuts…", action: addShortcuts)
+                .disabled(hasDoNotDisturbShortcuts || isAddingShortcuts)
+        } header: {
+            Text("Do Not Disturb")
+        } footer: {
+            Text("Tofu turns on Do Not Disturb for each work block and off when it ends, through two shortcuts: “\(DoNotDisturbPlan.onName)” and “\(DoNotDisturbPlan.offName)”. The button opens Shortcuts so you can add them; a Focus you turned on yourself is left alone.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var screenMemorySection: some View {
         Section {
             Toggle("Remember what I work on", isOn: Binding(
@@ -368,11 +390,26 @@ struct SettingsView: View {
         }
     }
 
+    /// Opens the two shortcut files in Shortcuts for the user to add, and remembers that setup was offered,
+    /// so a work block no longer shows the setup hint.
+    private func addShortcuts() {
+        isAddingShortcuts = true
+        UserDefaults.standard.set(true, forKey: DoNotDisturbPlan.hintShownKey)
+        Task {
+            let opened = await Task.detached { DoNotDisturbShortcuts.install() }.value
+            isAddingShortcuts = false
+            if !opened { ToastCenter.shared.show("Couldn't open Shortcuts. Try again in a moment.") }
+        }
+    }
+
     private func refresh() {
         tokenSource = model.discordTokenSource
         openAIKeySource = model.openAIKeySource
         hasAccessibility = WindowPlacer.isTrusted
         hasScreenRecording = CGPreflightScreenCaptureAccess()
+        Task {
+            hasDoNotDisturbShortcuts = await Task.detached { DoNotDisturbShortcuts.isInstalled() }.value
+        }
         if !ChromeController.isInstalled {
             chromeStatus = SettingsStatus.chromeResult(.notInstalled)
         }

@@ -8,12 +8,6 @@ import Intents
     func beginBlock()
     /// Called when the block ends, including an interrupted quit. A break does not call this.
     func endBlock()
-    /// Offers the Shortcuts setup before a block starts, so the import window is not hidden by app blocking.
-    func prepare()
-}
-
-extension DoNotDisturbControlling {
-    func prepare() {}
 }
 
 /// Used by tests and by any engine that should not touch Focus.
@@ -34,8 +28,11 @@ enum DoNotDisturbPlan: Equatable {
     static let onName = "Tofu Do Not Disturb On"
     static let offName = "Tofu Do Not Disturb Off"
     static let modeIdentifier = "com.apple.donotdisturb.mode.default"
-    static let installMessage = "Add “Tofu Do Not Disturb On” and “Tofu Do Not Disturb Off” in Shortcuts. Do Not Disturb follows the next work block."
-    static let waitingMessage = "Do Not Disturb starts once those Shortcuts are added."
+    /// Shown once ever, the first time a block finds the shortcuts missing. Shortcuts itself is only opened from
+    /// Settings › Do Not Disturb, never on its own.
+    static let setupHint = "Do Not Disturb isn't set up yet. Add its shortcuts in Settings › Do Not Disturb."
+    /// UserDefaults flag: the setup hint was shown (or the user already used the Settings button).
+    static let hintShownKey = "doNotDisturbSetupHintShown"
     static let runFailedMessage = "Shortcuts didn’t turn on Do Not Disturb. In Shortcuts settings, allow running scripts, then start the block again."
 
     static func decide(installed: Set<String>, focusIsOn: Bool) -> DoNotDisturbPlan {
@@ -120,7 +117,14 @@ enum DoNotDisturbShortcuts {
         command(["run", name]).ok
     }
 
+    /// True when both Tofu shortcuts are in the user's Shortcuts library. Runs `shortcuts list`: call off the main thread.
+    static func isInstalled() -> Bool {
+        let installed = names()
+        return installed.contains(DoNotDisturbPlan.onName) && installed.contains(DoNotDisturbPlan.offName)
+    }
+
     /// Signs both shortcuts and opens them so Shortcuts can ask the user to add them. Returns true when both opened.
+    /// Only Settings › Do Not Disturb calls this, on a click. Call off the main thread.
     static func install() -> Bool {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("tofu-do-not-disturb", isDirectory: true)
         do {
@@ -183,22 +187,20 @@ enum DoNotDisturbShortcuts {
 /// The shortcut work happens off the main thread so lock-in does not wait on Shortcuts.
 @MainActor final class ShortcutDoNotDisturb: DoNotDisturbControlling {
     private let client: DoNotDisturbClient
+    /// Remembers across launches that the setup hint was shown.
+    private let defaults: UserDefaults
     private var generation = 0
     private var ownsOff = false
-    private var didNotifyInstall = false
-    private var didOpenInstall = false
     private var didWarnRun = false
 
     init(notify: @escaping (String) -> Void) {
         self.client = .live(notify: notify)
+        self.defaults = .standard
     }
 
-    init(client: DoNotDisturbClient) {
+    init(client: DoNotDisturbClient, defaults: UserDefaults = .standard) {
         self.client = client
-    }
-
-    func prepare() {
-        Task { await self.offerInstall(openFiles: true) }
+        self.defaults = defaults
     }
 
     func beginBlock() {
@@ -225,8 +227,7 @@ enum DoNotDisturbShortcuts {
         guard token == generation else { return }
         switch DoNotDisturbPlan.decide(installed: snapshot.names, focusIsOn: snapshot.focusIsOn) {
         case .needsInstall:
-            // Opening Shortcuts now would hide it behind app blocking, so the files were offered at launch.
-            await offerInstall(openFiles: false)
+            hintOnce()
             await watchUntilInstalled(token: token)
         case .alreadyOn:
             break
@@ -235,19 +236,12 @@ enum DoNotDisturbShortcuts {
         }
     }
 
-    /// Opens the shortcut files once, at launch, before app blocking can hide the Shortcuts window.
-    private func offerInstall(openFiles: Bool) async {
-        let names = await Task.detached { self.client.shortcutNames() }.value
-        let missing = !names.contains(DoNotDisturbPlan.onName) || !names.contains(DoNotDisturbPlan.offName)
-        guard missing else { return }
-        if !didNotifyInstall {
-            didNotifyInstall = true
-            client.notify(openFiles ? DoNotDisturbPlan.installMessage : DoNotDisturbPlan.waitingMessage)
-        }
-        guard openFiles, !didOpenInstall else { return }
-        didOpenInstall = true
-        let install = client.install
-        await Task.detached { _ = install() }.value
+    /// Points to Settings the first time a block finds the shortcuts missing, then never again (even after relaunch).
+    /// Never opens Shortcuts: that only happens from the Settings button.
+    private func hintOnce() {
+        guard !defaults.bool(forKey: DoNotDisturbPlan.hintShownKey) else { return }
+        defaults.set(true, forKey: DoNotDisturbPlan.hintShownKey)
+        client.notify(DoNotDisturbPlan.setupHint)
     }
 
     /// If the user adds the shortcuts while this block is still running, turn Do Not Disturb on for it.

@@ -33,6 +33,8 @@ struct SetupCheck: Equatable {
         var googleServices: [GoogleService] = []
         /// Services that are on but missing from the token's scopes (connected before Gmail was added, say).
         var googleNotGranted: [GoogleService] = []
+        /// Both Tofu Do Not Disturb shortcuts are in the Shortcuts library.
+        var doNotDisturbShortcuts: Bool = false
     }
 
     static func items(_ inputs: Inputs) -> [Item] {
@@ -46,6 +48,10 @@ struct SetupCheck: Equatable {
             screenMemoryItem(enabled: inputs.screenMemoryEnabled, permission: inputs.screenRecording,
                              hasKey: inputs.openAIKey != .none),
             googleItem(inputs),
+            Item(title: "Do Not Disturb",
+                 state: inputs.doNotDisturbShortcuts ? .ready : .optional,
+                 detail: inputs.doNotDisturbShortcuts ? "Turns on for each work block"
+                    : "Off — add its shortcuts in Do Not Disturb below"),
         ]
     }
 

@@ -125,8 +125,6 @@ enum TokenSource: Equatable {
         let memory = MemoryStore(fileURL: MemoryStore.defaultURL())
         engine.companion = CompanionCenter(settings: { box.model?.data.settings ?? AppSettings() },
                                            recall: { name in memory.latest(forSubjectNamed: name)?.summary })
-        // Before the first block, so the Shortcuts import is not hidden by app blocking.
-        DispatchQueue.main.async { doNotDisturb.prepare() }
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine, assistant: assistant,
                   announcer: announcer,
                   priorityExtractor: PriorityExtractor(apiKey: { [box] in box.model?.openAIKey }),
