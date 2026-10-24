@@ -5,115 +5,117 @@ final class CompanionScriptTests: XCTestCase {
     /// Deterministic pick: always the first line of a table.
     private let first: (Int) -> Int = { _ in 0 }
 
-    // MARK: Mood
+    // MARK: Resting face
 
-    func testPureTsundereStaysTsundereHoweverManyViolations() {
-        XCTAssertEqual(CompanionScript.mood(for: .tsundere, violations: 0), .tsundere)
-        XCTAssertEqual(CompanionScript.mood(for: .tsundere, violations: 99), .tsundere)
-    }
-
-    func testPureYandereIsAlwaysYandere() {
-        XCTAssertEqual(CompanionScript.mood(for: .yandere, violations: 0), .yandere)
-        XCTAssertEqual(CompanionScript.mood(for: .yandere, violations: 99), .yandere)
-    }
-
-    func testEscalationStartsTsundere() {
-        XCTAssertEqual(CompanionScript.mood(for: .escalation, violations: 0), .tsundere)
-        XCTAssertEqual(CompanionScript.mood(for: .escalation, violations: 2), .tsundere)
-    }
-
-    func testEscalationTurnsYandereAtThreeViolations() {
-        XCTAssertEqual(CompanionScript.escalationThreshold, 3)
-        XCTAssertEqual(CompanionScript.mood(for: .escalation, violations: 3), .yandere)
-        XCTAssertEqual(CompanionScript.mood(for: .escalation, violations: 10), .yandere)
+    func testRestsCalmUntilDistractionsPileUp() {
+        XCTAssertEqual(CompanionScript.concernThreshold, 3)
+        XCTAssertEqual(CompanionScript.restingExpression(violations: 0), .calm)
+        XCTAssertEqual(CompanionScript.restingExpression(violations: 2), .calm)
+        XCTAssertEqual(CompanionScript.restingExpression(violations: 3), .worried)
     }
 
     // MARK: Lines
 
-    func testBlockedAppLineMentionsTheApp() {
-        let line = CompanionScript.line(for: .blockedApp(name: "Discord"),
-                                        personality: .tsundere, violations: 0, pick: first)
-        XCTAssertTrue(line.text.contains("Discord"))
+    func testBlockedAppLineMentionsTheAppForEveryPersonality() {
+        for personality in CompanionPersonality.allCases {
+            let line = CompanionScript.line(for: .blockedApp(name: "Discord"), personality: personality,
+                                            violations: 0, pick: first)
+            XCTAssertTrue(line.text.contains("Discord"), "\(personality)")
+            XCTAssertEqual(line.expression, .worried)
+        }
     }
 
     func testClosedTabLineMentionsTheHost() {
-        let line = CompanionScript.line(for: .closedTab(host: "youtube.com"),
-                                        personality: .tsundere, violations: 0, pick: first)
-        XCTAssertTrue(line.text.contains("youtube.com"))
+        for personality in CompanionPersonality.allCases {
+            let line = CompanionScript.line(for: .closedTab(host: "youtube.com"), personality: personality,
+                                            violations: 0, pick: first)
+            XCTAssertTrue(line.text.contains("youtube.com"), "\(personality)")
+        }
     }
 
     func testSessionStartLineMentionsTheSubject() {
-        let line = CompanionScript.line(for: .sessionStart(subject: "CS128"),
-                                        personality: .tsundere, violations: 0, pick: first)
-        XCTAssertTrue(line.text.contains("CS128"))
+        for personality in CompanionPersonality.allCases {
+            let line = CompanionScript.line(for: .sessionStart(subject: "CS128"), personality: personality,
+                                            violations: 0, pick: first)
+            XCTAssertTrue(line.text.contains("CS128"), "\(personality)")
+        }
     }
 
-    func testTsundereScoldLooksAnnoyed() {
-        let app = CompanionScript.line(for: .blockedApp(name: "Discord"),
-                                       personality: .tsundere, violations: 0, pick: first)
-        let tab = CompanionScript.line(for: .closedTab(host: "youtube.com"),
-                                       personality: .tsundere, violations: 0, pick: first)
-        XCTAssertEqual(app.expression, .annoyed)
-        XCTAssertEqual(tab.expression, .annoyed)
+    func testRecallQuotesTheNote() {
+        let note = "You were on recursion in MP3."
+        for personality in CompanionPersonality.allCases {
+            let line = CompanionScript.line(for: .recall(subject: "CS128", note: note), personality: personality,
+                                            violations: 0, pick: first)
+            XCTAssertTrue(line.text.contains(note), "\(personality)")
+        }
     }
 
-    func testYandereScoldLooksDark() {
-        let line = CompanionScript.line(for: .blockedApp(name: "Discord"),
-                                        personality: .yandere, violations: 0, pick: first)
-        XCTAssertEqual(line.expression, .dark)
+    func testFirmLinesAfterRepeatedDistractions() {
+        let early = CompanionScript.line(for: .blockedApp(name: "Discord"), personality: .playful,
+                                         violations: 0, pick: first)
+        let firm = CompanionScript.line(for: .blockedApp(name: "Discord"), personality: .playful,
+                                        violations: 3, pick: first)
+        XCTAssertNotEqual(early.text, firm.text)
+        XCTAssertTrue(firm.text.contains("Discord"))
     }
 
-    func testEscalatedScoldUsesYandereLines() {
-        let calm = CompanionScript.line(for: .blockedApp(name: "Discord"),
-                                        personality: .escalation, violations: 0, pick: first)
-        let escalated = CompanionScript.line(for: .blockedApp(name: "Discord"),
-                                             personality: .escalation, violations: 3, pick: first)
-        XCTAssertEqual(calm.expression, .annoyed)
-        XCTAssertEqual(escalated.expression, .dark)
-        XCTAssertNotEqual(calm.text, escalated.text)
+    func testCompletedAndHalfwayAreHappy() {
+        for personality in CompanionPersonality.allCases {
+            XCTAssertEqual(CompanionScript.line(for: .completed, personality: personality,
+                                                violations: 0, pick: first).expression, .happy)
+            XCTAssertEqual(CompanionScript.line(for: .halfway, personality: personality,
+                                                violations: 0, pick: first).expression, .happy)
+        }
     }
 
-    func testCompletedLineIsPleasedInBothMoods() {
-        XCTAssertEqual(CompanionScript.line(for: .completed, personality: .tsundere,
-                                            violations: 0, pick: first).expression, .pleased)
-        XCTAssertEqual(CompanionScript.line(for: .completed, personality: .yandere,
-                                            violations: 0, pick: first).expression, .pleased)
+    func testForfeitIsWorriedNotHarsh() {
+        for personality in CompanionPersonality.allCases {
+            XCTAssertEqual(CompanionScript.line(for: .forfeit, personality: personality,
+                                                violations: 0, pick: first).expression, .worried)
+        }
     }
 
-    func testIdleLineIsNeutral() {
-        XCTAssertEqual(CompanionScript.line(for: .idle, personality: .tsundere,
-                                            violations: 0, pick: first).expression, .neutral)
-        XCTAssertEqual(CompanionScript.line(for: .idle, personality: .yandere,
-                                            violations: 0, pick: first).expression, .neutral)
-    }
-
-    func testForfeitIsAnnoyedForTsundereDarkForYandere() {
-        XCTAssertEqual(CompanionScript.line(for: .forfeit, personality: .tsundere,
-                                            violations: 0, pick: first).expression, .annoyed)
-        XCTAssertEqual(CompanionScript.line(for: .forfeit, personality: .yandere,
-                                            violations: 0, pick: first).expression, .dark)
-    }
-
-    func testHalfwayLineIsPleased() {
-        XCTAssertEqual(CompanionScript.line(for: .halfway, personality: .tsundere,
-                                            violations: 0, pick: first).expression, .pleased)
+    func testNoAnimeTropesLeft() {
+        let events: [CompanionEvent] = [.sessionStart(subject: "X"), .blockedApp(name: "A"), .closedTab(host: "h"),
+                                        .halfway, .completed, .forfeit, .idle, .recall(subject: "X", note: "n")]
+        for personality in CompanionPersonality.allCases {
+            for event in events {
+                for index in 0..<4 {
+                    let text = CompanionScript.line(for: event, personality: personality, violations: 0,
+                                                    pick: { _ in index }).text.lowercased()
+                    XCTAssertFalse(text.contains("baka"))
+                    XCTAssertFalse(text.contains("♥"))
+                }
+            }
+        }
     }
 
     func testPickChoosesAmongSeveralLines() {
-        let a = CompanionScript.line(for: .idle, personality: .tsundere, violations: 0, pick: { _ in 0 })
-        let b = CompanionScript.line(for: .idle, personality: .tsundere, violations: 0, pick: { _ in 1 })
+        let a = CompanionScript.line(for: .idle, personality: .gentle, violations: 0, pick: { _ in 0 })
+        let b = CompanionScript.line(for: .idle, personality: .gentle, violations: 0, pick: { _ in 1 })
         XCTAssertNotEqual(a.text, b.text)
     }
 
     func testOutOfRangePickIsClampedInsteadOfCrashing() {
-        let line = CompanionScript.line(for: .idle, personality: .tsundere, violations: 0, pick: { _ in 999 })
+        let line = CompanionScript.line(for: .idle, personality: .wise, violations: 0, pick: { _ in 999 })
         XCTAssertFalse(line.text.isEmpty)
     }
 
     func testPickReceivesTheTableSize() {
         var seenCount = 0
-        _ = CompanionScript.line(for: .idle, personality: .tsundere, violations: 0,
+        _ = CompanionScript.line(for: .idle, personality: .gentle, violations: 0,
                                  pick: { count in seenCount = count; return 0 })
         XCTAssertGreaterThanOrEqual(seenCount, 2)
+    }
+
+    // MARK: Pose
+
+    func testPoseBreathesSwaysAndBlinks() {
+        XCTAssertEqual(MossPose(time: 0).breath, 0, accuracy: 0.0001)
+        XCTAssertFalse(MossPose(time: 0).isBlinking)
+        XCTAssertEqual(MossPose(time: 0.8).breath, 1, accuracy: 0.0001)
+        XCTAssertTrue(MossPose(time: 4.25).isBlinking)
+        XCTAssertFalse(MossPose(time: 4.5).isBlinking)
+        XCTAssertLessThanOrEqual(abs(MossPose(time: 0.65).sway), 7)
     }
 }

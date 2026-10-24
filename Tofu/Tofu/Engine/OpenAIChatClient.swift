@@ -27,16 +27,71 @@ struct ChatToolCall: Codable, Equatable {
 }
 
 /// One message on the wire (`system`, `user`, `assistant`, or `tool`).
+/// A user message with `images` is sent in the vision form: `content` becomes an array of a text part and one
+/// `image_url` part per image (data URLs, low detail). Images are never decoded back.
 struct ChatWireMessage: Codable, Equatable {
     var role: String
     var content: String?
     var toolCalls: [ChatToolCall]?
     var toolCallID: String?
+    var images: [String]? = nil
 
     enum CodingKeys: String, CodingKey {
         case role, content
         case toolCalls = "tool_calls"
         case toolCallID = "tool_call_id"
+    }
+
+    init(role: String, content: String?, toolCalls: [ChatToolCall]? = nil, toolCallID: String? = nil,
+         images: [String]? = nil) {
+        self.role = role
+        self.content = content
+        self.toolCalls = toolCalls
+        self.toolCallID = toolCallID
+        self.images = images
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(role, forKey: .role)
+        if let images, !images.isEmpty {
+            var parts = container.nestedUnkeyedContainer(forKey: .content)
+            try parts.encode(ContentPart.text(content ?? ""))
+            for url in images { try parts.encode(ContentPart.image(url)) }
+        } else {
+            try container.encodeIfPresent(content, forKey: .content)
+        }
+        try container.encodeIfPresent(toolCalls, forKey: .toolCalls)
+        try container.encodeIfPresent(toolCallID, forKey: .toolCallID)
+    }
+
+    /// One element of a vision message's `content` array.
+    private enum ContentPart: Encodable {
+        case text(String)
+        case image(String)
+
+        private enum Keys: String, CodingKey { case type, text, imageURL = "image_url" }
+        private enum ImageKeys: String, CodingKey { case url, detail }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: Keys.self)
+            switch self {
+            case .text(let text):
+                try container.encode("text", forKey: .type)
+                try container.encode(text, forKey: .text)
+            case .image(let url):
+                try container.encode("image_url", forKey: .type)
+                var image = container.nestedContainer(keyedBy: ImageKeys.self, forKey: .imageURL)
+                try image.encode(url, forKey: .url)
+                try image.encode("low", forKey: .detail)
+            }
+        }
+    }
+
+    /// A user message carrying JPEG screenshots alongside its text.
+    static func user(_ text: String, jpegs: [Data]) -> ChatWireMessage {
+        ChatWireMessage(role: "user", content: text,
+                        images: jpegs.map { "data:image/jpeg;base64," + $0.base64EncodedString() })
     }
 
     static func system(_ text: String) -> ChatWireMessage { ChatWireMessage(role: "system", content: text) }

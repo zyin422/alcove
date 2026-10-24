@@ -47,6 +47,10 @@ enum TokenSource: Equatable {
     let engine: SessionEngine
     /// The chat screen's assistant (gpt-4.1-mini). Wired to Chrome and the session by AppModel.
     let assistant: ChatAssistant
+    /// What screen memory has noted about each subject (memory.json).
+    let memory: MemoryStore
+    /// Takes the 5-minute screenshots while locked in. Live app only; nil in tests.
+    @ObservationIgnored var recorder: ScreenMemoryRecorder?
     /// The sidebar update card's state. AppDelegate connects Sparkle in release builds.
     let updates = UpdateCenter()
     /// Brings the chat screen to the front while locked in (the assistant needs the user; the Mac woke up).
@@ -116,7 +120,9 @@ enum TokenSource: Equatable {
                                    visibleFrame: { ScreenGeometry.mainVisibleFrame() },
                                    primaryHeight: { ScreenGeometry.primaryHeight() },
                                    doNotDisturb: doNotDisturb)
-        engine.companion = CompanionCenter(settings: { box.model?.data.settings ?? AppSettings() })
+        let memory = MemoryStore(fileURL: MemoryStore.defaultURL())
+        engine.companion = CompanionCenter(settings: { box.model?.data.settings ?? AppSettings() },
+                                           recall: { name in memory.latest(forSubjectNamed: name)?.summary })
         // Before the first block, so the Shortcuts import is not hidden by app blocking.
         DispatchQueue.main.async { doNotDisturb.prepare() }
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine, assistant: assistant,
@@ -127,8 +133,14 @@ enum TokenSource: Equatable {
                   envToken: { EnvFile.bundledValue(AppModel.envTokenKey) },
                   keychainOpenAIKey: { Keychain.get(service: Secrets.openAIService, account: Secrets.openAIAccount) },
                   envOpenAIKey: { EnvFile.bundledValue(AppModel.envOpenAIKeyName) },
-                  googleAuth: GoogleAuth(), googleAPI: nil)
+                  googleAuth: GoogleAuth(), googleAPI: nil, memory: memory)
         box.model = self
+        recorder = ScreenMemoryRecorder(
+            capturer: ScreenCapturer(),
+            extractor: ScreenMemoryExtractor(apiKey: { [box] in box.model?.openAIKey }),
+            store: memory,
+            isEnabled: { [box] in box.model?.data.settings.screenMemoryEnabled ?? false },
+            isPaused: { [box] in box.model?.engine.isOnBreak ?? true })
         if let warning = loaded.warning {
             // After launch, so the toast panel can find the screen.
             DispatchQueue.main.async { ToastCenter.shared.show(warning) }
@@ -147,7 +159,8 @@ enum TokenSource: Equatable {
                      priorityExtractor: PriorityExtractor? = nil,
                      mirror: MirrorInterrogator? = nil,
                      googleAuth: GoogleAuth? = nil,
-                     googleAPI: GoogleAPI? = nil) {
+                     googleAPI: GoogleAPI? = nil,
+                     memory: MemoryStore? = nil) {
         let (loaded, isFirstLaunch) = Self.load(store)
         self.init(store: store, loaded: loaded, isFirstLaunch: isFirstLaunch, engine: engine,
                   assistant: assistant ?? ChatAssistant(apiKey: { nil }),
@@ -157,7 +170,7 @@ enum TokenSource: Equatable {
                   keychainToken: keychainToken, envToken: envToken,
                   keychainOpenAIKey: keychainOpenAIKey, envOpenAIKey: envOpenAIKey,
                   googleAuth: googleAuth ?? GoogleAuth(readToken: { nil }, writeToken: { _ in }),
-                  googleAPI: googleAPI)
+                  googleAPI: googleAPI, memory: memory ?? MemoryStore(fileURL: nil))
     }
 
     private init(store: Store, loaded: StoreLoadResult, isFirstLaunch: Bool, engine: SessionEngine,
@@ -165,8 +178,9 @@ enum TokenSource: Equatable {
                  mirror: MirrorInterrogator,
                  keychainToken: @escaping () -> String?, envToken: @escaping () -> String?,
                  keychainOpenAIKey: @escaping () -> String?, envOpenAIKey: @escaping () -> String?,
-                 googleAuth: GoogleAuth, googleAPI: GoogleAPI?) {
+                 googleAuth: GoogleAuth, googleAPI: GoogleAPI?, memory: MemoryStore) {
         self.googleAuth = googleAuth
+        self.memory = memory
         self.store = store
         self.engine = engine
         self.assistant = assistant
@@ -184,13 +198,17 @@ enum TokenSource: Equatable {
         }
         // The chat lives and dies with the lock-in, and can pull the chat screen forward.
         engine.onLockedIn = { [weak self] subject in
-            self?.assistant.beginSession(subject: subject.name, details: subject.details)
+            guard let self else { return }
+            assistant.beginSession(subject: subject.name, details: subject.details,
+                                   memory: MemoryDigest.promptBlock(memory.notes(for: subject.id)))
+            recorder?.start(subject: subject)
         }
         engine.onSiteAllowed = { [weak self] host in self?.persistAllowedHost(host) }
         engine.onAppAllowed = { [weak self] app in self?.persistAllowedApp(app) }
         engine.lookupApp = { [weak self] name in self?.installedApp(named: name) }
         assistant.apps = engine
         engine.onEnded = { [weak self] in
+            self?.recorder?.stop()
             self?.assistant.endSession()
             self?.onSessionEnded?()
         }
@@ -326,7 +344,8 @@ enum TokenSource: Equatable {
     private var installedAppsCache: [AllowedApp]?
 
     /// An installed app matching `name`, scanned once per launch.
-    private func installedApp(named name: String) -> AllowedApp? {
+    /// An installed app matching `name` (scanned once, then cached). Used by the assistant and the setup agent.
+    func installedApp(named name: String) -> AllowedApp? {
         if installedAppsCache == nil {
             installedAppsCache = AppCatalog.scan(directories: AppCatalog.defaultDirectories())
         }
@@ -343,6 +362,7 @@ enum TokenSource: Equatable {
     /// Removes the subject but keeps its sessions (stats use their `subjectName` snapshot).
     func deleteSubject(id: UUID) {
         data.subjects.removeAll { $0.id == id }
+        memory.forget(subjectID: id)
         if selection == .subject(id) {
             selection = data.subjects.first.map { SidebarItem.subject($0.id) }
         }

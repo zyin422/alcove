@@ -487,21 +487,58 @@ struct SubjectEditorView: View {
     let model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var form = SubjectFormState(subject: nil)
+    @State private var agent: SetupAgent
+    @AppStorage(SetupMode.storageKey) private var setupMode = SetupMode.agent
+
+    init(model: AppModel) {
+        self.model = model
+        _agent = State(initialValue: SetupAgent(
+            apiKey: { [model] in model.openAIKey },
+            lookupApp: { [model] name in model.installedApp(named: name) }))
+    }
+
+    private var accent: Color {
+        SidebarPalette.color(.init(h: SidebarPalette.defaultHue, s: 55, l: 55))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Space.l) {
-                    Text("New subject").font(.title2.weight(.semibold))
-                    SubjectForm(form: $form)
+                    HStack {
+                        Text("New subject").font(.title2.weight(.semibold))
+                        Spacer()
+                        SetupModePicker(mode: $setupMode, accent: accent)
+                    }
+                    switch setupMode {
+                    case .agent:
+                        AgentSetupView(agent: agent, form: $form, accent: accent,
+                                       suggestions: Self.suggestions,
+                                       onEditManually: { withAnimation { setupMode = .manual } })
+                    case .manual:
+                        SubjectForm(form: $form)
+                    }
                 }
                 .padding(Theme.Space.l)
             }
             Divider()
             footer.padding(Theme.Space.l)
         }
-        .frame(width: 660, height: 780)
+        .frame(width: 720, height: 780)
+        .onAppear {
+            agent.read = { form }
+            agent.apply = { change in change(&form) }
+            agent.greet(isNew: true, name: "", lastNote: nil)
+        }
     }
+
+    /// Example openers for a new setup.
+    static let suggestions = [
+        "CS128 — PrairieLearn and the course site, VS Code on my MP folder",
+        "Writing an essay in Google Docs with Zotero",
+        "LeetCode practice, full screen",
+        "Math homework on Canvas and Desmos",
+    ]
 
     private var footer: some View {
         HStack(alignment: .top, spacing: Theme.Space.m) {

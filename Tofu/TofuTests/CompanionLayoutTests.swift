@@ -18,7 +18,7 @@ final class CompanionLayoutTests: XCTestCase {
         XCTAssertEqual(frame.minY, offset.minY + CompanionLayout.margin)
     }
 
-    func testPanelIsTallEnoughForBubbleAndPortrait() {
+    func testPanelIsTallEnoughForBubbleAndMoss() {
         XCTAssertGreaterThanOrEqual(CompanionLayout.panelSize.height,
                                     CompanionLayout.portraitSize.height + CompanionLayout.bubbleHeight)
         XCTAssertGreaterThanOrEqual(CompanionLayout.panelSize.width, CompanionLayout.portraitSize.width)

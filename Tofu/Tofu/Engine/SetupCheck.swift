@@ -26,6 +26,8 @@ struct SetupCheck: Equatable {
         var discordEnabled: Bool
         var discordToken: TokenSource
         var googleConnected: Bool
+        var screenMemoryEnabled: Bool = false
+        var screenRecording: Bool = false
     }
 
     static func items(_ inputs: Inputs) -> [Item] {
@@ -40,6 +42,8 @@ struct SetupCheck: Equatable {
                  detail: inputs.openAIKey == .none ? "No key: you're asked about each new site instead"
                     : "Off-task tabs are judged automatically"),
             discordItem(enabled: inputs.discordEnabled, token: inputs.discordToken),
+            screenMemoryItem(enabled: inputs.screenMemoryEnabled, permission: inputs.screenRecording,
+                             hasKey: inputs.openAIKey != .none),
             Item(title: "Google",
                  state: inputs.googleConnected ? .ready : .optional,
                  detail: inputs.googleConnected ? "Tasks and Calendar sync" : "Not connected (optional)"),
@@ -67,6 +71,18 @@ struct SetupCheck: Equatable {
             return Item(title: "Chrome control", state: .needsAction,
                         detail: "Google Chrome isn't installed: no sites open and no tabs are watched")
         }
+    }
+
+    private static func screenMemoryItem(enabled: Bool, permission: Bool, hasKey: Bool) -> Item {
+        guard enabled else { return Item(title: "Screen memory", state: .optional, detail: "Off") }
+        if !permission {
+            return Item(title: "Screen memory", state: .needsAction,
+                        detail: "Allow Screen Recording for Tofu — see Screen memory below")
+        }
+        if !hasKey {
+            return Item(title: "Screen memory", state: .needsAction, detail: "Needs an OpenAI key to describe screenshots")
+        }
+        return Item(title: "Screen memory", state: .ready, detail: "A screenshot every 5 minutes is described and remembered")
     }
 
     private static func discordItem(enabled: Bool, token: TokenSource) -> Item {

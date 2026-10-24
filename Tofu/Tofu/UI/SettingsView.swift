@@ -20,6 +20,8 @@ struct SettingsView: View {
     @State private var isConnectingGoogle = false
     /// Chrome's Automation permission as macOS reports it without prompting; refreshed when Settings appears.
     @State private var chromePermission = AutomationPermission.appNotRunning
+    @State private var hasScreenRecording = CGPreflightScreenCaptureAccess()
+    @State private var isConfirmingForget = false
     /// Mirrors TofuApp's menu-bar timer switch.
     @AppStorage("menuBarTimer") private var menuBarTimer = true
 
@@ -33,6 +35,7 @@ struct SettingsView: View {
             googleSection
             accountabilitySection
             companionSection
+            screenMemorySection
             endOfDaySection
             relevanceSection
             chromeSection
@@ -52,7 +55,8 @@ struct SettingsView: View {
         let items = SetupCheck.items(SetupCheck.Inputs(
             accessibility: hasAccessibility, chrome: chromePermission, openAIKey: openAIKeySource,
             discordEnabled: model.data.settings.discordEnabled, discordToken: tokenSource,
-            googleConnected: model.isGoogleConnected))
+            googleConnected: model.isGoogleConnected,
+            screenMemoryEnabled: model.data.settings.screenMemoryEnabled, screenRecording: hasScreenRecording))
         return Section {
             ForEach(items) { item in
                 HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
@@ -232,14 +236,45 @@ struct SettingsView: View {
                 }
             }
             .disabled(!model.data.settings.companionEnabled)
-            Button("Open images folder") {
-                CompanionArt.ensureDirectory()
-                NSWorkspace.shared.open(CompanionArt.imagesDirectory())
-            }
         } header: {
             Text("Study companion")
         } footer: {
-            Text("She floats bottom-right while you're locked in, cheers you on, and calls you out when something gets blocked. Drop your own character art into the images folder as neutral.png, annoyed.png, pleased.png and dark.png (transparent PNGs look best); without them the included Emilia portraits are used. “Tsundere → yandere” turns dark after \(CompanionScript.escalationThreshold) blocked attempts in a session.")
+            Text("Moss, a small forest spirit, sits bottom-right while you're locked in. It greets you, keeps you company, cheers at the halfway mark, and gently calls out what gets blocked — a little firmer after \(CompanionScript.concernThreshold) distractions in a session. With screen memory on, it reminds you where you left off.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var screenMemorySection: some View {
+        Section {
+            Toggle("Remember what I work on", isOn: Binding(
+                get: { model.data.settings.screenMemoryEnabled },
+                set: { value in model.updateSettings { $0.screenMemoryEnabled = value } }))
+            LabeledContent("Screen Recording") {
+                Text(hasScreenRecording ? "Allowed" : "Not allowed")
+            }
+            HStack {
+                Button("Allow screen recording") {
+                    hasScreenRecording = ScreenCapturer.requestPermission()
+                }
+                .disabled(hasScreenRecording)
+                Button("Open System Settings") { NSWorkspace.shared.open(ScreenCapturer.settingsURL) }
+            }
+            LabeledContent("Remembered") {
+                Text(model.memory.notes.count == 1 ? "1 note" : "\(model.memory.notes.count) notes")
+            }
+            Button("Forget everything…", role: .destructive) { isConfirmingForget = true }
+                .disabled(model.memory.notes.isEmpty)
+                .confirmationDialog("Forget every screen memory note?", isPresented: $isConfirmingForget) {
+                    Button("Forget everything", role: .destructive) { model.memory.forgetAll() }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Moss and the assistants will no longer know where you left off.")
+                }
+        } header: {
+            Text("Screen memory")
+        } footer: {
+            Text("While you're locked in, Tofu takes a screenshot of your main display every 5 minutes (Tofu's own windows left out) and sends it to OpenAI to be described in a sentence or two. Only that description is kept, in memory.json on this Mac; the screenshot is never saved. Moss, the chat assistant and the setup agent use the notes to remind you where you left off. Breaks are never captured. Each subject's notes are listed on its page, where you can delete them.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -433,6 +468,7 @@ struct SettingsView: View {
         tokenSource = model.discordTokenSource
         openAIKeySource = model.openAIKeySource
         hasAccessibility = WindowPlacer.isTrusted
+        hasScreenRecording = CGPreflightScreenCaptureAccess()
         if !ChromeController.isInstalled {
             chromeStatus = SettingsStatus.chromeResult(.notInstalled)
         }

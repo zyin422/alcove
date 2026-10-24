@@ -28,14 +28,17 @@ struct AppSettings: Codable, Equatable {
     var googleShowEventsEnabled: Bool
     /// The Google calendar sessions are written to, once chosen or created.
     var googleCalendarID: String?
+    /// Every 5 minutes while locked in, describe a screenshot with OpenAI and remember the description.
+    var screenMemoryEnabled: Bool
 
     init(displayName: String = NSFullUserName(), discordEnabled: Bool = false,
          giveUpTemplate: String = "I give up on {subject}", channelCache: [String: String] = [:],
          dayEndPromptEnabled: Bool = true, dayEndMinutes: Int = 22 * 60, lastDayPromptKey: String? = nil,
          morningScreenEnabled: Bool = true, lastMorningKey: String? = nil,
-         companionEnabled: Bool = true, companionPersonality: CompanionPersonality = .escalation,
+         companionEnabled: Bool = true, companionPersonality: CompanionPersonality = .gentle,
          googleTasksSyncEnabled: Bool = true, googleSessionLogEnabled: Bool = true,
-         googleShowEventsEnabled: Bool = true, googleCalendarID: String? = nil) {
+         googleShowEventsEnabled: Bool = true, googleCalendarID: String? = nil,
+         screenMemoryEnabled: Bool = true) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
         self.giveUpTemplate = giveUpTemplate
@@ -51,6 +54,7 @@ struct AppSettings: Codable, Equatable {
         self.googleSessionLogEnabled = googleSessionLogEnabled
         self.googleShowEventsEnabled = googleShowEventsEnabled
         self.googleCalendarID = googleCalendarID
+        self.screenMemoryEnabled = screenMemoryEnabled
     }
 }
 
@@ -81,7 +85,9 @@ extension AppSettings {
                 ?? defaults.googleSessionLogEnabled,
             googleShowEventsEnabled: try container.decodeIfPresent(Bool.self, forKey: .googleShowEventsEnabled)
                 ?? defaults.googleShowEventsEnabled,
-            googleCalendarID: try container.decodeIfPresent(String.self, forKey: .googleCalendarID))
+            googleCalendarID: try container.decodeIfPresent(String.self, forKey: .googleCalendarID),
+            screenMemoryEnabled: try container.decodeIfPresent(Bool.self, forKey: .screenMemoryEnabled)
+                ?? defaults.screenMemoryEnabled)
     }
 }
 

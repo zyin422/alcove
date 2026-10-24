@@ -1,227 +1,326 @@
-import AppKit
 import SwiftUI
 
-/// Where the companion's portrait images live. The user drops `neutral.png`, `annoyed.png`,
-/// `pleased.png` and `dark.png` there (e.g. their favorite character); missing files fall back
-/// to the bundled Emilia art, then the built-in drawn portrait.
-enum CompanionArt {
-    /// ~/Library/Application Support/Tofu/companion
-    static func imagesDirectory() -> URL {
-        Store.defaultURL().deletingLastPathComponent().appendingPathComponent("companion", isDirectory: true)
-    }
-
-    /// Creates the folder so Settings can open it in Finder.
-    static func ensureDirectory() {
-        try? FileManager.default.createDirectory(at: imagesDirectory(), withIntermediateDirectories: true)
-    }
-
-    /// Custom PNGs override the bundled portrait independently for each expression.
-    static func image(for expression: CompanionExpression, directory: URL = imagesDirectory()) -> NSImage? {
-        NSImage(contentsOf: directory.appendingPathComponent("\(expression.rawValue).png"))
-            ?? bundledImage(for: expression)
-    }
-
-    static func bundledImage(for expression: CompanionExpression) -> NSImage? {
-        NSImage(named: "Companion-\(expression.rawValue)")
-    }
-}
-
-/// The companion's face: custom PNG, bundled Emilia art, or the drawn fallback.
-struct CompanionPortrait: View {
+/// Moss, the study companion: a small, round forest spirit with a sprout on its head, drawn in SwiftUI in a soft,
+/// hand-painted storybook style (cream body, sketchy brown outline, moss and leaves). It breathes, its leaf sways
+/// and it blinks; with Reduce Motion it holds still. Designed in a 140x150 space and scaled to fit its frame.
+struct MossView: View {
     let expression: CompanionExpression
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    var body: some View {
-        if let image = CompanionArt.image(for: expression) {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFit()
-        } else {
-            DrawnCompanion(expression: expression)
-        }
-    }
-}
-
-/// Built-in fallback portrait: a silver-haired, purple-eyed anime girl drawn in SwiftUI.
-/// Designed in a 150x190 space and scaled to fit its frame.
-struct DrawnCompanion: View {
-    let expression: CompanionExpression
-
-    private let hair = Color(red: 0.86, green: 0.87, blue: 0.93)
-    private let hairShade = Color(red: 0.76, green: 0.77, blue: 0.87)
-    private let skin = Color(red: 1.0, green: 0.91, blue: 0.86)
-    private let iris = Color(red: 0.56, green: 0.42, blue: 0.86)
-    private let dress = Color(red: 0.33, green: 0.30, blue: 0.48)
-    private let lineColor = Color(red: 0.25, green: 0.22, blue: 0.32)
+    static let designSize = CGSize(width: 140, height: 150)
 
     var body: some View {
         GeometryReader { geo in
-            let s = min(geo.size.width / 150, geo.size.height / 190)
-            ZStack {
-                backHair
-                shoulders
-                face
-                bangs
-                flower
-                eyes
-                mouth
-                if expression == .annoyed || expression == .pleased { blush }
-                if expression == .dark { darkAura }
+            let scale = min(geo.size.width / Self.designSize.width, geo.size.height / Self.designSize.height)
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { timeline in
+                let t = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
+                MossFigure(expression: expression, pose: MossPose(time: t))
+                    .frame(width: Self.designSize.width, height: Self.designSize.height)
+                    .scaleEffect(scale)
+                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
             }
-            .frame(width: 150, height: 190)
-            .scaleEffect(s, anchor: .center)
-            .position(x: geo.size.width / 2, y: geo.size.height / 2)
         }
-        .accessibilityHidden(true)
+        .accessibilityElement()
+        .accessibilityLabel("Moss, your study companion, looks \(expression.rawValue)")
     }
+}
 
-    private var backHair: some View {
+/// Where the idle animation is at a moment in time. Pure, so the motion is easy to reason about.
+struct MossPose: Equatable {
+    /// -1...1, one breath every 3.2 s.
+    var breath: Double
+    /// Degrees the sprout leans.
+    var sway: Double
+    /// True for 0.14 s every 4.2 s.
+    var isBlinking: Bool
+
+    init(time: TimeInterval) {
+        breath = sin(time * 2 * .pi / 3.2)
+        sway = 7 * sin(time * 2 * .pi / 2.6)
+        isBlinking = time > 0 && time.truncatingRemainder(dividingBy: 4.2) < 0.14
+    }
+}
+
+private enum MossPalette {
+    static let body = Color(red: 0.98, green: 0.96, blue: 0.91)
+    static let bodyShade = Color(red: 0.92, green: 0.88, blue: 0.79)
+    static let line = Color(red: 0.36, green: 0.29, blue: 0.22)
+    static let moss = Color(red: 0.49, green: 0.62, blue: 0.40)
+    static let mossLight = Color(red: 0.62, green: 0.74, blue: 0.48)
+    static let leaf = Color(red: 0.43, green: 0.60, blue: 0.36)
+    static let leafVein = Color(red: 0.32, green: 0.46, blue: 0.27)
+    static let cheek = Color(red: 0.95, green: 0.62, blue: 0.58)
+    static let mouth = Color(red: 0.55, green: 0.27, blue: 0.24)
+}
+
+private struct MossFigure: View {
+    let expression: CompanionExpression
+    let pose: MossPose
+
+    var body: some View {
         ZStack {
-            // Long hair falling behind the shoulders.
-            RoundedRectangle(cornerRadius: 34)
-                .fill(hairShade)
-                .frame(width: 104, height: 150)
-                .offset(y: 12)
+            // Soft ground shadow.
             Ellipse()
-                .fill(hair)
-                .frame(width: 100, height: 96)
-                .offset(y: -40)
+                .fill(Color.black.opacity(0.13))
+                .frame(width: 78 - 4 * pose.breath, height: 11)
+                .blur(radius: 2.5)
+                .position(x: 70, y: 141)
+
+            ZStack {
+                feet
+                arms
+                bodyShape
+                mossPatch
+                sprout
+                face
+            }
+            .offset(y: -2 * pose.breath)
+            .scaleEffect(x: 1 - 0.012 * pose.breath, y: 1 + 0.022 * pose.breath, anchor: .bottom)
+
+            if expression == .sleepy { sleepyZ }
+            if expression == .happy { sparkles }
         }
     }
 
-    private var shoulders: some View {
-        RoundedRectangle(cornerRadius: 18)
-            .fill(dress)
-            .frame(width: 96, height: 42)
-            .offset(y: 72)
+    // MARK: Body
+
+    private var bodyShape: some View {
+        let shape = Ellipse().path(in: CGRect(x: 20, y: 42, width: 100, height: 94))
+        return ZStack {
+            shape.fill(LinearGradient(colors: [MossPalette.body, MossPalette.bodyShade],
+                                      startPoint: .top, endPoint: .bottom))
+            // A painted highlight, top-left.
+            Ellipse()
+                .fill(Color.white.opacity(0.55))
+                .frame(width: 30, height: 18)
+                .rotationEffect(.degrees(-25))
+                .position(x: 48, y: 62)
+                .blur(radius: 3)
+            // Two offset strokes read as a hand-drawn line.
+            shape.stroke(MossPalette.line, lineWidth: 2.2)
+            shape.offsetBy(dx: 0.8, dy: 0.6).stroke(MossPalette.line.opacity(0.35), lineWidth: 1)
+        }
     }
+
+    private var feet: some View {
+        ZStack {
+            foot.position(x: 52, y: 134)
+            foot.position(x: 88, y: 134)
+        }
+    }
+
+    private var foot: some View {
+        Ellipse()
+            .fill(MossPalette.bodyShade)
+            .overlay(Ellipse().stroke(MossPalette.line, lineWidth: 1.8))
+            .frame(width: 18, height: 10)
+    }
+
+    private var arms: some View {
+        let lift = expression == .happy ? -10.0 : 0
+        return ZStack {
+            arm.rotationEffect(.degrees(25 + lift * 2)).position(x: 22, y: 96 + lift)
+            arm.rotationEffect(.degrees(-25 - lift * 2)).position(x: 118, y: 96 + lift)
+        }
+    }
+
+    private var arm: some View {
+        Capsule()
+            .fill(MossPalette.body)
+            .overlay(Capsule().stroke(MossPalette.line, lineWidth: 1.8))
+            .frame(width: 12, height: 20)
+    }
+
+    private var mossPatch: some View {
+        ZStack {
+            ForEach(Self.mossTufts, id: \.self) { tuft in
+                Circle()
+                    .fill(tuft.light ? MossPalette.mossLight : MossPalette.moss)
+                    .frame(width: tuft.size, height: tuft.size)
+                    .position(x: tuft.x, y: tuft.y)
+            }
+        }
+    }
+
+    private struct Tuft: Hashable {
+        var x: CGFloat
+        var y: CGFloat
+        var size: CGFloat
+        var light: Bool
+    }
+
+    private static let mossTufts: [Tuft] = [
+        Tuft(x: 52, y: 50, size: 12, light: false), Tuft(x: 62, y: 45, size: 14, light: true),
+        Tuft(x: 74, y: 44, size: 15, light: false), Tuft(x: 86, y: 48, size: 12, light: true),
+        Tuft(x: 94, y: 53, size: 9, light: false), Tuft(x: 45, y: 56, size: 8, light: true),
+        Tuft(x: 68, y: 50, size: 10, light: false), Tuft(x: 80, y: 52, size: 9, light: false),
+    ]
+
+    private var sprout: some View {
+        ZStack {
+            Path { path in
+                path.move(to: CGPoint(x: 70, y: 44))
+                path.addQuadCurve(to: CGPoint(x: 71, y: 20), control: CGPoint(x: 66, y: 32))
+            }
+            .stroke(MossPalette.leafVein, style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
+            leaf.rotationEffect(.degrees(-38), anchor: .bottomTrailing)
+                .frame(width: 22, height: 11)
+                .position(x: 60, y: 19)
+            leaf.rotationEffect(.degrees(28), anchor: .bottomLeading)
+                .frame(width: 24, height: 12)
+                .position(x: 83, y: 17)
+        }
+        .rotationEffect(.degrees(pose.sway), anchor: UnitPoint(x: 0.5, y: 44 / 150))
+    }
+
+    private var leaf: some View {
+        ZStack {
+            Ellipse().fill(MossPalette.leaf)
+            Ellipse().stroke(MossPalette.leafVein, lineWidth: 1.2)
+            Capsule().fill(MossPalette.leafVein.opacity(0.6)).frame(height: 1)
+        }
+    }
+
+    // MARK: Face
 
     private var face: some View {
-        Ellipse()
-            .fill(skin)
-            .frame(width: 74, height: 80)
-            .offset(y: -28)
-    }
-
-    private var bangs: some View {
         ZStack {
-            // Three rounded strands across the forehead, middle one lowest.
-            Ellipse().fill(hair).frame(width: 34, height: 34).offset(x: -24, y: -58)
-            Ellipse().fill(hair).frame(width: 36, height: 40).offset(y: -60)
-            Ellipse().fill(hair).frame(width: 34, height: 34).offset(x: 24, y: -58)
-            // Side strands framing the face.
-            Capsule().fill(hair).frame(width: 14, height: 66).offset(x: -40, y: -24)
-            Capsule().fill(hair).frame(width: 14, height: 66).offset(x: 40, y: -24)
+            cheeks
+            eyes
+            if expression == .worried { brows }
+            mouth
         }
     }
 
-    private var flower: some View {
-        // Small white flower tucked in the hair, top-left.
+    private var cheeks: some View {
         ZStack {
-            ForEach(0..<5, id: \.self) { petal in
-                Ellipse()
-                    .fill(.white)
-                    .frame(width: 7, height: 11)
-                    .rotationEffect(.degrees(Double(petal) * 72))
-            }
-            Circle().fill(Color(red: 0.95, green: 0.78, blue: 0.86)).frame(width: 5, height: 5)
+            Ellipse().fill(MossPalette.cheek.opacity(expression == .happy ? 0.7 : 0.5))
+                .frame(width: 13, height: 7).position(x: 42, y: 100)
+            Ellipse().fill(MossPalette.cheek.opacity(expression == .happy ? 0.7 : 0.5))
+                .frame(width: 13, height: 7).position(x: 98, y: 100)
         }
-        .offset(x: -30, y: -70)
     }
 
     @ViewBuilder private var eyes: some View {
         switch expression {
-        case .pleased:
-            // Closed happy arcs.
-            HappyEye().stroke(lineColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                .frame(width: 16, height: 8).offset(x: -16, y: -32)
-            HappyEye().stroke(lineColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                .frame(width: 16, height: 8).offset(x: 16, y: -32)
-        case .annoyed:
-            openEye(at: -16, lidded: true)
-            openEye(at: 16, lidded: true)
-            // Brows angled in.
-            brow(at: -16, angle: 18)
-            brow(at: 16, angle: -18)
-        case .dark:
-            openEye(at: -16, irisScale: 0.6)
-            openEye(at: 16, irisScale: 0.6)
-        case .neutral:
-            openEye(at: -16)
-            openEye(at: 16)
+        case .happy:
+            ZStack {
+                happyEye.position(x: 55, y: 88)
+                happyEye.position(x: 85, y: 88)
+            }
+        case .sleepy:
+            ZStack {
+                sleepyEye.position(x: 55, y: 90)
+                sleepyEye.position(x: 85, y: 90)
+            }
+        case .calm, .worried:
+            ZStack {
+                dotEye.position(x: 55, y: 89)
+                dotEye.position(x: 85, y: 89)
+            }
         }
     }
 
-    private func openEye(at x: CGFloat, lidded: Bool = false, irisScale: CGFloat = 1) -> some View {
+    private var dotEye: some View {
         ZStack {
-            Ellipse().fill(.white).frame(width: 17, height: lidded ? 11 : 15)
-            Circle().fill(iris).frame(width: 11 * irisScale, height: 11 * irisScale)
-            Circle().fill(lineColor).frame(width: 5 * irisScale, height: 5 * irisScale)
-            Circle().fill(.white).frame(width: 3, height: 3).offset(x: 2, y: -2)
+            Ellipse().fill(MossPalette.line).frame(width: 8, height: 10)
+            Circle().fill(Color.white).frame(width: 3, height: 3).offset(x: -1.5, y: -2)
         }
-        .offset(x: x, y: -32)
+        .scaleEffect(x: 1, y: pose.isBlinking ? 0.12 : 1)
     }
 
-    private func brow(at x: CGFloat, angle: Double) -> some View {
-        Capsule()
-            .fill(lineColor)
-            .frame(width: 15, height: 2.5)
-            .rotationEffect(.degrees(angle))
-            .offset(x: x, y: -44)
+    private var happyEye: some View {
+        Path { path in
+            path.move(to: CGPoint(x: 0, y: 6))
+            path.addQuadCurve(to: CGPoint(x: 12, y: 6), control: CGPoint(x: 6, y: -3))
+        }
+        .stroke(MossPalette.line, style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
+        .frame(width: 12, height: 8)
+    }
+
+    private var sleepyEye: some View {
+        Path { path in
+            path.move(to: CGPoint(x: 0, y: 1))
+            path.addQuadCurve(to: CGPoint(x: 12, y: 1), control: CGPoint(x: 6, y: 6))
+        }
+        .stroke(MossPalette.line, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
+        .frame(width: 12, height: 6)
+    }
+
+    private var brows: some View {
+        ZStack {
+            Capsule().fill(MossPalette.line).frame(width: 10, height: 2)
+                .rotationEffect(.degrees(-16)).position(x: 54, y: 77)
+            Capsule().fill(MossPalette.line).frame(width: 10, height: 2)
+                .rotationEffect(.degrees(16)).position(x: 86, y: 77)
+        }
     }
 
     @ViewBuilder private var mouth: some View {
         switch expression {
-        case .pleased:
-            SmileCurve().stroke(lineColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                .frame(width: 16, height: 7).offset(y: -12)
-        case .annoyed:
-            SmileCurve().stroke(lineColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                .frame(width: 12, height: 5).rotationEffect(.degrees(180)).offset(y: -11)
-        case .dark:
-            Capsule().fill(lineColor).frame(width: 10, height: 2).offset(y: -12)
-        case .neutral:
-            SmileCurve().stroke(lineColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                .frame(width: 12, height: 4).offset(y: -12)
+        case .happy:
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: 0))
+                path.addQuadCurve(to: CGPoint(x: 14, y: 0), control: CGPoint(x: 7, y: 13))
+                path.closeSubpath()
+            }
+            .fill(MossPalette.mouth)
+            .overlay(Ellipse().fill(MossPalette.cheek).frame(width: 6, height: 3).offset(y: 2.5))
+            .frame(width: 14, height: 8)
+            .position(x: 70, y: 103)
+        case .worried:
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: 3))
+                path.addCurve(to: CGPoint(x: 12, y: 3), control1: CGPoint(x: 4, y: -1), control2: CGPoint(x: 8, y: 7))
+            }
+            .stroke(MossPalette.line, style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
+            .frame(width: 12, height: 6)
+            .position(x: 70, y: 103)
+        case .sleepy:
+            Ellipse().stroke(MossPalette.line, lineWidth: 1.6)
+                .frame(width: 5, height: 6)
+                .position(x: 70, y: 103)
+        case .calm:
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: 0))
+                path.addQuadCurve(to: CGPoint(x: 10, y: 0), control: CGPoint(x: 5, y: 5))
+            }
+            .stroke(MossPalette.line, style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
+            .frame(width: 10, height: 4)
+            .position(x: 70, y: 102)
         }
     }
 
-    private var blush: some View {
-        Group {
-            Ellipse().fill(Color(red: 1.0, green: 0.65, blue: 0.68).opacity(0.5))
-                .frame(width: 12, height: 6).offset(x: -24, y: -20)
-            Ellipse().fill(Color(red: 1.0, green: 0.65, blue: 0.68).opacity(0.5))
-                .frame(width: 12, height: 6).offset(x: 24, y: -20)
+    // MARK: Extras
+
+    private var sleepyZ: some View {
+        let drift = (pose.breath + 1) / 2
+        return ZStack {
+            Text("z").font(.system(size: 11, weight: .semibold, design: .rounded))
+                .position(x: 112, y: 46 - 4 * drift)
+            Text("z").font(.system(size: 15, weight: .semibold, design: .rounded))
+                .position(x: 122, y: 30 - 6 * drift)
         }
+        .foregroundStyle(MossPalette.line.opacity(0.6))
     }
 
-    private var darkAura: some View {
-        // Shadow over the top of the face: the yandere look.
-        LinearGradient(colors: [Color.black.opacity(0.45), .clear], startPoint: .top, endPoint: .bottom)
-            .frame(width: 74, height: 42)
-            .clipShape(Ellipse().scale(x: 1, y: 2, anchor: .top))
-            .offset(y: -57)
-            .blendMode(.multiply)
+    private var sparkles: some View {
+        let twinkle = 0.6 + 0.4 * abs(pose.breath)
+        return ZStack {
+            Image(systemName: "sparkle").font(.system(size: 10)).position(x: 18, y: 58)
+            Image(systemName: "sparkle").font(.system(size: 7)).position(x: 124, y: 66)
+            Image(systemName: "sparkle").font(.system(size: 8)).position(x: 112, y: 36)
+        }
+        .foregroundStyle(Color(red: 0.93, green: 0.76, blue: 0.36))
+        .opacity(twinkle)
     }
+}
 
-    /// Upward arc: a closed, happy anime eye (^).
-    private struct HappyEye: Shape {
-        func path(in rect: CGRect) -> Path {
-            var path = Path()
-            path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-            path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.maxY),
-                              control: CGPoint(x: rect.midX, y: rect.minY - rect.height))
-            return path
+#Preview {
+    HStack {
+        ForEach(CompanionExpression.allCases, id: \.self) { expression in
+            MossView(expression: expression).frame(width: 140, height: 150)
         }
     }
-
-    /// Downward-dipping arc for the mouth.
-    private struct SmileCurve: Shape {
-        func path(in rect: CGRect) -> Path {
-            var path = Path()
-            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.minY),
-                              control: CGPoint(x: rect.midX, y: rect.maxY * 2 - rect.minY))
-            return path
-        }
-    }
+    .padding()
 }
