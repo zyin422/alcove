@@ -299,6 +299,8 @@ struct EndOfDayView: View {
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(.secondary)
+                            .help("Remove this priority")
+                            .accessibilityLabel("Remove this priority")
                         }
                     }
                     Button {

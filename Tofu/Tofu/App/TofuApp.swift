@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// App entry point: a single main window ("New Window" is disabled) plus the Settings scene (⌘,).
-/// The AppDelegate owns the model.
+/// App entry point: a single main window ("New Window" is disabled), the Settings scene (⌘,) and, while locked in,
+/// a menu-bar timer. The AppDelegate owns the model.
 @main
 struct TofuApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @AppStorage("menuBarTimer") private var menuBarTimer = true
 
     var body: some Scene {
         WindowGroup("Tofu", id: "main") {
@@ -14,6 +15,8 @@ struct TofuApp: App {
                 RootView(model: appDelegate.model)
             }
         }
+        // The sidebar's tinted chrome runs up behind the traffic lights, as in Arc.
+        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1100, height: 720)
         .commands {
             CommandGroup(replacing: .newItem) {}
@@ -21,6 +24,20 @@ struct TofuApp: App {
                 if !AppDelegate.isRunningTests {
                     CheckForUpdatesButton(updates: appDelegate.model.updates)
                 }
+            }
+        }
+
+        MenuBarExtra(isInserted: Binding(
+            get: { menuBarTimer && !AppDelegate.isRunningTests && appDelegate.model.engine.isLocked },
+            set: { menuBarTimer = $0 })) {
+            if !AppDelegate.isRunningTests {
+                MenuBarTimerMenu(model: appDelegate.model, presenter: { appDelegate.windowPresenter })
+            }
+        } label: {
+            if AppDelegate.isRunningTests {
+                Text("Tofu")
+            } else {
+                MenuBarTimerLabel(engine: appDelegate.model.engine)
             }
         }
 
@@ -32,6 +49,32 @@ struct TofuApp: App {
                     .frame(width: 560, height: 640)
             }
         }
+    }
+}
+
+/// The menu bar's clock while locked in: break time left, goal time left, or time so far.
+private struct MenuBarTimerLabel: View {
+    let engine: SessionEngine
+
+    var body: some View {
+        let seconds = engine.breakRemaining ?? engine.remaining ?? engine.elapsed
+        Text((engine.isOnBreak ? "☕ " : "🔒 ") + TimeFormat.clock(seconds))
+            .monospacedDigit()
+    }
+}
+
+/// The menu-bar timer's menu.
+private struct MenuBarTimerMenu: View {
+    let model: AppModel
+    let presenter: () -> MainWindowPresenter?
+
+    var body: some View {
+        if let session = model.engine.session {
+            Text(model.engine.isOnBreak ? "On a break from \(session.subjectName)" : "Locked in on \(session.subjectName)")
+        }
+        Divider()
+        Button("Show Tofu") { presenter()?.showMainWindow() }
+        Button("End Session…") { presenter()?.requestEnd() }
     }
 }
 

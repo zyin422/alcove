@@ -1,5 +1,8 @@
+import AppKit
 import Charts
 import SwiftUI
+import UniformTypeIdentifiers
+import os
 
 /// Stats screen (spec §10): range toggle, stacked bar chart, summary cards and per-subject breakdown.
 struct StatsView: View {
@@ -23,6 +26,18 @@ struct StatsView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .frame(width: 240)
+                    Menu {
+                        ForEach(SessionExport.Format.allCases) { format in
+                            Button("Export as \(format.title)…") { export(sessions, as: format) }
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .disabled(SessionExport.exportable(sessions).isEmpty)
+                    .help("Export your sessions as CSV or JSON")
+                    .accessibilityLabel("Export sessions")
                 }
                 if StatsFormatting.hasTrackedSessions(sessions) {
                     let limit = StatsFormatting.topSubjectLimit(for: sessions, shades: Theme.grays.count)
@@ -47,6 +62,22 @@ struct StatsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("Stats")
+    }
+
+    /// Asks where to save, then writes every finished, non-demo session. A failed write is shown as a toast.
+    private func export(_ sessions: [Session], as format: SessionExport.Format) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = SessionExport.fileName(format: format)
+        panel.allowedContentTypes = [format == .csv ? .commaSeparatedText : .json]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try SessionExport.data(sessions, format: format).write(to: url, options: .atomic)
+            Log.storage.info("Exported \(SessionExport.exportable(sessions).count, privacy: .public) sessions as \(format.rawValue, privacy: .public)")
+        } catch {
+            Log.storage.error("Export failed: \(error.localizedDescription, privacy: .public)")
+            ToastCenter.shared.show("Couldn't export: \(error.localizedDescription)")
+        }
     }
 }
 

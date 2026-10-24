@@ -52,7 +52,11 @@ Built for **Code Ada 2026, Off the Clock** track.
   - A per-subject breakdown.
   - Each subject page shows its own cards and a 14-day chart.
 - **Demo data:** one click seeds about 30 days of sessions, so the charts look full.
-- **Monochrome UI** that follows the system light/dark appearance.
+- **Arc-style window:** the sidebar sits on a tinted gradient that runs up behind the traffic lights, and each page is an inset rounded card. Each subject gets its own hue; Today, Stats and Settings use a soft violet. At the top: today's focus time and streak, then big tiles for Today, Stats and Settings, then your subjects. **⌘S** hides the sidebar (rest the pointer on the left edge to peek at it); **⌘N** adds a subject.
+- **Menu-bar timer:** while locked in, the time left (or so far) shows in the menu bar, with Show Tofu and End Session… in its menu. Turn it off in Settings › Menu bar.
+- **Setup check:** the top of Settings lists Accessibility, Chrome control, the OpenAI key, Discord and Google, each ready, optional or needing action, with a "4 of 5 ready" summary.
+- **Export:** Stats › the share button saves every finished session as CSV or JSON.
+- **Monochrome pages** that follow the system light/dark appearance.
 - **Built-in toasts:** the app draws its own, so they need no notification permission and still show during Focus.
 
 ## Layout presets

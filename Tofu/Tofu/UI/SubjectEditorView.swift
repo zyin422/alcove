@@ -282,6 +282,7 @@ struct SubjectForm: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Remove this window")
+                    .accessibilityLabel("Remove this window")
                 }
             }
             switch slot.kind {
@@ -308,6 +309,7 @@ struct SubjectForm: View {
                         }
                         .buttonStyle(.borderless)
                         .help("Remove this tab")
+                        .accessibilityLabel("Remove this tab")
                     }
                 }
             }
@@ -405,6 +407,7 @@ struct SubjectForm: View {
                         }
                         .buttonStyle(.borderless)
                         .help("Stop allowing \(app.name)")
+                        .accessibilityLabel("Stop allowing \(app.name)")
                     }
                 }
             }

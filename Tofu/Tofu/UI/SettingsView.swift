@@ -18,10 +18,16 @@ struct SettingsView: View {
     @State private var hasAccessibility = WindowPlacer.isTrusted
     /// True while a Google sign-in is in flight, so Connect can't start a second one.
     @State private var isConnectingGoogle = false
+    /// Chrome's Automation permission as macOS reports it without prompting; refreshed when Settings appears.
+    @State private var chromePermission = AutomationPermission.appNotRunning
+    /// Mirrors TofuApp's menu-bar timer switch.
+    @AppStorage("menuBarTimer") private var menuBarTimer = true
 
     var body: some View {
         Form {
+            setupSection
             profileSection
+            menuBarSection
             discordSection
             discordSetupSection
             googleSection
@@ -41,6 +47,57 @@ struct SettingsView: View {
 
     // MARK: - Sections
 
+    /// What a lock-in depends on, at a glance. Details and fixes live in the sections below.
+    private var setupSection: some View {
+        let items = SetupCheck.items(SetupCheck.Inputs(
+            accessibility: hasAccessibility, chrome: chromePermission, openAIKey: openAIKeySource,
+            discordEnabled: model.data.settings.discordEnabled, discordToken: tokenSource,
+            googleConnected: model.isGoogleConnected))
+        return Section {
+            ForEach(items) { item in
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                    Image(systemName: Self.symbol(for: item.state))
+                        .foregroundStyle(item.state == .needsAction ? Color.primary : Color.secondary)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title)
+                        Text(item.detail).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(item.title): \(Self.stateName(item.state)). \(item.detail)")
+            }
+        } header: {
+            HStack {
+                Text("Setup check")
+                Spacer()
+                Text(SetupCheck.summary(items)).foregroundStyle(.secondary)
+                Button("Recheck", action: refresh).buttonStyle(.link)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refresh()
+        }
+    }
+
+    private static func symbol(for state: SetupCheck.State) -> String {
+        switch state {
+        case .ready: "checkmark.circle.fill"
+        case .optional: "circle.dashed"
+        case .needsAction: "exclamationmark.triangle.fill"
+        case .unknown: "questionmark.circle"
+        }
+    }
+
+    private static func stateName(_ state: SetupCheck.State) -> String {
+        switch state {
+        case .ready: "ready"
+        case .optional: "optional"
+        case .needsAction: "needs action"
+        case .unknown: "unknown"
+        }
+    }
+
     private var profileSection: some View {
         Section {
             TextField("Display name", text: displayName)
@@ -48,6 +105,18 @@ struct SettingsView: View {
             Text("Profile")
         } footer: {
             Text("Shown in Discord messages, e.g. “\(model.data.settings.displayName) is locked in on CS128”.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var menuBarSection: some View {
+        Section {
+            Toggle("Show the timer in the menu bar while locked in", isOn: $menuBarTimer)
+        } header: {
+            Text("Menu bar")
+        } footer: {
+            Text("The time left (or so far) stays visible even when Tofu's own windows are hidden. Its menu brings Tofu forward or ends the session.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -363,8 +432,14 @@ struct SettingsView: View {
     private func refresh() {
         tokenSource = model.discordTokenSource
         openAIKeySource = model.openAIKeySource
+        hasAccessibility = WindowPlacer.isTrusted
         if !ChromeController.isInstalled {
             chromeStatus = SettingsStatus.chromeResult(.notInstalled)
+        }
+        Task {
+            chromePermission = await Task.detached {
+                AutomationPermission.check(bundleID: Browser.chrome.bundleID)
+            }.value
         }
     }
 

@@ -114,6 +114,7 @@ struct TodayView: View {
         .disabled(!enabled)
         .foregroundStyle(enabled ? Color.primary : Color.primary.opacity(0.25))
         .help(help)
+        .accessibilityLabel(help)
     }
 
     /// "Tuesday, October 13". The same line is the only date on the page.
@@ -189,6 +190,8 @@ struct TodayView: View {
                 }
                 .buttonStyle(.plain)
                 .help(priority.isDone ? "Mark as not done" : "Mark as done")
+                .accessibilityLabel("\(priority.title): \(priority.isDone ? "done" : "not done")")
+                .accessibilityHint(priority.isDone ? "Mark as not done" : "Mark as done")
             } else {
                 Image(systemName: priority.isDone ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 18))
@@ -217,6 +220,7 @@ struct TodayView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("Remove")
+                .accessibilityLabel("Remove \(priority.title)")
             }
         }
         .padding(.horizontal, Theme.Space.m)
@@ -313,6 +317,7 @@ private struct MonthCalendar: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 
     private func dayCell(_ cell: DayCalendar.Cell) -> some View {

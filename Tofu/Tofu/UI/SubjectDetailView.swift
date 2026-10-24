@@ -24,6 +24,9 @@ struct SubjectDetailView: View {
                 TextField("Name", text: $form.name)
                     .textFieldStyle(.plain)
                     .font(Theme.titleFont)
+                    // A focused plain field can shrink to body height and clip the large title.
+                    .frame(minHeight: 42)
+                    .accessibilityLabel("Subject name")
                 Button {
                     isChoosingMode = true
                 } label: {
