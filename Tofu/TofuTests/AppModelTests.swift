@@ -24,9 +24,9 @@ final class AppModelTests: XCTestCase {
                 extraDomains: ["piazza.com"], createdAt: t0)
     }
 
-    private func endedSession(for subject: Subject, isDemo: Bool = false) -> Session {
+    private func endedSession(for subject: Subject) -> Session {
         Session(subjectID: subject.id, subjectName: subject.name, mode: .goal(minutes: 25), start: t0,
-                end: t0.addingTimeInterval(1500), outcome: .completed, isDemo: isDemo)
+                end: t0.addingTimeInterval(1500), outcome: .completed)
     }
 
     // MARK: Loading
@@ -241,7 +241,7 @@ final class AppModelTests: XCTestCase {
 
     func testConnectLinksTheAssistantAndChromeBothWays() {
         let assistant = ChatAssistant(apiKey: { nil })
-        let chrome = ChromeController(judge: FakeJudge(), prompter: FakePrompter())
+        let chrome = ChromeController(judge: FakeJudge(), )
 
         AppModel.connect(assistant, with: chrome)
 
@@ -340,12 +340,6 @@ final class AppModelTests: XCTestCase {
 
     // MARK: OpenAI key
 
-    func testKeySourceLabels() {
-        XCTAssertEqual(TokenSource.keychain.keyLabel, "Using your key from Keychain")
-        XCTAssertEqual(TokenSource.teamFile.keyLabel, "Using the team key from .env")
-        XCTAssertEqual(TokenSource.none.keyLabel, "No key — you'll be asked about each site")
-    }
-
     func testOpenAIKeyComesFromItsOwnInjectedSources() throws {
         let team = AppModel(store: try makeStore(), engine: EngineHarness().engine,
                             keychainOpenAIKey: { nil }, envOpenAIKey: { "sk-team\n" })
@@ -432,52 +426,7 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(reloaded(store).settings.discordEnabled)
     }
 
-    // MARK: Demo data
-
-    func testLoadDemoDataCreatesDefaultSubjectsWhenThereAreNone() throws {
-        let store = try makeStore()
-        let model = AppModel(store: store, engine: EngineHarness().engine)
-
-        model.loadDemoData()
-
-        XCTAssertEqual(model.data.subjects.map(\.name), ["CS128", "MATH241"])
-        XCTAssertEqual(model.selection, model.data.subjects.first.map { .subject($0.id) })
-        XCTAssertFalse(model.data.sessions.isEmpty)
-        XCTAssertTrue(model.data.sessions.allSatisfy { $0.isDemo && $0.end != nil })
-        XCTAssertEqual(reloaded(store).sessions.count, model.data.sessions.count)
-    }
-
-    func testLoadDemoDataUsesExistingSubjectsAndNeverDuplicates() throws {
-        let model = AppModel(store: try makeStore(), engine: EngineHarness().engine)
-        let subject = makeSubject("PHYS211")
-        model.addSubject(subject)
-
-        model.loadDemoData()
-        model.loadDemoData()
-
-        XCTAssertEqual(model.data.subjects, [subject])
-        XCTAssertFalse(model.data.sessions.isEmpty)
-        XCTAssertTrue(model.data.sessions.allSatisfy { $0.subjectID == subject.id && $0.subjectName == "PHYS211" })
-        let ids = model.data.sessions.map(\.id)
-        XCTAssertEqual(Set(ids).count, ids.count)
-    }
-
-    func testClearDemoDataRemovesOnlyDemoSessions() throws {
-        let store = try makeStore()
-        let model = AppModel(store: store, engine: EngineHarness().engine)
-        let subject = makeSubject()
-        model.addSubject(subject)
-        let real = endedSession(for: subject)
-        model.upsertSession(real)
-        model.loadDemoData()
-        XCTAssertGreaterThan(model.data.sessions.count, 1)
-
-        model.clearDemoData()
-
-        XCTAssertEqual(model.data.sessions, [real])
-        XCTAssertEqual(model.data.subjects, [subject])
-        XCTAssertEqual(reloaded(store).sessions, [real])
-    }
+    // MARK: Allowed sites and apps
 
     func testSitesAndAppsAllowedDuringABlockAreSaved() async throws {
         let store = try makeStore()

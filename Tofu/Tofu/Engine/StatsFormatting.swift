@@ -77,9 +77,4 @@ enum StatsFormatting {
     static func hasTrackedSessions(_ sessions: [Session]) -> Bool {
         sessions.contains { $0.end != nil }
     }
-
-    /// Total duration of ended sessions.
-    static func totalSeconds(_ sessions: [Session]) -> TimeInterval {
-        sessions.filter { $0.end != nil }.reduce(0) { $0 + $1.duration }
-    }
 }

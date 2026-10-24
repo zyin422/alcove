@@ -96,12 +96,6 @@ final class SettingsStatusTests: XCTestCase {
         XCTAssertEqual(SettingsStatus.phrasePreview(template: "I quit"), "I quit")
     }
 
-    func testDemoSummary() {
-        XCTAssertEqual(SettingsStatus.demoSummary(count: 0), "No demo data loaded")
-        XCTAssertEqual(SettingsStatus.demoSummary(count: 1), "1 demo session loaded")
-        XCTAssertEqual(SettingsStatus.demoSummary(count: 43), "43 demo sessions loaded")
-    }
-
     func testCleanedTokenTrimsWhitespaceAndBotPrefix() {
         XCTAssertEqual(SettingsStatus.cleanedToken("  abc.def.ghi \n"), "abc.def.ghi")
         XCTAssertEqual(SettingsStatus.cleanedToken("Bot abc.def.ghi"), "abc.def.ghi")

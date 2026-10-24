@@ -57,6 +57,11 @@ struct SidebarPalette: Equatable {
         return subjectHues[Int(hash % UInt64(subjectHues.count))]
     }
 
+    /// A subject's accent: its hue at `subjectSaturation` and the given lightness (sidebar badge, subject page).
+    static func accent(for subjectID: UUID, lightness: Double) -> HSL {
+        HSL(h: hue(for: subjectID), s: subjectSaturation, l: lightness)
+    }
+
     /// RGB components (0...1) of an HSL color.
     static func rgb(_ color: HSL) -> (r: Double, g: Double, b: Double) {
         let h = (color.h.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) / 360

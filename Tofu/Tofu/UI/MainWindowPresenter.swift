@@ -26,7 +26,7 @@ import AppKit
             closePanel()
             guard let window else { return }
             window.setFrame(appFrame, display: true, animate: true)
-            bringToFront(window)
+            Self.bringToFront(window)
             reapplyFrameAfterSwiftUIUpdate(appFrame, to: window)
         } else {
             window?.orderOut(nil)
@@ -47,12 +47,11 @@ import AppKit
         if panel != nil, let visible = ScreenGeometry.mainVisibleFrame() {
             window.setFrame(LockedLayout.centeredFrame(size: LockedLayout.windowSize, in: visible), display: true)
         }
-        bringToFront(window)
+        Self.bringToFront(window)
         window.orderFrontRegardless()
     }
 
-    /// Mini timer ✕: shows the main window, then asks LockedView to start the end flow
-    /// (give-up sheet before a goal is reached, otherwise the "End this session?" confirmation).
+    /// Mini timer ✕: shows the main window, then asks LockedView to start the end flow (the Mirror).
     func requestEnd() {
         showMainWindow()
         NotificationCenter.default.post(name: .tofuRequestEnd, object: nil)
@@ -72,21 +71,23 @@ import AppKit
         if let frame {
             window.setFrame(frame, display: true, animate: window.isVisible)
         }
-        bringToFront(window)
+        Self.bringToFront(window)
     }
 
     // MARK: Helpers
 
     /// The SwiftUI main window: a visible, non-panel, non-sheet window that can become main.
-    private static func visibleMainWindow() -> NSWindow? {
+    /// Also used by AppDelegate to front the window for the end-of-day wrap-up.
+    static func visibleMainWindow() -> NSWindow? {
         NSApp.windows.first(where: { !($0 is NSPanel) && $0.sheetParent == nil && $0.canBecomeMain })
     }
 
-    private func bringToFront(_ window: NSWindow) {
-        if window.isMiniaturized {
-            window.deminiaturize(nil)
+    /// Unminimizes and fronts `window`, then activates the app (which it also does without a window).
+    static func bringToFront(_ window: NSWindow?) {
+        if window?.isMiniaturized == true {
+            window?.deminiaturize(nil)
         }
-        window.makeKeyAndOrderFront(nil)
+        window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
     }
 

@@ -29,15 +29,6 @@ enum TokenSource: Equatable {
         case .none: "No token"
         }
     }
-
-    /// Shown next to the OpenAI key field in Settings (the same three sources as the Discord token).
-    var keyLabel: String {
-        switch self {
-        case .keychain: "Using your key from Keychain"
-        case .teamFile: "Using the team key from .env"
-        case .none: "No key — you'll be asked about each site"
-        }
-    }
 }
 
 /// Root app state: the persisted data, the sidebar selection and the session engine.
@@ -104,7 +95,7 @@ enum TokenSource: Equatable {
             toaster: ToastCenter.shared)
         let judge = RelevanceJudge(apiKey: { [box] in box.model?.openAIKey })
         let assistant = ChatAssistant(apiKey: { [box] in box.model?.openAIKey })
-        let chrome = ChromeController(judge: judge, prompter: NeedPrompt(), alwaysBlocked: DistractionList.hosts,
+        let chrome = ChromeController(judge: judge, alwaysBlocked: DistractionList.hosts,
                                       rememberedURL: ClosedBrowserState.defaultURL())
         chrome.onHostAllowed = { host in box.model?.engine.rememberAllowedSite(host) }
         if chrome.hasLeftovers {
@@ -400,7 +391,6 @@ enum TokenSource: Equatable {
 
     private var installedAppsCache: [AllowedApp]?
 
-    /// An installed app matching `name`, scanned once per launch.
     /// An installed app matching `name` (scanned once, then cached). Used by the assistant and the setup agent.
     func installedApp(named name: String) -> AllowedApp? {
         if installedAppsCache == nil {
@@ -441,23 +431,30 @@ enum TokenSource: Equatable {
         }
     }
 
+    /// Stats as of now, for the sidebar's summary pill and the Stats page. Reading `engine.now` refreshes the view
+    /// that asks every second while locked in; `Date()` keeps "today" right when idle.
+    var currentStats: StatsEngine { StatsEngine(now: max(engine.now, Date())) }
+
     /// True when an OpenAI key is available, so ending a goal early goes through the Mirror.
     var hasMirror: Bool {
         !(openAIKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// The running setup's name (the session's snapshot when the subject is gone), or "".
+    private var runningSetupName: String {
+        engine.subject?.name ?? engine.session?.subjectName ?? ""
+    }
+
     /// What the Mirror and the give-up phrase both name: the unfinished priority for this setup, else the setup.
     var mirrorTaskName: String {
-        let setup = engine.subject?.name ?? engine.session?.subjectName ?? ""
         let title = todayPlan().priorities.first { !$0.isDone && $0.subjectID == engine.subject?.id }?
             .title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return title.isEmpty ? setup : title
+        return title.isEmpty ? runningSetupName : title
     }
 
     /// The facts for an interrogation. The priority is the first unfinished one tied to the running setup.
     func mirrorContext(reason: String) -> MirrorContext {
-        let setup = engine.subject?.name ?? engine.session?.subjectName ?? ""
-        return MirrorContext(priority: mirrorTaskName, setup: setup,
+        MirrorContext(priority: mirrorTaskName, setup: runningSetupName,
                              elapsedSeconds: Int(engine.elapsed.rounded()),
                              goalMinutes: engine.session?.mode.goalMinutes ?? 0,
                              reason: reason)
@@ -466,8 +463,6 @@ enum TokenSource: Equatable {
     /// Starts a session on the subject using the display name from settings.
     func lockIn(subjectID: UUID, mode: SessionMode) async {
         guard let subject = subject(id: subjectID) else { return }
-        let trimmed = data.settings.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let displayName = trimmed.isEmpty ? NSFullUserName() : trimmed
         await engine.start(subject: subject, mode: mode, displayName: displayName)
     }
 
@@ -644,13 +639,6 @@ enum TokenSource: Equatable {
         isWrappingUpDay = false
     }
 
-    /// Posts the same Discord recap as wrapping up, using today's ticks and tomorrow's saved priorities.
-    func postDayRecap(now: Date = Date()) {
-        let current = todayPlan(now: now)
-        let tomorrow = plan(for: DayKey.next(current.day))?.priorities ?? []
-        wrapUpDay(today: current.priorities, tomorrow: tomorrow, now: now)
-    }
-
     /// The display name from Settings, else the macOS user name.
     var displayName: String {
         let trimmed = data.settings.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -722,39 +710,6 @@ enum TokenSource: Equatable {
 
     /// Which of the two keys `openAIKey` is.
     var openAIKeySource: TokenSource { resolvedOpenAIKey.source }
-
-    /// Saves a trimmed key to the Keychain (it then overrides the team key); nil or blank deletes it.
-    func setOpenAIKey(_ key: String?) {
-        let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            Keychain.delete(service: Secrets.openAIService, account: Secrets.openAIAccount)
-        } else {
-            Keychain.set(trimmed, service: Secrets.openAIService, account: Secrets.openAIAccount)
-        }
-    }
-
-    // MARK: Demo data
-
-    /// Adds CS128 and MATH241 when there are no subjects, then (re)seeds about 30 days of demo sessions.
-    /// Earlier demo sessions are replaced, so loading twice never duplicates them.
-    func loadDemoData() {
-        let now = Date()
-        if data.subjects.isEmpty {
-            data.subjects = DemoData.defaultSubjects(now: now)
-            if selection == nil {
-                selection = data.subjects.first.map { SidebarItem.subject($0.id) }
-            }
-        }
-        data.sessions.removeAll { $0.isDemo }
-        data.sessions.append(contentsOf: DemoData.generate(subjects: data.subjects, now: now))
-        save()
-    }
-
-    /// Removes every demo session. Subjects and real sessions are kept.
-    func clearDemoData() {
-        data.sessions.removeAll { $0.isDemo }
-        save()
-    }
 }
 
 /// Posts nowhere (tests that don't care about Discord).

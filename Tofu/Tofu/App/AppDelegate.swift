@@ -38,7 +38,8 @@ import AppKit
             sitePrompt?.hide()
             self?.storedModel?.checkEndOfDay()
         }
-        model.onShowMainWindow = { Self.bringMainWindowForward() }
+        // Unminimizes and fronts the main window, e.g. for the end-of-day wrap-up.
+        model.onShowMainWindow = { MainWindowPresenter.bringToFront(MainWindowPresenter.visibleMainWindow()) }
         let morning = MorningWindowController(model: model)
         self.morning = morning
         model.onShowMorning = { [weak morning] in morning?.show() }
@@ -72,13 +73,5 @@ import AppKit
         guard !Self.isRunningTests, let storedModel else { return }
         storedModel.engine.terminateNow()
         storedModel.save()
-    }
-
-    /// Unminimizes and fronts the main (non-panel) window, e.g. for the end-of-day wrap-up.
-    private static func bringMainWindowForward() {
-        let window = NSApp.windows.first { !($0 is NSPanel) && $0.sheetParent == nil && $0.canBecomeMain }
-        if window?.isMiniaturized == true { window?.deminiaturize(nil) }
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate()
     }
 }

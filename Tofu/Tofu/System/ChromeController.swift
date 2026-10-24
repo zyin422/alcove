@@ -73,7 +73,6 @@ struct BrowserWindowPlan: Equatable {
     private let pollsOffMainThread: Bool
 
     private let judge: RelevanceJudging
-    private let prompter: NeedPrompting
     /// Domains closed without asking the judge (`DistractionList.hosts` in the app).
     private let alwaysBlocked: [String]
     /// Runs an AppleScript source; tests replace it so no real Chrome is needed.
@@ -92,17 +91,12 @@ struct BrowserWindowPlan: Equatable {
     private var lastTabs: [ChromeTab] = []
     /// Changes on every start/stop of the watch, so verdicts and answers that arrive late are ignored.
     private var watchToken = UUID()
-    /// Hosts waiting for their "Is it needed?" question, oldest first; only one question is on screen at a time.
-    private var promptQueue: [String] = []
-    /// Hosts that were queued or asked this watch: a host is asked at most once.
-    private var promptedHosts: Set<String> = []
     /// Allow / close decisions for this lock-in, including ones made while the watch is paused for a break.
     /// The next `startTabWatch` applies them. Stopping the watch, or preparing the next lock-in, clears them.
     private var sessionAnswers: [String: Bool] = [:]
     /// True from the first `startTabWatch` of a lock-in until `stopTabWatch`. A decision before that, or after the
     /// session's watch has ended, is ignored.
     private var acceptsSiteDecisions = false
-    private var isPrompting = false
     /// Hosts handed to the assistant this watch: a host is asked about at most once.
     private var askedAssistantHosts: Set<String> = []
 
@@ -110,23 +104,16 @@ struct BrowserWindowPlan: Equatable {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: ChromeScripts.bundleID) != nil
     }
 
-    /// True when a Chrome process exists. Scripts are only sent while this is true (except during prepare and
-    /// requestAccess), because any `tell application "Google Chrome"` would relaunch a quit Chrome.
-    static var isRunning: Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: ChromeScripts.bundleID).isEmpty
-    }
-
     /// `runScript` and `chromeIsRunning` exist for tests (nil = the real browser via NSAppleScript).
     /// `rememberedURL` is where closed windows and tabs are kept until reopened (nil = memory only); a state left
     /// there by a crash is loaded and reopened by the next `restoreAfterSession`.
-    init(judge: RelevanceJudging, prompter: NeedPrompting, alwaysBlocked: [String] = [],
+    init(judge: RelevanceJudging, alwaysBlocked: [String] = [],
          rememberedURL: URL? = nil, browser: Browser = .chrome,
          runScript: ((String) -> Result<String, ChromeError>)? = nil,
          chromeIsRunning: (() -> Bool)? = nil,
          pollsOffMainThread: Bool? = nil,
          placeFrontWindow: ((Browser, ChromeBounds) async -> Void)? = nil) {
         self.judge = judge
-        self.prompter = prompter
         self.alwaysBlocked = alwaysBlocked
         self.rememberedURL = rememberedURL
         self.browser = browser
@@ -139,6 +126,8 @@ struct BrowserWindowPlan: Equatable {
         }
     }
 
+    /// True when a process of `browser` exists. Scripts are only sent while this is true (except during prepare and
+    /// requestAccess), because any `tell application` would relaunch a browser that was quit.
     static func isRunning(_ browser: Browser) -> Bool {
         !NSRunningApplication.runningApplications(withBundleIdentifier: browser.bundleID).isEmpty
     }
@@ -171,13 +160,6 @@ struct BrowserWindowPlan: Equatable {
             return .failure(.scriptFailed(message))
         }
         return .success(output.stringValue ?? "")
-    }
-
-    /// Chrome only, one window per site (`bounds[i]` for `sites[i]`, when present).
-    func prepare(sites: [String], bounds: [ChromeBounds]) async -> ChromeError? {
-        await prepare(browser: .chrome, windows: sites.enumerated().map { index, site in
-            BrowserWindowPlan(urls: [site], bounds: index < bounds.count ? bounds[index] : nil)
-        })
     }
 
     func prepare(browser: Browser, windows: [BrowserWindowPlan]) async -> ChromeError? {
@@ -216,19 +198,11 @@ struct BrowserWindowPlan: Equatable {
             (script: ChromeScripts.openWindow(urls: window.urls, bounds: window.bounds, browser: browser),
              bounds: window.bounds)
         }
-        var firstError: ChromeError?
-        for plan in plans {
+        return await Self.openAll(plans) { plan in
             let error = await openWithRetry(plan.script)
-            switch error {
-            case nil:
-                if let bounds = plan.bounds, !browser.supportsBounds { await placeFrontWindow(browser, bounds) }
-            case .automationDenied?, .notInstalled?:
-                return error
-            case .profileNotReady?, .scriptFailed?:
-                firstError = firstError ?? error
-            }
+            if error == nil, let bounds = plan.bounds, !browser.supportsBounds { await placeFrontWindow(browser, bounds) }
+            return error
         }
-        return firstError
     }
 
     /// The windows to actually open. URLs are normalized ("cs128.org" -> "https://cs128.org") and de-duplicated.
@@ -255,12 +229,12 @@ struct BrowserWindowPlan: Equatable {
         }
     }
 
-    /// Opens every script's window in order. automationDenied / notInstalled stop immediately; any other error is
+    /// Opens every window in order. automationDenied / notInstalled stop immediately; any other error is
     /// remembered and the remaining sites are still attempted. Returns the first error, or nil if none failed.
-    static func openAll(_ scripts: [String], using open: (String) async -> ChromeError?) async -> ChromeError? {
+    static func openAll<Window>(_ windows: [Window], using open: (Window) async -> ChromeError?) async -> ChromeError? {
         var firstError: ChromeError?
-        for script in scripts {
-            guard let error = await open(script) else { continue }
+        for window in windows {
+            guard let error = await open(window) else { continue }
             switch error {
             case .automationDenied, .notInstalled: return error
             case .profileNotReady, .scriptFailed: firstError = firstError ?? error
@@ -343,17 +317,14 @@ struct BrowserWindowPlan: Equatable {
         haltPolling()
     }
 
-    /// Stops the poll and drops queued questions without forgetting allow / close decisions.
+    /// Stops the poll and forgets which hosts were asked about, without forgetting allow / close decisions.
     private func haltPolling() {
         tabTimer?.invalidate()
         tabTimer = nil
         watchToken = UUID()
         pollGeneration += 1
         pollInFlight = false
-        promptQueue = []
-        promptedHosts = []
         askedAssistantHosts = []
-        isPrompting = false
         lastTabs = []
     }
 
@@ -500,32 +471,6 @@ struct BrowserWindowPlan: Equatable {
         guard askedAssistantHosts.insert(host).inserted else { return }
         asker?.askAboutSite(SiteQuestion(host: host, url: tab.url, title: tab.title, relevance: relevance),
                             subject: subjectName)
-    }
-
-    /// Queues the question for `host`; each host is asked at most once per watch.
-    private func askIfNeeded(host: String) {
-        guard promptedHosts.insert(host).inserted else { return }
-        promptQueue.append(host)
-        askNext()
-    }
-
-    /// Shows the next queued question unless one is already on screen. "Close tab" closes every tab of the host
-    /// on the next poll; "Needed" keeps the host for the session.
-    private func askNext() {
-        guard !isPrompting, !promptQueue.isEmpty else { return }
-        isPrompting = true
-        let host = promptQueue.removeFirst()
-        let token = watchToken
-        let subject = subjectName
-        let prompter = prompter
-        Task { @MainActor [weak self] in
-            let needed = await prompter.askIfNeeded(host: host, subject: subject)
-            guard let self, token == self.watchToken else { return }
-            self.triage.recordAnswer(host: host, needed: needed)
-            if needed { self.onHostAllowed?(DomainMatcher.normalize(host)) }
-            self.isPrompting = false
-            self.askNext()
-        }
     }
 
     // MARK: SiteVerdictReceiving

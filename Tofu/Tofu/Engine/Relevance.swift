@@ -27,8 +27,3 @@ enum RelevanceVerdict: Equatable {
 @MainActor protocol RelevanceJudging: AnyObject {
     func judge(page: PageInfo, subject: String, details: String) async -> RelevanceVerdict
 }
-
-/// Asks the user directly when no verdict could be obtained. Returns true to keep the tab ("Needed").
-@MainActor protocol NeedPrompting: AnyObject {
-    func askIfNeeded(host: String, subject: String) async -> Bool
-}

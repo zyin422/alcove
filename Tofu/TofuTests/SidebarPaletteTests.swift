@@ -37,6 +37,12 @@ final class SidebarPaletteTests: XCTestCase {
         XCTAssertGreaterThan(hues.count, SidebarPalette.subjectHues.count / 2)
     }
 
+    func testSubjectAccentUsesItsHueAndTheSubjectSaturation() {
+        let id = UUID()
+        XCTAssertEqual(SidebarPalette.accent(for: id, lightness: 58),
+                       SidebarPalette.HSL(h: SidebarPalette.hue(for: id), s: 55, l: 58))
+    }
+
     func testNonSubjectSelectionsUseTheDefaultHue() {
         for item in [SidebarItem.today, .stats, .settings] {
             XCTAssertEqual(SidebarPalette.make(for: item, dark: false).top.h, SidebarPalette.defaultHue)

@@ -32,7 +32,7 @@ import XCTest
             var wasMain: Bool?
         }
         let probe = Probe()
-        let controller = ChromeController(judge: FakeJudge(), prompter: FakePrompter(),
+        let controller = ChromeController(judge: FakeJudge(),
                                           runScript: { _ in
                                               probe.wasMain = Thread.isMainThread
                                               finished.fulfill()
@@ -102,7 +102,7 @@ import XCTest
         XCTAssertEqual(attempted, [])
     }
 
-    // MARK: tab watch (fake Chrome, judge and prompter)
+    // MARK: tab watch (fake Chrome and judge)
 
     /// Stands in for Chrome: answers `listTabs` from `tabs`, removes a tab when its close script runs, and logs everything.
     private final class ScriptLog {
@@ -131,7 +131,6 @@ import XCTest
 
     @MainActor private final class WatchHarness {
         let judge = FakeJudge()
-        let prompter = FakePrompter()
         let asker = FakeAsker()
         let log = ScriptLog()
         let controller: ChromeController
@@ -140,8 +139,7 @@ import XCTest
         init(tabs: [ChromeTab]) {
             log.tabs = tabs
             let log = self.log
-            controller = ChromeController(judge: judge, prompter: prompter,
-                                          runScript: { log.run($0) }, chromeIsRunning: { log.isRunning })
+            controller = ChromeController(judge: judge, runScript: { log.run($0) }, chromeIsRunning: { log.isRunning })
             controller.onTabClosed = { [unowned self] host in self.closedHosts.append(host) }
             controller.asker = asker
         }
@@ -306,7 +304,6 @@ import XCTest
 
         XCTAssertEqual(h.asker.questions, [SiteQuestion(host: "example.org", url: a.url, title: "One", relevance: -1)])
         XCTAssertEqual(h.asker.subjects, ["CS128"])
-        XCTAssertEqual(h.prompter.asked, [], "a failed check uses the chat popup, never the system alert")
         XCTAssertEqual(h.judge.judgedURLs, [a.url, b.url], "no re-checks while the assistant asks")
         XCTAssertEqual(h.log.closeScripts, [])
     }
@@ -324,7 +321,6 @@ import XCTest
         h.controller.pollTabs()
         await settle()
         XCTAssertEqual(h.log.closeScripts, [], "asking does not close the tabs")
-        XCTAssertEqual(h.prompter.asked, [])
 
         h.controller.closeHost("example.org")
         XCTAssertEqual(h.log.closeScripts, [ChromeScripts.closeTab(windowID: 1, tabID: 5),
@@ -344,7 +340,6 @@ import XCTest
         await settle()
 
         XCTAssertEqual(h.asker.questions.map(\.host), ["a.org", "b.org"])
-        XCTAssertEqual(h.prompter.asked, [])
         XCTAssertEqual(h.log.closeScripts, [])
     }
 
@@ -378,7 +373,6 @@ import XCTest
         await settle()
 
         XCTAssertEqual(h.asker.questions, [])
-        XCTAssertEqual(h.prompter.asked, [])
         XCTAssertEqual(h.log.closeScripts, [])
     }
 
@@ -416,7 +410,6 @@ import XCTest
 
         XCTAssertEqual(h.asker.questions, [SiteQuestion(host: "example.org", url: a.url, title: "One", relevance: 0.55)])
         XCTAssertEqual(h.asker.subjects, ["CS128"])
-        XCTAssertEqual(h.prompter.asked, [], "unsure sites go to the assistant, never to the NSAlert prompt")
         XCTAssertEqual(h.judge.judgedURLs, [a.url, b.url], "no re-checks while the assistant asks")
         XCTAssertEqual(h.log.closeScripts, [])
         XCTAssertEqual(h.closedHosts, [])
@@ -451,7 +444,6 @@ import XCTest
         h.controller.pollTabs()
         await settle()
 
-        XCTAssertEqual(h.prompter.asked, [])
         XCTAssertEqual(h.log.closeScripts, [])
         XCTAssertEqual(h.judge.judgedURLs, [page.url])
     }
@@ -467,7 +459,6 @@ import XCTest
         await settle()
 
         XCTAssertEqual(h.asker.questions, [SiteQuestion(host: "example.org", url: page.url, title: "One", relevance: -1)])
-        XCTAssertEqual(h.prompter.asked, [])
     }
 
     func testUnsureVerdictThatArrivesAfterTheWatchStoppedIsIgnored() async {
@@ -729,7 +720,7 @@ import XCTest
         let separator = String(ChromeScripts.fieldSeparator)
         let poker = ["W-1", "1", "T-poker", "Poker", "https://www.pokerstars.com/"].joined(separator: separator)
         var listings: [String] = []
-        let controller = ChromeController(judge: FakeJudge(), prompter: FakePrompter(),
+        let controller = ChromeController(judge: FakeJudge(),
                                           alwaysBlocked: DistractionList.hosts, browser: .arc,
                                           runScript: { source in
                                               if source.contains("set sepChar") {

@@ -91,7 +91,7 @@ struct SidebarView: View {
     /// Today's focus time and the streak, in the spot where Arc shows the address. A readout only: the Stats
     /// tile below is the way into Stats.
     private var summaryPill: some View {
-        let summary = StatsEngine(now: max(model.engine.now, Date())).summary(model.data.sessions)
+        let summary = model.currentStats.summary(model.data.sessions)
         let streak = summary.currentStreak == 1 ? "1-day streak" : "\(summary.currentStreak)-day streak"
         return HStack(spacing: Theme.Space.s) {
             Image(systemName: "timer").font(.system(size: 12, weight: .semibold))
@@ -177,8 +177,7 @@ private struct SubjectRow: View {
                     .font(.system(size: 10, weight: .bold))
                     .frame(width: 18, height: 18)
                     .background(RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(SidebarPalette.color(.init(h: SidebarPalette.hue(for: subject.id), s: 55,
-                                                         l: dark ? 45 : 58))))
+                        .fill(SidebarPalette.color(SidebarPalette.accent(for: subject.id, lightness: dark ? 45 : 58))))
                     .foregroundStyle(.white)
                 Text(subject.name).lineLimit(1)
                 Spacer(minLength: Theme.Space.xs)

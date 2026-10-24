@@ -89,12 +89,9 @@ struct MemoryNote: Codable, Identifiable, Hashable {
     private func save() {
         guard let fileURL else { return }
         do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(),
                                                     withIntermediateDirectories: true)
-            try encoder.encode(notes).write(to: fileURL, options: .atomic)
+            try Store.makeEncoder().encode(notes).write(to: fileURL, options: .atomic)
         } catch {
             Log.storage.error("Saving memory.json failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -102,10 +99,8 @@ struct MemoryNote: Codable, Identifiable, Hashable {
 
     private static func load(from url: URL?) -> [MemoryNote] {
         guard let url, let data = try? Data(contentsOf: url) else { return [] }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
         do {
-            return try decoder.decode([MemoryNote].self, from: data)
+            return try Store.makeDecoder().decode([MemoryNote].self, from: data)
         } catch {
             Log.storage.error("memory.json unreadable: \(String(describing: error), privacy: .public)")
             return []
@@ -116,7 +111,7 @@ struct MemoryNote: Codable, Identifiable, Hashable {
 /// Turns notes into text for prompts (chat assistant, setup agent) and the companion. Pure.
 enum MemoryDigest {
     /// "Oct 24, 14:05 — Working through MP3 linked list tests in VS Code. (topics: linked lists; sites: cs128.org)"
-    static func lines(_ notes: [MemoryNote], limit: Int = 8, calendar: Calendar = .current) -> [String] {
+    static func lines(_ notes: [MemoryNote], limit: Int = 8) -> [String] {
         notes.prefix(limit).map { note in
             var extras: [String] = []
             if !note.topics.isEmpty { extras.append("topics: " + note.topics.joined(separator: ", ")) }
@@ -134,22 +129,6 @@ enum MemoryDigest {
         guard !lines.isEmpty else { return "" }
         return "What you remember from earlier screenshots of this work (newest first):\n- "
             + lines.joined(separator: "\n- ")
-    }
-
-    /// Hosts and apps seen most often, most frequent first: suggestions for a setup.
-    static func frequent(_ values: [[String]], limit: Int = 5) -> [String] {
-        var counts: [String: Int] = [:]
-        var firstSeen: [String: Int] = [:]
-        for (index, value) in values.joined().enumerated() {
-            let key = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !key.isEmpty else { continue }
-            counts[key, default: 0] += 1
-            if firstSeen[key] == nil { firstSeen[key] = index }
-        }
-        return counts.keys.sorted { lhs, rhs in
-            counts[lhs] != counts[rhs] ? counts[lhs]! > counts[rhs]! : firstSeen[lhs]! < firstSeen[rhs]!
-        }
-        .prefix(limit).map { $0 }
     }
 }
 
@@ -199,8 +178,8 @@ struct ScreenMemoryExtractor {
 
     /// The model's JSON → a note. nil without a usable summary.
     static func parse(_ reply: String, subject: Subject, date: Date) -> MemoryNote? {
-        guard let start = reply.firstIndex(of: "{"), let end = reply.lastIndex(of: "}"),
-              let wire = try? JSONDecoder().decode(Wire.self, from: Data(reply[start...end].utf8)) else { return nil }
+        guard let data = OpenAIChatClient.jsonObject(in: reply),
+              let wire = try? JSONDecoder().decode(Wire.self, from: data) else { return nil }
         let summary = (wire.summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !summary.isEmpty else { return nil }
         func clean(_ values: [String]?, limit: Int) -> [String] {

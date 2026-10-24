@@ -100,8 +100,7 @@ struct PlannerTurn: Equatable {
     /// Reads a conversation reply. Unusable JSON becomes the raw words as a question, not a list.
     nonisolated static func conversationTurn(from reply: String, subjects: [Subject]) -> PlannerTurn {
         let priorities = parse(reply, subjects: subjects) ?? []
-        guard let start = reply.firstIndex(of: "{"), let end = reply.lastIndex(of: "}"), start < end,
-              let data = String(reply[start...end]).data(using: .utf8),
+        guard let data = OpenAIChatClient.jsonObject(in: reply),
               let wire = try? JSONDecoder().decode(ConversationReply.self, from: data) else {
             let words = reply.trimmingCharacters(in: .whitespacesAndNewlines)
             return PlannerTurn(message: words, priorities: [], ready: false)
@@ -127,8 +126,8 @@ struct PlannerTurn: Equatable {
     /// Reads the JSON reply (code fences and text around it are ignored). Setup names are matched
     /// case-insensitively; unknown names count as no setup. nil when there is no usable JSON.
     nonisolated static func parse(_ reply: String, subjects: [Subject]) -> [Priority]? {
-        guard let start = reply.firstIndex(of: "{"), let end = reply.lastIndex(of: "}"), start < end,
-              let decoded = try? JSONDecoder().decode(Reply.self, from: Data(reply[start...end].utf8)) else { return nil }
+        guard let data = OpenAIChatClient.jsonObject(in: reply),
+              let decoded = try? JSONDecoder().decode(Reply.self, from: data) else { return nil }
         return decoded.priorities.compactMap { item in
             guard let title = DayPlanner.cleanTitle(item.title) else { return nil }
             let setup = (item.setup ?? "").trimmingCharacters(in: .whitespaces).lowercased()

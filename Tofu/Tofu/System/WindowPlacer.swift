@@ -1,8 +1,6 @@
 import AppKit
 import ApplicationServices
 
-/// Moves and resizes other apps' windows with the Accessibility API (needs the Accessibility permission).
-/// Positions are top-left global coordinates, the same space as `ChromeBounds`.
 /// When to show the Accessibility prompt. macOS shows that dialog again if we ask while the
 /// checkbox is already on, including after a rebuild that used a new ad-hoc signature.
 enum AccessibilityGate {
@@ -22,6 +20,8 @@ enum AccessibilityGate {
     }
 }
 
+/// Moves and resizes other apps' windows with the Accessibility API (needs the Accessibility permission).
+/// Positions are top-left global coordinates, the same space as `ChromeBounds`.
 @MainActor enum WindowPlacer {
     /// True when this process may move other apps' windows. `AXIsProcessTrusted` stays false until
     /// relaunch after the checkbox is turned on, so a windows query is the live check. The system-wide
@@ -118,14 +118,6 @@ enum AccessibilityGate {
         NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).flatMap { app in
             windows(of: app.processIdentifier).compactMap { frame(of: $0) }
         }
-    }
-
-    static func frontWindow(of pid: pid_t) -> AXUIElement? {
-        let app = AXUIElementCreateApplication(pid)
-        for attribute in [kAXFocusedWindowAttribute, kAXMainWindowAttribute] {
-            if let window: AXUIElement = copy(app, attribute) { return window }
-        }
-        return windows(of: pid).first
     }
 
     /// Position, then size, then position again: some apps clamp the size to the screen at the old position.

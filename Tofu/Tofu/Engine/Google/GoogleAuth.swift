@@ -101,9 +101,7 @@ struct GoogleGrant: Equatable {
                                                 "redirect_uri": redirectURI, "code_verifier": verifier])
         guard let refresh = response.refreshToken else { throw GoogleAuthError.noRefreshToken }
         writeToken(refresh)
-        accessTokenValue = response.accessToken
-        accessTokenExpiry = now().addingTimeInterval(TimeInterval(response.expiresIn))
-        reportGrant(response)
+        adopt(response)
     }
 
     /// A valid access token, refreshed through the stored refresh token when expired (60 s skew).
@@ -120,10 +118,15 @@ struct GoogleGrant: Equatable {
             onRevoked?()
             throw GoogleAuthError.revoked
         }
+        adopt(response)
+        return response.accessToken
+    }
+
+    /// Caches the response's access token until it expires and reports its grant.
+    private func adopt(_ response: TokenResponse) {
         accessTokenValue = response.accessToken
         accessTokenExpiry = now().addingTimeInterval(TimeInterval(response.expiresIn))
         reportGrant(response)
-        return response.accessToken
     }
 
     private func reportGrant(_ response: TokenResponse) {

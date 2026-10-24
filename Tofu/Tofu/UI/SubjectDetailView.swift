@@ -28,7 +28,7 @@ struct SubjectDetailView: View {
     }
 
     /// The subject's own hue, as in the sidebar.
-    private var accentHSL: SidebarPalette.HSL { .init(h: SidebarPalette.hue(for: subject.id), s: 55, l: 50) }
+    private var accentHSL: SidebarPalette.HSL { SidebarPalette.accent(for: subject.id, lightness: 50) }
     private var accent: Color { SidebarPalette.color(accentHSL) }
 
     var body: some View {

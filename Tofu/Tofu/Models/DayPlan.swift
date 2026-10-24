@@ -40,9 +40,7 @@ enum DayKey {
     static let dayStartHour = 4
 
     static func key(for date: Date, calendar: Calendar = .current) -> String {
-        let shifted = date.addingTimeInterval(-TimeInterval(dayStartHour) * 3600)
-        let parts = calendar.dateComponents([.year, .month, .day], from: shifted)
-        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+        stamp(date.addingTimeInterval(-TimeInterval(dayStartHour) * 3600), calendar: calendar)
     }
 
     static func tomorrow(from date: Date, calendar: Calendar = .current) -> String {
@@ -62,7 +60,12 @@ enum DayKey {
     private static func shift(_ key: String, by days: Int, calendar: Calendar) -> String {
         guard let date = date(for: key, calendar: calendar),
               let shifted = calendar.date(byAdding: .day, value: days, to: date) else { return key }
-        let parts = calendar.dateComponents([.year, .month, .day], from: shifted)
+        return stamp(shifted, calendar: calendar)
+    }
+
+    /// "yyyy-MM-dd" of the calendar day containing `date` (no 4 AM shift).
+    private static func stamp(_ date: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 

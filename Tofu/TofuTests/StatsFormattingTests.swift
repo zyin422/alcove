@@ -104,14 +104,12 @@ final class StatsFormattingTests: XCTestCase {
 
     // MARK: - Session helpers
 
-    func testTrackedSessionsAndTotalIgnoreActiveSessions() {
+    func testTrackedSessionsIgnoreActiveSessions() {
         let active = session("CS128", minutes: 50, active: true)
         XCTAssertFalse(StatsFormatting.hasTrackedSessions([]))
         XCTAssertFalse(StatsFormatting.hasTrackedSessions([active]))
-        XCTAssertEqual(StatsFormatting.totalSeconds([active]), 0)
 
         let sessions = [active, session("CS128", minutes: 30), session("MATH241", minutes: 15)]
         XCTAssertTrue(StatsFormatting.hasTrackedSessions(sessions))
-        XCTAssertEqual(StatsFormatting.totalSeconds(sessions), 45 * 60, accuracy: 0.001)
     }
 }

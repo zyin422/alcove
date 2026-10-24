@@ -76,7 +76,7 @@ private struct MenuBarTimerMenu: View {
     }
 }
 
-/// "Check for Updates…" in the app menu; disabled unless this is a release build (made by scripts/release.sh), where Sparkle isn't running.
+/// "Check for Updates…" in the app menu; disabled where Sparkle isn't running (any build not made by scripts/release.sh).
 private struct CheckForUpdatesButton: View {
     let updates: UpdateCenter
 

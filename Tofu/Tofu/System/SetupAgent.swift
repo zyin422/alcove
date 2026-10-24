@@ -123,10 +123,11 @@ struct AgentMessage: Identifiable, Equatable {
 
     private func run(_ call: ChatToolCall) -> SetupAgentTools.Outcome {
         let arguments = SetupAgentTools.arguments(call.function.arguments)
-        var form = read()
+        let before = read()
+        var form = before
         let outcome = SetupAgentTools.apply(name: call.function.name, arguments: arguments, to: &form,
                                             lookupApp: lookupApp)
-        if form != read() {
+        if form != before {
             let updated = form
             apply { $0 = updated }
         }

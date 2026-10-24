@@ -26,11 +26,10 @@ final class Store {
             .deletingLastPathComponent()
             .appendingPathComponent(["Acc", "ountabili", "brosis"].joined(), isDirectory: true)
             .appendingPathComponent("store.json", isDirectory: false)
+        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         if !fileManager.fileExists(atPath: file.path), fileManager.fileExists(atPath: previous.path) {
-            try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             try? fileManager.copyItem(at: previous, to: file)
         }
-        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         return file
     }
 
@@ -68,6 +67,20 @@ final class Store {
         return result
     }
 
+    /// Pretty-printed, sorted keys, ISO8601 dates. Also used for memory.json.
+    static func makeEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+
+    static func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+
     // MARK: - Private
 
     /// Moves the unreadable file aside (never overwriting an earlier backup) and returns the warning text.
@@ -89,18 +102,5 @@ final class Store {
             Log.storage.error("Backing up store.json failed: \(error.localizedDescription, privacy: .public)")
             return "Saved data couldn't be read and couldn't be backed up. The app started fresh."
         }
-    }
-
-    private static func makeEncoder() -> JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }
-
-    private static func makeDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
     }
 }

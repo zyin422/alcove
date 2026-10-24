@@ -36,27 +36,6 @@ final class ChromeScriptsTests: XCTestCase {
                        #"tell application "Google Chrome" to close (every tab of window id "12" whose id is 345)"#)
     }
 
-    func testRestoreUnminimizesEachIDInsideTry() {
-        let script = ChromeScripts.restore(windowIDs: [5, 9])
-        XCTAssertTrue(script.contains(#"set minimized of window id "5" to false"#))
-        XCTAssertTrue(script.contains(#"set minimized of window id "9" to false"#))
-        XCTAssertEqual(script.components(separatedBy: "try").count - 1, 4)   // 2 × "try" + 2 × "end try"
-    }
-
-    func testMinimizeMinimizesEachIDInsideTry() {
-        let script = ChromeScripts.minimize(windowIDs: [5, 9])
-        XCTAssertTrue(script.hasPrefix(#"tell application "Google Chrome""#))
-        XCTAssertTrue(script.contains(#"set minimized of window id "5" to true"#))
-        XCTAssertTrue(script.contains(#"set minimized of window id "9" to true"#))
-        XCTAssertFalse(script.contains("to false"))
-        XCTAssertEqual(script.components(separatedBy: "try").count - 1, 4)   // 2 × "try" + 2 × "end try"
-        XCTAssertTrue(script.hasSuffix("end tell"))
-    }
-
-    func testMinimizeWithNoIDsIsEmptyScript() {
-        XCTAssertEqual(ChromeScripts.minimize(windowIDs: []), "")
-    }
-
     func testListTabsUsesUnitSeparatorAndLinefeedCapturedOutsideTell() {
         let script = ChromeScripts.listTabs
         XCTAssertTrue(script.hasPrefix("set sepChar to ASCII character 31\nset lineChar to linefeed"))
@@ -75,9 +54,7 @@ final class ChromeScriptsTests: XCTestCase {
         if let title, let url { XCTAssertLessThan(title.lowerBound, url.lowerBound) }
     }
 
-    func testMinimizeAllAndPingTargetChrome() {
-        XCTAssertTrue(ChromeScripts.minimizeAll.contains("set minimized of w to true"))
-        XCTAssertTrue(ChromeScripts.minimizeAll.contains(#"set AppleScript's text item delimiters to ",""#))
+    func testPingTargetsChrome() {
         XCTAssertEqual(ChromeScripts.ping, #"tell application "Google Chrome" to count windows"#)
     }
 
@@ -147,16 +124,6 @@ final class ChromeScriptsTests: XCTestCase {
 
     func testParseTabsEmptyOutput() {
         XCTAssertEqual(ChromeScripts.parseTabs(""), [])
-    }
-
-    // MARK: parseIDs
-
-    func testParseIDs() {
-        XCTAssertEqual(ChromeScripts.parseIDs(""), [])
-        XCTAssertEqual(ChromeScripts.parseIDs("1,2, 3"), [1, 2, 3])
-        XCTAssertEqual(ChromeScripts.parseIDs("junk"), [])
-        XCTAssertEqual(ChromeScripts.parseIDs("4,junk,5\n"), [4, 5])
-        XCTAssertEqual(ChromeScripts.parseIDs("1234567890"), [1_234_567_890])
     }
 
     // MARK: protectionKey

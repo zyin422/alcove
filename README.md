@@ -333,18 +333,18 @@ accountabilibrosis/
     │   ├── Models/          Subject, Session, AppSettings, StoreData
     │   ├── Persistence/     Store (JSON file), Keychain (bot token, OpenAI key), EnvFile (bundled team secrets)
     │   ├── Engine/          pure, unit-tested logic: LayoutEngine, DomainMatcher, TimeFormat, StatsEngine,
-    │   │                    DemoData, SettingsStatus, StatsFormatting; SessionEngine (lock-in state machine)
+    │   │                    SettingsStatus, StatsFormatting, ScreenMemory, SetupCheck; SessionEngine (lock-in state machine)
     │   ├── System/          AppKit + AppleScript side effects: WorkspaceController, AppBlocker, BlockPolicy,
     │   │                    ChromeController, ChromeScripts, TabTriage (pure tab bookkeeping), RelevanceJudge
     │   │                    (OpenAI Decisions API), ScreenGeometry
     │   ├── Discord/         DiscordClient (REST), DiscordMessages, ChannelPicker, DiscordAnnouncer
     │   ├── UI/              SwiftUI screens and AppKit panels: sidebar, subject editor, lock-in sheet,
-    │   │                    locked view, give-up sheet, mini timer, toasts, stats, settings, theme
+    │   │                    locked view, Mirror, mini timer, Moss, toasts, stats, settings, connections, theme
     │   └── Resources/       Assets.xcassets (monochrome accent color)
     └── TofuTests/   XCTest suites for every pure unit, plus SessionEngine with fakes
 ```
 
-Side effects sit behind small `@MainActor` protocols: `WorkspaceControlling`, `AppBlocking`, `ChromeControlling`, `RelevanceJudging`, `NeedPrompting`, `Toasting`, `Announcing` and `WindowPresenting`. So the whole lock-in lifecycle is tested without touching real apps, Chrome, OpenAI or Discord.
+Side effects sit behind small `@MainActor` protocols: `WorkspaceControlling`, `AppBlocking`, `ChromeControlling`, `RelevanceJudging`, `Toasting`, `Announcing` and `WindowPresenting`. So the whole lock-in lifecycle is tested without touching real apps, Chrome, OpenAI or Discord.
 
 ## Tests
 

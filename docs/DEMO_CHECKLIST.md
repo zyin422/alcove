@@ -59,7 +59,6 @@ cd /Users/axion66/coding/tofu/Tofu && xcodebuild -project Tofu.xcodeproj -scheme
 - [ ] **Custom 1 min:** the session ends on its own after 60 s and Discord gets ✅.
 - [ ] **Custom 25 min → ✕:** you must type `I give up on CS128` to end it, and Discord gets 🏳️.
 - [ ] **Thirds layout:** the app takes the left third with the giant timer.
-- [ ] **Settings → Load demo data:** the Stats day/week/month charts fill in.
 
 ## Troubleshooting
 

@@ -254,7 +254,7 @@ struct BrowserWindowCapture: Equatable {
                 ? ChromeBounds(left: numbers[0], top: numbers[1], right: numbers[2], bottom: numbers[3]) : nil
             var urls = fields[5...].joined(separator: "\u{1F}")
                 .split(separator: "\u{1E}").map { $0.trimmingCharacters(in: .whitespaces) }
-            if let active = Int(fields[4]), active >= 1, active <= urls.count, active > 1 {
+            if let active = Int(fields[4]), active > 1, active <= urls.count {
                 urls.insert(urls.remove(at: active - 1), at: 0)
             }
             var seen = Set<String>()

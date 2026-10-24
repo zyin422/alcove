@@ -157,7 +157,7 @@ final class GoogleClient: GoogleAPI {
             "start": ["dateTime": GoogleEventTime.rfc3339.string(from: start)],
             "end": ["dateTime": GoogleEventTime.rfc3339.string(from: end)],
         ]
-        let _: Ignored = try await send("POST", "\(Self.calendarBase)/calendars/\(encode(calendarID))/events", jsonAny: body)
+        let _: Ignored = try await send("POST", "\(Self.calendarBase)/calendars/\(encode(calendarID))/events", json: body)
     }
 
     func listEvents(calendarID: String, from: Date, to: Date) async throws -> [GoogleEvent] {
@@ -215,12 +215,8 @@ final class GoogleClient: GoogleAPI {
         try await decode(raw("GET", url, body: nil))
     }
 
-    private func send<T: Decodable>(_ method: String, _ url: String, json: [String: String]) async throws -> T {
+    private func send<T: Decodable>(_ method: String, _ url: String, json: [String: Any]) async throws -> T {
         try await decode(raw(method, url, body: try JSONSerialization.data(withJSONObject: json)))
-    }
-
-    private func send<T: Decodable>(_ method: String, _ url: String, jsonAny: [String: Any]) async throws -> T {
-        try await decode(raw(method, url, body: try JSONSerialization.data(withJSONObject: jsonAny)))
     }
 
     private func decode<T: Decodable>(_ data: Data) throws -> T {

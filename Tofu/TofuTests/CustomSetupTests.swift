@@ -250,7 +250,6 @@ final class CustomSetupTests: XCTestCase {
         let tabs = ChromeScripts.parseTabs(output, browser: .arc)
         XCTAssertEqual(tabs.map(\.tabID), ["T-1", "T-poker"])
         XCTAssertEqual(tabs.map(\.windowID), ["W-1", "W-1"])
-        XCTAssertEqual(ChromeScripts.emptyArcSpaceIDs(in: output), ["SPACE-EMPTY"])
         var triage = TabTriage(studySites: ["https://canvas.illinois.edu"], protected: [],
                                alwaysBlocked: DistractionList.hosts)
         XCTAssertFalse(triage.shouldCloseImmediately(tabs[0]))
@@ -262,8 +261,6 @@ final class CustomSetupTests: XCTestCase {
         let line = ["W-1", "2", "T-9", "Title", "https://a.com"].joined(separator: String(ChromeScripts.fieldSeparator))
         XCTAssertEqual(ChromeScripts.parseTabs(line, browser: .arc).map(\.tabID), ["T-9"])
         XCTAssertEqual(ChromeScripts.parseTabs(line, browser: .chrome), [])
-        XCTAssertEqual(ChromeScripts.parseIDs("W-1, W-2", browser: .arc), ["W-1", "W-2"])
-        XCTAssertEqual(ChromeScripts.parseIDs("W-1, 7", browser: .chrome), [7])
     }
 
     func testArcTabsAreProtectedByTabID() {

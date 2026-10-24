@@ -60,11 +60,6 @@ import XCTest
         XCTAssertTrue(block.contains("off task"))
     }
 
-    func testFrequentCountsAndKeepsFirstSeenOrderForTies() {
-        XCTAssertEqual(MemoryDigest.frequent([["a.com", "b.com"], ["b.com"], ["c.com", " "]]),
-                       ["b.com", "a.com", "c.com"])
-    }
-
     // MARK: Extractor
 
     func testParseCleansTheModelsJSON() {

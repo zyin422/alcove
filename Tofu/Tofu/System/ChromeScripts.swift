@@ -151,9 +151,6 @@ enum ChromeScripts {
     /// Chrome's own classes.
     static let listTabs: String = listTabs(for: .chrome)
 
-    /// First field of a `listTabs` line that is not a tab. `parseTabs` ignores it.
-    static let arcEmptySpaceMarker = "#space"
-
     /// How much of Arc a listing reads. Chrome ignores this: its window list is already one cheap pass.
     enum ArcListing: Equatable {
         /// The space on screen. One pass, tab id and URL. This is the check that runs every couple of seconds.
@@ -340,66 +337,10 @@ enum ChromeScripts {
         return lines.joined(separator: "\n")
     }
 
-    /// Minimizes all non-minimized windows; returns their ids comma-separated ("" if none).
-    static let minimizeAll: String = minimizeAll(for: .chrome)
-
-    static func minimizeAll(for browser: Browser) -> String {
-        """
-        set idList to {}
-        tell application "\(browser.scriptName)"
-            repeat with w in windows
-                if minimized of w is false then
-                    set minimized of w to true
-                    set end of idList to ((id of w) as text)
-                end if
-            end repeat
-        end tell
-        set AppleScript's text item delimiters to ","
-        set out to idList as text
-        set AppleScript's text item delimiters to ""
-        return out
-        """
-    }
-
-    /// Un-minimizes the given windows; ids that no longer exist are skipped by `try`.
-    static func restore(windowIDs: [ScriptID], browser: Browser = .chrome) -> String {
-        setMinimized(false, windowIDs: windowIDs, browser: browser)
-    }
-
-    /// Minimizes the given windows; ids that no longer exist are skipped by `try`. "" (nothing to run) for no ids.
-    static func minimize(windowIDs: [ScriptID], browser: Browser = .chrome) -> String {
-        guard !windowIDs.isEmpty else { return "" }
-        return setMinimized(true, windowIDs: windowIDs, browser: browser)
-    }
-
-    private static func setMinimized(_ minimized: Bool, windowIDs: [ScriptID], browser: Browser) -> String {
-        var lines = [tell(browser)]
-        for id in windowIDs {
-            lines.append("    try")
-            lines.append("        set minimized of window id \"\(escape(id.raw))\" to \(minimized)")
-            lines.append("    end try")
-        }
-        lines.append("end tell")
-        return lines.joined(separator: "\n")
-    }
-
     /// Harmless call used to trigger/check the Automation permission: returns count of windows.
     static let ping: String = ping(for: .chrome)
 
     static func ping(for browser: Browser) -> String { "\(tell(browser)) to count windows" }
-
-    /// Space ids Arc reported as empty (`arcEmptySpaceMarker` lines). Tab lines are ignored. Order is stable.
-    static func emptyArcSpaceIDs(in output: String) -> [String] {
-        var seen = Set<String>()
-        let ids = output.split(whereSeparator: { $0 == "\n" || $0 == "\r" }).compactMap { line -> String? in
-            let parts = line.split(separator: fieldSeparator, omittingEmptySubsequences: false)
-            guard parts.count >= 2, parts[0] == Substring(arcEmptySpaceMarker) else { return nil }
-            let id = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !id.isEmpty, seen.insert(id).inserted else { return nil }
-            return id
-        }
-        return ids.sorted()
-    }
 
     /// Parses `listTabs` output. Lines with fewer than five fields are skipped, and so are Chrome lines whose
     /// ids are not integers (Arc ids are text, so any non-empty id counts there).
@@ -425,11 +366,6 @@ enum ChromeScripts {
             return ChromeTab(windowID: windowID, tabIndex: tabIndex, tabID: tabID, title: title,
                              url: String(parts[parts.count - 1]))
         }
-    }
-
-    /// Parses `minimizeAll` / `openWindow` output: comma-separated ids; junk entries are dropped.
-    static func parseIDs(_ output: String, browser: Browser = .chrome) -> [ScriptID] {
-        output.split(separator: ",").compactMap { id($0, browser: browser) }
     }
 
     private static func id(_ text: Substring, browser: Browser) -> ScriptID? {

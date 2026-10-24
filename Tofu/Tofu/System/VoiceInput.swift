@@ -150,8 +150,7 @@ import Speech
         }
         guard !startCancelled else { return }
 
-        guard let recognizer = SFSpeechRecognizer(locale: .current) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US")),
-              recognizer.isAvailable else {
+        guard let recognizer = Self.makeRecognizer(), recognizer.isAvailable else {
             errorMessage = "Speech recognition isn't available right now."
             return
         }
@@ -225,9 +224,7 @@ import Speech
     /// Starts a new utterance on the same running engine after Speech finalizes the last phrase.
     private func continueListening() {
         guard isRecording, let engine, engine.isRunning else { return }
-        guard let recognizer = SFSpeechRecognizer(locale: .current) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US")) else {
-            return
-        }
+        guard let recognizer = Self.makeRecognizer() else { return }
         generation &+= 1
         task?.cancel()
         task = nil
@@ -312,6 +309,11 @@ import Speech
 
     nonisolated private static func requestMicrophoneAccess() async -> Bool {
         await AVCaptureDevice.requestAccess(for: .audio)
+    }
+
+    /// The recognizer for the user's language, else US English.
+    nonisolated private static func makeRecognizer() -> SFSpeechRecognizer? {
+        SFSpeechRecognizer(locale: .current) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     }
 
     nonisolated private static func makeRequest() -> SFSpeechAudioBufferRecognitionRequest {

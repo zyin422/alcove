@@ -217,6 +217,13 @@ final class OpenAIChatClient {
         return try Self.parse(data)
     }
 
+    /// The span of a model reply from its first "{" to its last "}", as UTF-8, so prose or a code fence around
+    /// the JSON object is ignored. nil when there is no such span.
+    static func jsonObject(in reply: String) -> Data? {
+        guard let start = reply.firstIndex(of: "{"), let end = reply.lastIndex(of: "}"), start < end else { return nil }
+        return Data(reply[start...end].utf8)
+    }
+
     // MARK: - Private
 
     private struct Response: Decodable {

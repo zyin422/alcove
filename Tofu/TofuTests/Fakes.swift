@@ -125,29 +125,6 @@ import Foundation
     func resolveNext(_ verdict: RelevanceVerdict) { pending.removeFirst().resume(returning: verdict) }
 }
 
-/// Answers "is it needed?" questions from a table (by host, default Needed) and records them.
-/// With `holds` set, each question waits until the test calls `resolveNext`.
-@MainActor final class FakePrompter: NeedPrompting {
-    var answers: [String: Bool] = [:]
-    var holds = false
-    private(set) var asked: [String] = []
-    private(set) var askedSubjects: [String] = []
-    private var pending: [CheckedContinuation<Bool, Never>] = []
-
-    var pendingCount: Int { pending.count }
-
-    func askIfNeeded(host: String, subject: String) async -> Bool {
-        asked.append(host)
-        askedSubjects.append(subject)
-        if holds {
-            return await withCheckedContinuation { pending.append($0) }
-        }
-        return answers[host] ?? true
-    }
-
-    func resolveNext(_ needed: Bool) { pending.removeFirst().resume(returning: needed) }
-}
-
 /// Records the unsure-site questions the tab watch hands to the chat assistant.
 @MainActor final class FakeAsker: SiteAsking {
     private(set) var questions: [SiteQuestion] = []
@@ -174,6 +151,12 @@ import Foundation
     private(set) var endCount = 0
     func beginBlock() { beginCount += 1 }
     func endBlock() { endCount += 1 }
+}
+
+/// A Do Not Disturb that does nothing, for engines whose test does not look at Focus.
+@MainActor final class IdleDoNotDisturb: DoNotDisturbControlling {
+    func beginBlock() {}
+    func endBlock() {}
 }
 
 @MainActor final class FakePresenter: WindowPresenting {

@@ -58,8 +58,6 @@ enum Browser: String, Codable, CaseIterable, Identifiable {
     var supportsBounds: Bool { self == .chrome }
     /// Chrome tab ids are integers; Arc's are text (and must be quoted in scripts).
     var hasTextTabIDs: Bool { self == .arc }
-    /// Chrome windows can be minimized and restored by script; Arc fails every such request.
-    var canMinimizeWindows: Bool { self == .chrome }
 }
 
 /// What happens to apps the setup doesn't use, from lock-in until the session ends.
@@ -129,7 +127,7 @@ struct Subject: Codable, Identifiable, Hashable {
     var details: String
     var preset: LayoutPreset
     /// Every website of the setup as full URLs (the study sites: never judged or closed). Kept in sync with
-    /// the website slots by `SubjectValidator.subject(…)`.
+    /// the website slots by `SubjectValidator.sites(of:)`.
     var sites: [String]
     var allowedApps: [AllowedApp]
     /// Hosts allowed during this work block (in addition to `sites`). Kept across sessions and left open by the tab watch.

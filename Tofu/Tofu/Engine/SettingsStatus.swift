@@ -53,15 +53,6 @@ enum SettingsStatus {
         template.replacingOccurrences(of: "{subject}", with: subject)
     }
 
-    /// "No demo data loaded", "1 demo session loaded", "43 demo sessions loaded".
-    static func demoSummary(count: Int) -> String {
-        switch count {
-        case ...0: return "No demo data loaded"
-        case 1: return "1 demo session loaded"
-        default: return "\(count) demo sessions loaded"
-        }
-    }
-
     /// Token as typed/pasted: trims whitespace and a leading "Bot " prefix. nil when nothing is left.
     static func cleanedToken(_ raw: String) -> String? {
         var token = raw.trimmingCharacters(in: .whitespacesAndNewlines)

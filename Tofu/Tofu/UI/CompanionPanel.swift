@@ -4,6 +4,8 @@ import SwiftUI
 /// Pure geometry for the floating companion (unit-tested).
 enum CompanionLayout {
     static let portraitSize = MossView.designSize
+    /// Height budget for the speech bubble and its tail (5 lines at most). The view sizes the bubble to its
+    /// text; this constant is what CompanionLayoutTests checks `panelSize` against, so Moss is never pushed out.
     static let bubbleHeight: CGFloat = 100
     static let panelSize = CGSize(width: 240, height: 270)
     static let margin: CGFloat = 16

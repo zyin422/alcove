@@ -353,25 +353,6 @@ final class DayPlanModelTests: XCTestCase {
         XCTAssertFalse(model.todayPlan(now: now).wrappedUp)
     }
 
-    func testPostDayRecapUsesTheSavedPlans() throws {
-        let announcer = FakeAnnouncer()
-        let model = try makeModel(announcer: announcer)
-        model.updateSettings { $0.displayName = "Zixuan" }
-        let now = Date()
-        let today = [Priority(title: "Lab", isDone: true), Priority(title: "Read")]
-        model.updatePlan(day: DayKey.key(for: now)) { $0.priorities = today }
-        model.updatePlan(day: DayKey.tomorrow(from: now)) { $0.priorities = [Priority(title: "Quiz prep")] }
-
-        model.postDayRecap(now: now)
-
-        XCTAssertEqual(announcer.messages, [
-            DiscordMessages.dayRecap(name: "Zixuan", done: ["Lab"], notDone: ["Read"], tomorrow: ["Quiz prep"],
-                                     summary: DaySummary.summarize(day: DayKey.key(for: now), sessions: [],
-                                                                   priorities: today)),
-        ])
-        XCTAssertEqual(model.plan(for: DayKey.key(for: now))?.wrappedUp, true)
-    }
-
     func testCheckEndOfDayOpensTheWrapUpOncePerDay() throws {
         let model = try makeModel(announcer: FakeAnnouncer())
         model.updateSettings { $0.dayEndMinutes = 0 }   // any time of day is past it

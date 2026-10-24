@@ -50,7 +50,7 @@ final class ClosedBrowserStateTests: XCTestCase {
         var scripts: [String] = []
         let separator = String(ChromeScripts.fieldSeparator)
         let controller = ChromeController(
-            judge: FakeJudge(), prompter: FakePrompter(), alwaysBlocked: ["youtube.com"], rememberedURL: url,
+            judge: FakeJudge(), alwaysBlocked: ["youtube.com"], rememberedURL: url,
             runScript: { source in
                 scripts.append(source)
                 if source == ChromeScripts.listTabs {
@@ -79,7 +79,7 @@ final class ClosedBrowserStateTests: XCTestCase {
         var scripts: [String] = []
         var stillOpen = true
         let controller = ChromeController(
-            judge: FakeJudge(), prompter: FakePrompter(), alwaysBlocked: ["youtube.com"],
+            judge: FakeJudge(), alwaysBlocked: ["youtube.com"],
             rememberedURL: url, browser: .arc,
             runScript: { source in
                 scripts.append(source)

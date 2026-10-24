@@ -173,8 +173,7 @@ struct MirrorTurn: Equatable {
         if let data = stripped.data(using: .utf8), (try? JSONSerialization.jsonObject(with: data)) != nil {
             return data
         }
-        guard let start = stripped.firstIndex(of: "{"), let end = stripped.lastIndex(of: "}"), start < end else { return nil }
-        return String(stripped[start...end]).data(using: .utf8)
+        return OpenAIChatClient.jsonObject(in: stripped)
     }
 
     private static func stripFence(_ text: String) -> String {

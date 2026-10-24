@@ -11,8 +11,7 @@ struct StatsView: View {
 
     var body: some View {
         let sessions = model.data.sessions
-        // Reading engine.now refreshes this view every second while locked; Date() keeps "today" right when idle.
-        let stats = StatsEngine(now: max(model.engine.now, Date()))
+        let stats = model.currentStats
         PageScrollView { page in
             VStack(alignment: .leading, spacing: Theme.Space.l) {
                 HStack(alignment: .firstTextBaseline) {

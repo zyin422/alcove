@@ -1,5 +1,4 @@
 import AppKit
-import Foundation
 import Intents
 
 /// Turns Do Not Disturb on for a work block and off again when that block ends.
@@ -8,12 +7,6 @@ import Intents
     func beginBlock()
     /// Called when the block ends, including an interrupted quit. A break does not call this.
     func endBlock()
-}
-
-/// Used by tests and by any engine that should not touch Focus.
-@MainActor final class IdleDoNotDisturb: DoNotDisturbControlling {
-    func beginBlock() {}
-    func endBlock() {}
 }
 
 /// What to do with Do Not Disturb at the start of a block.
