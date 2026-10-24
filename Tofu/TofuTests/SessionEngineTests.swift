@@ -505,11 +505,23 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(h.chrome.stopWatchCount, 1)
         XCTAssertEqual(h.blocker.stopCount, 1)
         XCTAssertEqual(h.announcer.messages, ["🔒 **Alex** is locked in on **CS128** (goal 50m)"])
+        XCTAssertTrue(h.workspace.relaunchCalls.isEmpty)
 
         // A later finish is a no-op: nothing is unhidden twice and nothing is posted.
         await h.engine.finish()
         XCTAssertEqual(h.announcer.messages.count, 1)
         XCTAssertEqual(h.workspace.unhideCalls.count, 1)
+    }
+
+    func testQuittingMidSessionReopensAnAppThatWasQuitForComingForward() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        h.blocker.simulateBlocked("com.hnc.Discord", name: "Discord")
+
+        h.engine.terminateNow()
+
+        XCTAssertEqual(h.workspace.relaunchCalls, [["com.hnc.Discord"]])
+        XCTAssertEqual(h.workspace.unhideCalls.last, ["com.hnc.Discord"])
     }
 
     func testEndingWhileIdleDoesNothing() async {
@@ -622,10 +634,10 @@ final class SessionEngineTests: XCTestCase {
         await h.engine.finish()
 
         XCTAssertEqual(h.engine.relaunchOffer.map(\.group), [.closedTabs, .previousTabs, .quitApps, .blockedApps])
-        XCTAssertEqual(h.engine.relaunchOffer.map(\.selected), [false, true, true, false])
+        XCTAssertEqual(h.engine.relaunchOffer.map(\.selected), [false, false, false, false])
         XCTAssertEqual(h.engine.relaunchOffer.map(\.title), ["Lo-fi", "docs.python.org", "Spotify", "Discord"])
 
-        h.engine.setRelaunchSelection(h.engine.relaunchOffer[1].id, selected: false)
+        h.engine.setRelaunchSelection(h.engine.relaunchOffer[2].id, selected: true)
         h.engine.applyRelaunch()
         XCTAssertEqual(h.chrome.reopenedURLs, [])
         XCTAssertEqual(h.workspace.relaunchCalls, [["com.spotify.client"]])
@@ -695,7 +707,7 @@ final class SessionEngineTests: XCTestCase {
                        RunningAppInfo(bundleID: "com.hnc.Discord", name: "Discord", isRegular: true)]
         let choices = SessionRelaunch.choices(state: state, quitApps: quit, blockedApps: blocked)
         XCTAssertEqual(choices.map(\.target), ["https://youtube.com/a", "https://a.com", "com.spotify.client", "com.hnc.Discord"])
-        XCTAssertEqual(choices.map(\.selected), [false, true, true, false])
+        XCTAssertEqual(choices.map(\.selected), [false, false, false, false])
         XCTAssertEqual(choices[0].title, "Video")
 
         let apps = [AllowedApp(bundleID: "com.tinyspeck.slackmacgap", name: "Slack"),

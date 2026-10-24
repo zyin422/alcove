@@ -36,6 +36,12 @@ enum BlockPolicy {
         app.isRegular && !app.bundleID.isEmpty && !allowed.contains(app.bundleID)
     }
 
+    /// A disallowed app that launches or comes forward during a lock-in is quit. Finder and the developer
+    /// tools in `neverQuit` are only hidden, so closing them cannot end the session or throw away unsaved work.
+    static func sessionClose(bundleID: String) -> UnusedAppsAction {
+        neverQuit.contains(bundleID) ? .hide : .quit
+    }
+
     /// How a disallowed app is put away at lock-in. Developer tools are only hidden. Anything else is quit when
     /// the quit message was sent; when it was not, the app is hidden and that hide has to be remembered.
     static func forcedClose(bundleID: String, didSendQuit: Bool) -> UnusedAppsAction {

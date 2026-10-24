@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor protocol AppBlocking: AnyObject {
-    /// Called once per counted attempt (after debounce). The app is hidden regardless.
+    /// Called once per counted attempt (after debounce). The app has already been quit, or hidden when it must not be quit.
     var onBlocked: ((RunningAppInfo) -> Void)? { get set }
     func start(allowed: Set<String>)
     func stop()
@@ -9,7 +9,7 @@ import AppKit
     func allow(_ bundleID: String)
 }
 
-/// Hides disallowed apps the moment they launch or come to the front.
+/// Quits disallowed apps the moment they launch or come to the front. Finder and the developer tools are only hidden.
 @MainActor final class AppBlocker: AppBlocking {
     /// Seconds after the first hide at which a still-visible app is hidden again
     /// (an app that is still launching can show itself again when its first window appears).
@@ -60,9 +60,12 @@ import AppKit
         guard let app = NSRunningApplication(processIdentifier: pid) else { return }
         let info = RunningAppInfo(app)
         guard BlockPolicy.shouldBlock(info, allowed: allowed) else { return }
-        app.hide()
+        let sentQuit = BlockPolicy.sessionClose(bundleID: info.bundleID) == .quit && app.terminate()
+        if BlockPolicy.forcedClose(bundleID: info.bundleID, didSendQuit: sentQuit) == .hide {
+            app.hide()
+            scheduleRehides(pid: pid)
+        }
         activateFallback()
-        scheduleRehides(pid: pid)
         if debouncer.shouldCount(info.bundleID, at: Date()) {
             onBlocked?(info)
         }

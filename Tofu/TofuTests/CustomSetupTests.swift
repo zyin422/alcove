@@ -402,7 +402,8 @@ final class CustomSetupTests: XCTestCase {
         XCTAssertEqual(h.workspace.relaunchCalls, [])
         XCTAssertEqual(h.workspace.unhideCalls, [["com.apple.Terminal"]])
         XCTAssertEqual(h.engine.relaunchOffer.map(\.title), ["Spotify"])
-        XCTAssertEqual(h.engine.relaunchOffer.map(\.selected), [true])
+        XCTAssertEqual(h.engine.relaunchOffer.map(\.selected), [false])
+        h.engine.setRelaunchSelection(h.engine.relaunchOffer[0].id, selected: true)
         h.engine.applyRelaunch()
         XCTAssertEqual(h.workspace.relaunchCalls, [["com.spotify.client"]])
     }

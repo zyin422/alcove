@@ -108,6 +108,15 @@ final class BlockPolicyTests: XCTestCase {
         XCTAssertFalse(debouncer.shouldCount("com.apple.Notes", at: t0.addingTimeInterval(0.3)))
     }
 
+    func testAnAppThatComesForwardDuringASessionIsQuit() {
+        XCTAssertEqual(BlockPolicy.sessionClose(bundleID: "com.hnc.Discord"), .quit)
+        XCTAssertEqual(BlockPolicy.sessionClose(bundleID: "com.apple.Notes"), .quit)
+        XCTAssertEqual(BlockPolicy.sessionClose(bundleID: "com.apple.dt.Xcode"), .hide)
+        XCTAssertEqual(BlockPolicy.sessionClose(bundleID: "com.apple.finder"), .hide)
+        XCTAssertEqual(BlockPolicy.sessionClose(bundleID: "com.apple.Terminal"), .hide)
+        XCTAssertEqual(BlockPolicy.sessionClose(bundleID: "com.todesktop.230313mzl4w4u92"), .hide)
+    }
+
     func testAQuitThatWasNotSentIsRememberedAsAHide() {
         XCTAssertEqual(BlockPolicy.forcedClose(bundleID: "com.spotify.client", didSendQuit: true), .quit)
         XCTAssertEqual(BlockPolicy.forcedClose(bundleID: "com.spotify.client", didSendQuit: false), .hide)

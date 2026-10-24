@@ -462,7 +462,11 @@ enum CompanionViolation: Equatable {
         if outcome == .interrupted {
             // Nobody is here to choose, so give everything back.
             if !quitApps.isEmpty { workspace.relaunch(quitApps.map(\.bundleID)) }
-            if !blockedDuringSession.isEmpty { workspace.unhide(blockedDuringSession.map(\.bundleID)) }
+            if !blockedDuringSession.isEmpty {
+                let ids = blockedDuringSession.map(\.bundleID)
+                workspace.unhide(ids)
+                workspace.relaunch(ids)
+            }
             chrome.restoreAfterSession()
             relaunchOffer = []
         } else {
@@ -569,8 +573,8 @@ struct RelaunchChoice: Identifiable, Equatable {
     var selected: Bool
 }
 
-/// Builds the checklist shown after a work block. Off-task tabs and blocked apps start unchecked;
-/// tabs and apps that were only put away at the start start checked.
+/// Builds the checklist shown after a work block. Nothing starts checked, so closing the summary
+/// brings nothing back unless the user chooses it.
 enum SessionRelaunch {
     static func choices(state: ClosedBrowserState?, quitApps: [RunningAppInfo],
                         blockedApps: [RunningAppInfo]) -> [RelaunchChoice] {
@@ -579,11 +583,11 @@ enum SessionRelaunch {
         if let state {
             for url in state.closedTabs where addTab(url, state: state, group: .closedTabs, selected: false,
                                                      seen: &seenURLs, into: &result) {}
-            for url in state.windows.flatMap({ $0 }) where addTab(url, state: state, group: .previousTabs, selected: true,
+            for url in state.windows.flatMap({ $0 }) where addTab(url, state: state, group: .previousTabs, selected: false,
                                                                   seen: &seenURLs, into: &result) {}
         }
         var seenApps = Set<String>()
-        for app in quitApps where addApp(app, group: .quitApps, selected: true, seen: &seenApps, into: &result) {}
+        for app in quitApps where addApp(app, group: .quitApps, selected: false, seen: &seenApps, into: &result) {}
         for app in blockedApps where addApp(app, group: .blockedApps, selected: false, seen: &seenApps, into: &result) {}
         return result
     }
