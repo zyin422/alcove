@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Judges one page against the locked-in subject with the OpenAI Decisions API (`DecisionsClient`).
 /// Pages without a description or site name are first enriched by fetching their HTML head (`PageMetadata`).
@@ -49,6 +50,7 @@ import Foundation
                 .offTaskProbability(page: page, subject: subject, details: details)
             return Self.verdict(offTaskProbability: probability)
         } catch {
+            Log.relevance.error("Relevance check failed: \(String(describing: error), privacy: .public)")
             return .unknown(String(describing: error))
         }
     }

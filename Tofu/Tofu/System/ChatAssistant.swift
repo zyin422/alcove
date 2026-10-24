@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 /// The chat screen's brain (gpt-4.1-mini): keeps the conversation, asks about unsure sites,
 /// and allows/closes sites through tool calls. All local texts (greetings, site questions) cost no API call.
@@ -204,6 +205,7 @@ import Observation
                 }
             }
         } catch {
+            Log.assistant.error("Chat request failed: \(String(describing: error), privacy: .public)")
             guard session == sessionID else { return }
             appendAssistant(Self.failureReply(error))
         }

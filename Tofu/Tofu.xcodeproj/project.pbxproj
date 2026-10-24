@@ -140,6 +140,7 @@
 		DC5D5AADF7499871B887FFC9 /* CompanionLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E46AAAA22CCC12604F6B786 /* CompanionLayoutTests.swift */; };
 		DC76F1962FBCCBE8BA5FFC3B /* GoogleSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C4C65190CD9F14DBADF1A04 /* GoogleSync.swift */; };
 		DCBBE1E82D215DAEADF31B8C /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F85B8D6184F05057C1E947 /* Store.swift */; };
+		DE83F15A8CFD74A7EC3D4C44 /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3EEF232C817BB136EBBEAF /* Log.swift */; };
 		DE94F5D9A7B2EA6BED2EA594 /* MirrorPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = E749A366FA4A51D1319A715B /* MirrorPrompt.swift */; };
 		E08F16B93297F58C8116DDE9 /* CompanionArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EA4051CC75F07BB011EB39 /* CompanionArt.swift */; };
 		E19D6932421B40F53E80A2D7 /* ChromeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FC6341CDAE3FE40E13DF02 /* ChromeController.swift */; };
@@ -215,6 +216,7 @@
 		47556E7B4FBA14C27DF9776E /* GoogleEventFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleEventFormat.swift; sourceTree = "<group>"; };
 		481579C4998932812B4F58D6 /* GoogleClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleClient.swift; sourceTree = "<group>"; };
 		49DB2F0808552BF2AFBB9A51 /* DiscordAnnouncerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordAnnouncerTests.swift; sourceTree = "<group>"; };
+		4A3EEF232C817BB136EBBEAF /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
 		4B0D7725A7673F58446A7975 /* EnvFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvFile.swift; sourceTree = "<group>"; };
 		4BC6CBCEB7074DB115D58024 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
 		4E55A76B51F0AFEFA3D26BB3 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -529,6 +531,7 @@
 				7D393339AF2AAA70CF42165C /* ClosedBrowserState.swift */,
 				2F1AE38838CBE8344B94C9DB /* DoNotDisturb.swift */,
 				871758EE96A845D8D8EA1812 /* HTTPTransport.swift */,
+				4A3EEF232C817BB136EBBEAF /* Log.swift */,
 				B555E3B379215E3FEF702195 /* RelevanceJudge.swift */,
 				A5F50C7735034F20CE45743F /* ScreenGeometry.swift */,
 				1460EAD3384D3DD8DC438F6F /* SetupLauncher.swift */,
@@ -828,6 +831,7 @@
 				D7EE9FD6F3AA2DC58EB9A738 /* LayoutEngine.swift in Sources */,
 				229BF650E5DB3DA09F1A1D8B /* LockInSheet.swift in Sources */,
 				BF83212977907AE03197B0D6 /* LockedView.swift in Sources */,
+				DE83F15A8CFD74A7EC3D4C44 /* Log.swift in Sources */,
 				F180BF5D3419F50894C9F6CD /* LoopbackServer.swift in Sources */,
 				F536A9EB2633FBC0F8C3A968 /* MainWindowPresenter.swift in Sources */,
 				990A6A4F2E98B5E9B51DB50E /* MiniTimerPanel.swift in Sources */,

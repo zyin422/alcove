@@ -123,6 +123,20 @@ open build/DerivedData/Build/Products/Release/Tofu.app
 
 > **While developing:** a lock-in hides Xcode and Terminal too. It never quits them. Add them to a test subject's allowed apps, or end the session from the mini timer.
 
+### Logs
+
+Tofu writes to the unified log under the subsystem `com.tofu.app`, with one category per area: `Session`, `Blocker`, `Browser`, `Relevance`, `Discord`, `Google`, `Storage` and `Assistant`. Watch them live:
+
+```bash
+log stream --level info --predicate 'subsystem == "com.tofu.app"'
+```
+
+Or filter by subsystem in Console.app. Subject names, hosts and URLs are logged as private: they are readable when Xcode runs the app, and show as `<private>` otherwise.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request. It checks that the committed `Tofu.xcodeproj` matches `project.yml`, then builds and runs the unit tests (ad-hoc signed). When a run fails, the test results and build log are uploaded as an artifact.
+
 ## Updates
 
 Tofu updates itself with [Sparkle](https://sparkle-project.org). Once a day it checks

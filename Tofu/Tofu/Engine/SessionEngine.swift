@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import os
 
 /// Receives lock-in announcements (the live implementation posts to Discord).
 @MainActor protocol Announcing: AnyObject {
@@ -178,6 +179,7 @@ enum CompanionViolation: Equatable {
         pauseStartedAt = nil
         nextBreakElapsed = Self.breakCooldown
         onSessionChanged?(newSession)
+        Log.session.info("Lock-in started: \(subject.name), mode \(String(describing: mode), privacy: .public)")
 
         quitApps = []
         blockedDuringSession = []
@@ -188,6 +190,7 @@ enum CompanionViolation: Equatable {
         case .quit:
             (quitApps, hiddenByUs) = workspace.quitOthers(allowed: allowed)
         }
+        Log.blocker.info("Hid \(self.hiddenByUs.count, privacy: .public) apps, quit \(self.quitApps.count, privacy: .public)")
 
         let placement = LayoutEngine.placement(for: subject, visible: visibleFrame(), primaryHeight: primaryHeight())
         presenter?.enterLocked(appFrame: placement.appFrame)
@@ -208,13 +211,17 @@ enum CompanionViolation: Equatable {
         // The session may have ended (e.g. the app quit) while the browser was being prepared.
         guard session?.id == sessionID else { return }
         if let chromeError {
+            Log.browser.error("Browser setup failed: \(String(describing: chromeError), privacy: .public)")
             toaster.show(Self.chromeErrorMessage(chromeError, browser: subject.browser))
         }
         for (slot, bounds) in appSlots {
             guard let app = slot.app, let launcher else { break }
             let problem = await launcher.open(app, folder: slot.folder, bounds: bounds)
             guard session?.id == sessionID else { return }
-            if let problem { toaster.show(problem) }
+            if let problem {
+                Log.session.error("Setup app failed: \(problem, privacy: .public)")
+                toaster.show(problem)
+            }
         }
 
         blocker.onBlocked = { [weak self] app in self?.recordBlocked(app) }
@@ -308,6 +315,7 @@ enum CompanionViolation: Equatable {
             blockedDuringSession.append(app)
         }
         let name = app.name.isEmpty ? app.bundleID : app.name
+        Log.blocker.info("Blocked \(app.bundleID, privacy: .public) (attempt \(current.blockedAttempts, privacy: .public))")
         toaster.show("🔒 \(name) is blocked during \(current.subjectName)")
         companion?.violationOccurred(.app(name: name), subject: current.subjectName,
                                      violations: current.blockedAttempts + current.closedTabs)
@@ -318,6 +326,7 @@ enum CompanionViolation: Equatable {
         guard var current = session else { return }
         current.closedTabs += 1
         session = current
+        Log.browser.info("Closed off-task tab \(host) (\(current.closedTabs, privacy: .public) this session)")
         toaster.show("Closed \(host) — not relevant to \(current.subjectName)")
         companion?.violationOccurred(.tab(host: host), subject: current.subjectName,
                                      violations: current.blockedAttempts + current.closedTabs)
@@ -343,6 +352,7 @@ enum CompanionViolation: Equatable {
         blocker.stop()
         chrome.pauseTabWatch()
         breakEndsAt = now.addingTimeInterval(TimeInterval(clamped * 60))
+        Log.session.info("Break started: \(clamped, privacy: .public) min")
         return true
     }
 
@@ -350,6 +360,7 @@ enum CompanionViolation: Equatable {
     func endBreak() {
         guard isOnBreak else { return }
         now = clock()
+        Log.session.info("Break ended early")
         resumeMonitoring()
     }
 
@@ -445,6 +456,7 @@ enum CompanionViolation: Equatable {
         final.end = endDate
         final.lastHeartbeat = endDate
         final.outcome = outcome
+        Log.session.info("Lock-in ended: \(String(describing: outcome), privacy: .public) after \(Int(final.duration), privacy: .public) s, \(final.blockedAttempts, privacy: .public) blocked, \(final.closedTabs, privacy: .public) tabs closed")
 
         workspace.unhide(hiddenByUs)
         hiddenByUs = []

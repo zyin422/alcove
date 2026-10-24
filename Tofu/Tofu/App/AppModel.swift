@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import os
 
 /// What the main window's sidebar has selected.
 enum SidebarItem: Hashable {
@@ -266,6 +267,7 @@ enum TokenSource: Equatable {
             isGoogleConnected = true
             googleSync?.start()
         } catch {
+            Log.google.error("Connecting Google failed: \(String(describing: error), privacy: .public)")
             googleStatus = "Connection failed: \(error)"
         }
     }
@@ -590,7 +592,7 @@ enum TokenSource: Equatable {
         do {
             try store.save(data)
         } catch {
-            NSLog("Tofu: saving failed: %@", error.localizedDescription)
+            Log.storage.error("Saving store failed: \(error.localizedDescription, privacy: .public)")
             ToastCenter.shared.show("Couldn't save your data: \(error.localizedDescription)")
         }
     }

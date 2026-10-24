@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// Opens a setup's apps at lock-in.
 @MainActor protocol SetupLaunching: AnyObject {
@@ -29,6 +30,7 @@ import AppKit
                 _ = try await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
             }
         } catch {
+            Log.session.error("Opening \(app.bundleID, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
             return "Couldn't open \(app.name)"
         }
         guard let bounds else { return nil }

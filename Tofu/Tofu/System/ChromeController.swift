@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// One browser window to open at lock-in: its websites (the first is shown, the rest are extra tabs) and where
 /// it goes (nil = wherever the browser puts it).
@@ -188,7 +189,11 @@ struct BrowserWindowPlan: Equatable {
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
-        _ = try? await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
+        do {
+            _ = try await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
+        } catch {
+            Log.browser.error("Couldn't launch \(browser.bundleID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
         var waited: TimeInterval = 0
         while !Self.isRunning(browser) && waited < Self.launchTimeout {
             try? await Task.sleep(nanoseconds: 100_000_000)
@@ -200,9 +205,11 @@ struct BrowserWindowPlan: Equatable {
         case .success(let output):
             closeExistingWindows(ChromeScripts.parseTabs(output, browser: browser))
         case .failure(.automationDenied):
+            Log.browser.error("Automation permission denied for \(browser.bundleID, privacy: .public)")
             return .automationDenied
-        case .failure:
-            break   // not fatal: nothing is closed (it could not be remembered), the new windows open on top
+        case .failure(let error):
+            Log.browser.error("Listing tabs before lock-in failed: \(String(describing: error), privacy: .public)")
+            // not fatal: nothing is closed (it could not be remembered), the new windows open on top
         }
 
         let plans = Self.openingPlans(browser: browser, windows: windows).map { window in
@@ -402,9 +409,11 @@ struct BrowserWindowPlan: Equatable {
                 check(tab)
             }
         case .failure(.automationDenied):
+            Log.browser.error("Automation permission revoked; tab watch stopped")
             stopTabWatch()   // permission revoked mid-session: stop retrying every 2 s
-        case .failure:
-            break            // Chrome busy or quitting; try again next tick
+        case .failure(let error):
+            // Chrome busy or quitting; try again next tick
+            Log.browser.debug("Tab poll failed: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -424,7 +433,8 @@ struct BrowserWindowPlan: Equatable {
     /// Closes the tab by its id and reports its host. False when the script failed.
     @discardableResult
     private func close(_ tab: ChromeTab) -> Bool {
-        guard case .success = runScript(ChromeScripts.closeTab(windowID: tab.windowID, tabID: tab.tabID, browser: browser)) else {
+        if case .failure(let error) = runScript(ChromeScripts.closeTab(windowID: tab.windowID, tabID: tab.tabID, browser: browser)) {
+            Log.browser.error("Closing tab failed: \(String(describing: error), privacy: .public)")
             return false
         }
         lastTabs.removeAll { $0.windowID == tab.windowID && $0.tabID == tab.tabID }
@@ -467,6 +477,7 @@ struct BrowserWindowPlan: Equatable {
 
     private func handle(_ verdict: RelevanceVerdict, for tab: ChromeTab, token: UUID) {
         guard token == watchToken else { return }
+        Log.relevance.info("Verdict \(String(describing: verdict), privacy: .public) for \(tab.url)")
         triage.record(url: tab.url, verdict: verdict)
         switch verdict {
         case .relevant:

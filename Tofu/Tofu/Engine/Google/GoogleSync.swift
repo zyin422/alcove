@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import os
 
 /// Polls Google and routes local mutations (spec §3–§4). Owned by AppModel; all closures read it.
 @Observable @MainActor final class GoogleSync {
@@ -76,6 +77,7 @@ import Observation
             lastCycleFailed = false
         } catch GoogleAuthError.revoked {
             // The auth already dropped the token; the UI shows Connect again. Stay quiet.
+            Log.google.notice("Google token revoked; sync stopped")
         } catch {
             report(error)
         }
@@ -83,6 +85,7 @@ import Observation
 
     /// Reports only the transition into failure, so a persistent outage does not spam.
     private func report(_ error: Error) {
+        Log.google.error("Sync failed: \(String(describing: error), privacy: .public)")
         if !lastCycleFailed { onError("Google sync failed: \(error)") }
         lastCycleFailed = true
     }

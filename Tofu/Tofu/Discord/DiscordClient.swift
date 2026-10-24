@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Subset of a partial guild from `GET /users/@me/guilds`.
 struct DiscordGuild: Decodable, Equatable {
@@ -80,6 +81,7 @@ final class DiscordClient {
         do {
             allGuilds = try await guilds()
         } catch {
+            Log.discord.error("Listing guilds failed: \(String(describing: error), privacy: .public)")
             return report
         }
         for guild in allGuilds {
@@ -100,6 +102,7 @@ final class DiscordClient {
         do {
             guildChannels = try await channels(guildID: guildID)
         } catch {
+            Log.discord.error("Listing channels of guild \(guildID, privacy: .public) failed: \(String(describing: error), privacy: .public)")
             return nil
         }
         let candidates = ChannelPicker.candidates(from: guildChannels, cachedID: cachedID)
@@ -108,6 +111,7 @@ final class DiscordClient {
                 try await post(channelID: channelID, content: content)
                 return channelID
             } catch {
+                Log.discord.debug("Posting to channel \(channelID, privacy: .public) failed: \(String(describing: error), privacy: .public)")
                 continue
             }
         }

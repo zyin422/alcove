@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Result of `Store.load()`: the data to use, plus a user-facing warning when the file was unreadable.
 struct StoreLoadResult {
@@ -44,6 +45,7 @@ final class Store {
             let decoded = try Self.makeDecoder().decode(StoreData.self, from: raw)
             return StoreLoadResult(data: Self.finalizeInterrupted(decoded), warning: nil)
         } catch {
+            Log.storage.error("store.json unreadable: \(String(describing: error), privacy: .public)")
             return StoreLoadResult(data: .empty, warning: backUpUnreadableFile())
         }
     }
@@ -84,6 +86,7 @@ final class Store {
             try fileManager.moveItem(at: fileURL, to: backupURL)
             return "Saved data couldn't be read. It was backed up as \(backupURL.lastPathComponent) and the app started fresh."
         } catch {
+            Log.storage.error("Backing up store.json failed: \(error.localizedDescription, privacy: .public)")
             return "Saved data couldn't be read and couldn't be backed up. The app started fresh."
         }
     }

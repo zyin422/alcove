@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// What a lock-in closed in the browser, so it can all be opened again when the session ends: the user's own
 /// windows (closed at lock-in, one URL list per window) and the off-task tabs closed during the session.
@@ -108,7 +109,12 @@ struct ClosedBrowserState: Codable, Equatable {
 
     static func load(from url: URL?) -> ClosedBrowserState? {
         guard let url, let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(ClosedBrowserState.self, from: data)
+        do {
+            return try JSONDecoder().decode(ClosedBrowserState.self, from: data)
+        } catch {
+            Log.storage.error("closed-browser-tabs.json unreadable: \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
 
     /// Writes the state, or removes the file for nil / an empty state.
@@ -118,6 +124,10 @@ struct ClosedBrowserState: Codable, Equatable {
             try? FileManager.default.removeItem(at: url)
             return
         }
-        try? data.write(to: url, options: .atomic)
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            Log.storage.error("Saving closed tabs failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
