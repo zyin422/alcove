@@ -8,7 +8,7 @@ Built for **Code Ada 2026, Off the Clock** track.
  
 ## How a lock-in works
 
-1. Create a subject, for example `CS128`. Give it one or two study sites, a window layout, and any extra apps it needs. The subject's name is what the AI judges tabs against.
+1. Create a subject, for example `CS128`: tell the setup agent what you're working on, or fill in the form yourself. Give it one or two study sites, a window layout, and any extra apps it needs. The subject's name is what the AI judges tabs against.
 2. Click **LOCK IN** and pick a mode:
    - open-ended, which counts up;
    - or a goal of 25, 50, 90 or a custom number of minutes, which counts down.
@@ -42,7 +42,9 @@ Built for **Code Ada 2026, Off the Clock** track.
   - When there is no verdict, the app asks you. See Relevance check below.
 - **Session modes:** open-ended, or a goal. A goal counts down and completes on its own. Ending it early opens the Mirror; a forfeit is posted as a bail.
 - **Discord announcements** through your own bot. Lock-in, completion and bail messages go to one text channel per server.
-- **Study companion:** an anime girl floats bottom-right while you're locked in. She greets you, chats idly, praises you at the halfway mark, and scolds you when an app or tab gets blocked. Personality in Settings: tsundere, yandere, or tsundere → yandere (she turns dark after 3 blocked attempts). Drop your own character art (e.g. Emilia) into `Application Support/Tofu/companion/` as `neutral.png`, `annoyed.png`, `pleased.png`, `dark.png` — the "Open images folder" button in Settings takes you there; without custom images the four bundled Emilia portraits are used.
+- **Study companion — Moss:** a small forest spirit, drawn in a soft storybook style, sits bottom-right while you're locked in. It breathes, blinks and sways; greets you; reminds you where you left off (with screen memory); cheers at the halfway mark; and gently calls out what gets blocked, a little firmer after 3 distractions. Personality in Settings: gentle, wise or playful.
+- **Screen memory:** while locked in, a screenshot of your main display (Tofu's own windows left out) is taken every 5 minutes and sent to OpenAI to be described in a sentence or two. Only the description is kept, in `memory.json`; the screenshot is never saved. Breaks are never captured. Moss, the chat assistant and the setup agent use the notes; each subject's page lists them, and you can forget one, a subject's, or all. Needs Screen Recording permission and an OpenAI key. Turn it off in Settings › Screen memory.
+- **Agent Setup:** on a subject's page (and in New subject), the switch at the top-right picks **Agent Setup** or **Manual Setup**. In Agent Setup you just describe the work ("CS128 — PrairieLearn and the course site, VS Code on my MP folder") and the agent fills in the name, description, windows, layout, browser and allowed apps, listing each change under its reply. Manual Setup is the full form. LOCK IN starts the session either way.
 - **Stats:**
   - Day, Week and Month bar charts, stacked by subject.
   - Today and this week.
@@ -52,8 +54,8 @@ Built for **Code Ada 2026, Off the Clock** track.
   - A per-subject breakdown.
   - Each subject page shows its own cards and a 14-day chart.
 - **Demo data:** one click seeds about 30 days of sessions, so the charts look full.
-- **Arc-style window:** the sidebar sits on a tinted gradient that runs up behind the traffic lights, and each page is an inset rounded card. Each subject gets its own hue; Today, Stats and Settings use a soft violet. At the top: today's focus time and streak, then big tiles for Today, Stats and Settings, then your subjects. **⌘S** hides the sidebar (rest the pointer on the left edge to peek at it); **⌘N** adds a subject.
-- **Menu-bar timer:** while locked in, the time left (or so far) shows in the menu bar, with Show Tofu and End Session… in its menu. Turn it off in Settings › Menu bar.
+- **Arc-style window:** the sidebar sits on a tinted gradient that runs up behind the traffic lights, and each page is an inset rounded card. Each subject gets its own hue; Today, Stats and Settings use a soft violet. At the top: today's focus time and streak, then big tiles for Today, Stats and Settings, then your subjects and a **New Subject** row (**⌘N**). **⌘S** hides the sidebar (rest the pointer on the left edge to peek at it).
+- **Menu-bar clock:** while locked in, the time left (or so far) shows in the menu bar, and its menu says what you're locked in on. Bring Tofu forward or end the session from the mini timer or the End button. Turn it off in Settings › Menu bar.
 - **Setup check:** the top of Settings lists Accessibility, Chrome control, the OpenAI key, Discord and Google, each ready, optional or needing action, with a "4 of 5 ready" summary.
 - **Export:** Stats › the share button saves every finished session as CSV or JSON.
 - **Monochrome pages** that follow the system light/dark appearance.

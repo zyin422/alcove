@@ -494,7 +494,8 @@ struct SubjectEditorView: View {
         self.model = model
         _agent = State(initialValue: SetupAgent(
             apiKey: { [model] in model.openAIKey },
-            lookupApp: { [model] name in model.installedApp(named: name) }))
+            lookupApp: { [model] name in model.installedApp(named: name) },
+            isNewSubject: true))
     }
 
     private var accent: Color {
@@ -512,9 +513,7 @@ struct SubjectEditorView: View {
                     }
                     switch setupMode {
                     case .agent:
-                        AgentSetupView(agent: agent, form: $form, accent: accent,
-                                       suggestions: Self.suggestions,
-                                       onEditManually: { withAnimation { setupMode = .manual } })
+                        AgentSetupView(agent: agent, accent: accent, suggestions: Self.suggestions)
                     case .manual:
                         SubjectForm(form: $form)
                     }
@@ -528,7 +527,7 @@ struct SubjectEditorView: View {
         .onAppear {
             agent.read = { form }
             agent.apply = { change in change(&form) }
-            agent.greet(isNew: true, name: "", lastNote: nil)
+            agent.greet(name: "", lastNote: nil)
         }
     }
 

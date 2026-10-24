@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Arc-style sidebar drawn on the tinted window chrome: a top bar beside the traffic lights (hide sidebar,
-/// add subject), a summary pill, favorite tiles (Today, Stats, Settings), then the subjects as rounded rows
-/// with their total time. An update card (when Sparkle found one) sits at the bottom. Right-click deletes a subject.
+/// Arc-style sidebar drawn on the tinted window chrome: a top bar beside the traffic lights (hide sidebar),
+/// a read-only summary pill, favorite tiles (Today, Stats, Settings), then the subjects as rounded rows with
+/// their total time and a "New Subject" row. An update card (when Sparkle found one) sits at the bottom.
+/// Right-click deletes a subject.
 struct SidebarView: View {
     @Bindable var model: AppModel
     let palette: SidebarPalette
@@ -73,15 +74,13 @@ struct SidebarView: View {
 
     // MARK: Top
 
-    /// Room for the traffic lights, then the sidebar buttons, centered on the lights' row. Empty space drags the
-    /// window, as a title bar would.
+    /// Room for the traffic lights, then the hide-sidebar button, centered on the lights' row. Empty space drags
+    /// the window, as a title bar would. Subjects are added from the "New Subject" row (⌘N), not from here.
     private var topBar: some View {
         HStack(spacing: 2) {
             Spacer()
             SidebarIconButton(systemImage: "sidebar.left", help: "Hide sidebar (⌘S)",
                               palette: palette, dark: dark, action: onHide)
-            SidebarIconButton(systemImage: "plus", help: "Add subject (⌘N)",
-                              palette: palette, dark: dark, action: onAddSubject)
         }
         .padding(.leading, 70)
         .frame(height: 30)
@@ -89,30 +88,25 @@ struct SidebarView: View {
         .background(WindowDragArea())
     }
 
-    /// Today's focus time and the streak, in the spot where Arc shows the address. Opens Stats.
+    /// Today's focus time and the streak, in the spot where Arc shows the address. A readout only: the Stats
+    /// tile below is the way into Stats.
     private var summaryPill: some View {
         let summary = StatsEngine(now: max(model.engine.now, Date())).summary(model.data.sessions)
         let streak = summary.currentStreak == 1 ? "1-day streak" : "\(summary.currentStreak)-day streak"
-        return Button {
-            model.selection = .stats
-        } label: {
-            HStack(spacing: Theme.Space.s) {
-                Image(systemName: "timer").font(.system(size: 12, weight: .semibold))
-                Text("Today \(TimeFormat.short(summary.today))").monospacedDigit()
-                Text("·")
-                Text(streak).lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .font(.system(size: 12))
-            .foregroundStyle(palette.secondaryColor)
-            .padding(.horizontal, 12)
-            .frame(height: 34)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(SidebarFill.tile(dark: dark)))
-            .contentShape(Rectangle())
+        return HStack(spacing: Theme.Space.s) {
+            Image(systemName: "timer").font(.system(size: 12, weight: .semibold))
+            Text("Today \(TimeFormat.short(summary.today))").monospacedDigit()
+            Text("·")
+            Text(streak).lineLimit(1)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
-        .help("Open Stats")
-        .accessibilityLabel("Today \(TimeFormat.short(summary.today)), \(streak). Open Stats")
+        .font(.system(size: 12))
+        .foregroundStyle(palette.secondaryColor)
+        .padding(.horizontal, 12)
+        .frame(height: 34)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(SidebarFill.tile(dark: dark)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Today \(TimeFormat.short(summary.today)), \(streak)")
     }
 
     /// Big tiles for the places that are not subjects, like Arc's Favorites.
@@ -154,6 +148,7 @@ struct SidebarView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(SidebarRowButtonStyle(dark: dark))
+        .help("Add subject (⌘N)")
     }
 
     /// Total time of the subject's finished sessions.

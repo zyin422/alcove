@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Settings (spec §11): profile, Discord bot, give-up phrase, relevance check (OpenAI key), Chrome automation, demo data.
-/// Used both as the sidebar's Settings detail and in the app's Settings scene.
+/// Used both as the sidebar's Settings detail and in the app's Settings scene (⌘,), the usual macOS pair.
+/// The morning screen opens from Today's "Start my day", so Demo does not repeat it.
 struct SettingsView: View {
     let model: AppModel
 
@@ -120,7 +121,7 @@ struct SettingsView: View {
         } header: {
             Text("Menu bar")
         } footer: {
-            Text("The time left (or so far) stays visible even when Tofu's own windows are hidden. Its menu brings Tofu forward or ends the session.")
+            Text("The time left (or so far) stays visible even when Tofu's own windows are hidden. To bring Tofu forward or end the session, use the mini timer or the End button.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -373,14 +374,11 @@ struct SettingsView: View {
                 Button("Clear demo data") { model.clearDemoData() }
                     .disabled(demoCount == 0)
             }
-            HStack {
-                Button("Show morning screen") { model.showMorning() }
-                Button("Post day recap to Discord") { model.postDayRecap() }
-            }
+            Button("Post day recap to Discord") { model.postDayRecap() }
         } header: {
             Text("Demo")
         } footer: {
-            Text("Load adds about 30 days of sample sessions (and CS128 and MATH241 if you have no subjects) so Stats looks full. Clear removes the sample sessions again. Show morning screen opens the start-of-day splash. Post day recap sends today’s done and not-done priorities, plus tomorrow’s list, to Discord.")
+            Text("Load adds about 30 days of sample sessions (and CS128 and MATH241 if you have no subjects) so Stats looks full. Clear removes the sample sessions again. Post day recap sends today’s done and not-done priorities, plus tomorrow’s list, to Discord.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

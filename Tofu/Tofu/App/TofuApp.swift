@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// App entry point: a single main window ("New Window" is disabled), the Settings scene (⌘,) and, while locked in,
-/// a menu-bar timer. The AppDelegate owns the model.
+/// a menu-bar clock. The AppDelegate owns the model.
 @main
 struct TofuApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -31,7 +31,7 @@ struct TofuApp: App {
             get: { menuBarTimer && !AppDelegate.isRunningTests && appDelegate.model.engine.isLocked },
             set: { menuBarTimer = $0 })) {
             if !AppDelegate.isRunningTests {
-                MenuBarTimerMenu(model: appDelegate.model, presenter: { appDelegate.windowPresenter })
+                MenuBarTimerMenu(engine: appDelegate.model.engine)
             }
         } label: {
             if AppDelegate.isRunningTests {
@@ -63,18 +63,16 @@ private struct MenuBarTimerLabel: View {
     }
 }
 
-/// The menu-bar timer's menu.
+/// The menu-bar timer's menu: what the clock is counting, nothing to click. Bringing Tofu forward and ending
+/// the session belong to the controls already on screen in every layout (the mini timer's pill and ✕, or the
+/// locked window's End), so the menu does not repeat them.
 private struct MenuBarTimerMenu: View {
-    let model: AppModel
-    let presenter: () -> MainWindowPresenter?
+    let engine: SessionEngine
 
     var body: some View {
-        if let session = model.engine.session {
-            Text(model.engine.isOnBreak ? "On a break from \(session.subjectName)" : "Locked in on \(session.subjectName)")
+        if let session = engine.session {
+            Text(engine.isOnBreak ? "On a break from \(session.subjectName)" : "Locked in on \(session.subjectName)")
         }
-        Divider()
-        Button("Show Tofu") { presenter()?.showMainWindow() }
-        Button("End Session…") { presenter()?.requestEnd() }
     }
 }
 

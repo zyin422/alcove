@@ -54,9 +54,7 @@ struct SubjectDetailView: View {
                 .keyboardShortcut(.return, modifiers: .command)
                 switch setupMode {
                 case .agent:
-                    AgentSetupView(agent: agent, form: $form, accent: accent,
-                                   suggestions: suggestions,
-                                   onEditManually: { withAnimation { setupMode = .manual } })
+                    AgentSetupView(agent: agent, accent: accent, suggestions: suggestions)
                 case .manual:
                     SubjectForm(form: $form, showsName: false)
                 }
@@ -86,24 +84,16 @@ struct SubjectDetailView: View {
         .onAppear(perform: connectAgent)
     }
 
-    /// Lets the agent read and change this page's form, and lock in on the saved subject.
+    /// Lets the agent read and change this page's form. Sessions start only from the LOCK IN button.
     private func connectAgent() {
         agent.read = { form }
         agent.apply = { change in change(&form) }
-        agent.lockIn = { minutes in
-            autosave()
-            guard form.errors.isEmpty else { return "The setup isn't complete yet." }
-            let mode: SessionMode = minutes > 0 ? .goal(minutes: minutes) : .open
-            await model.lockIn(subjectID: subject.id, mode: mode)
-            return nil
-        }
-        agent.greet(isNew: false, name: subject.name,
-                    lastNote: model.memory.latest(forSubjectNamed: subject.name)?.summary)
+        agent.greet(name: subject.name, lastNote: model.memory.latest(forSubjectNamed: subject.name)?.summary)
     }
 
     /// Quick replies offered before the conversation starts.
     private var suggestions: [String] {
-        ["Lock in for 50 minutes", "Add another website", "Use the Thirds layout", "Let me keep Notion open"]
+        ["Add another website", "Use the Thirds layout", "Let me keep Notion open"]
     }
 
     /// Saves the form whenever it is valid; an invalid draft keeps the last valid state saved.

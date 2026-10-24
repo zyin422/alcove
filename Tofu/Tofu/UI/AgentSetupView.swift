@@ -47,31 +47,16 @@ struct SetupModePicker: View {
     }
 }
 
-/// Agent Setup: a command-bar-style chat card (Moss as the agent's face, change chips under its replies) beside a
-/// live preview of the setup the agent is filling in. Narrow windows stack the two.
+/// Agent Setup: only the conversation — a full-width, command-bar-style chat card with Moss as the agent's face.
+/// What the agent changed shows as chips under its replies; the form itself lives in Manual Setup.
 struct AgentSetupView: View {
     let agent: SetupAgent
-    @Binding var form: SubjectFormState
     let accent: Color
     let suggestions: [String]
-    var onEditManually: () -> Void = {}
     @State private var draft = ""
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: Theme.Space.l) {
-                conversation.frame(minWidth: 380)
-                SetupPreviewCard(form: form, accent: accent, onEditManually: onEditManually).frame(width: 250)
-            }
-            VStack(alignment: .leading, spacing: Theme.Space.l) {
-                conversation
-                SetupPreviewCard(form: form, accent: accent, onEditManually: onEditManually)
-            }
-        }
-    }
-
-    private var conversation: some View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
@@ -86,7 +71,7 @@ struct AgentSetupView: View {
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(minHeight: 120, maxHeight: 360)
+                .frame(minHeight: 300, maxHeight: 520)
                 .onChange(of: agent.messages.count) {
                     withAnimation { proxy.scrollTo(agent.messages.last?.id, anchor: .bottom) }
                 }
@@ -100,6 +85,7 @@ struct AgentSetupView: View {
             Divider()
             inputRow
         }
+        .frame(maxWidth: .infinity)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.primary.opacity(0.1), lineWidth: 1))
         .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
@@ -278,85 +264,6 @@ private struct ThinkingRow: View {
         }
         .accessibilityElement()
         .accessibilityLabel("The setup agent is thinking")
-    }
-}
-
-/// What the setup looks like right now, updated as the agent works.
-struct SetupPreviewCard: View {
-    let form: SubjectFormState
-    let accent: Color
-    var onEditManually: () -> Void = {}
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("SETUP").font(Theme.captionFont).foregroundStyle(.secondary)
-                Spacer()
-                Button("Edit manually", action: onEditManually)
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(accent)
-            }
-            Text(form.name.isEmpty ? "Untitled" : form.name)
-                .font(.system(size: 17, weight: .semibold))
-            if !form.details.isEmpty {
-                Text(form.details).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(3)
-            }
-            HStack(spacing: 10) {
-                if form.usesCustomLayout {
-                    Image(systemName: "rectangle.3.group").font(.system(size: 22)).frame(width: 64)
-                } else {
-                    PresetThumbnail(preset: form.preset).frame(width: 64)
-                }
-                Text(form.usesCustomLayout ? "Custom layout" : form.preset.title).font(.system(size: 12, weight: .medium))
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(form.visibleSlots.enumerated()), id: \.offset) { index, slot in
-                    row(index: index, slot: slot)
-                }
-            }
-            Divider()
-            fact("Browser", form.browser.title)
-            fact("Other apps", form.unusedApps == .hide ? "Hidden" : "Quit")
-            fact("Allowed", form.allowedApps.isEmpty ? "None" : form.allowedApps.map(\.name).joined(separator: ", "))
-            if !form.errors.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(form.errors, id: \.self) { error in
-                        Label(error, systemImage: "exclamationmark.circle").font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(accent.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.primary.opacity(0.1), lineWidth: 1))
-        .animation(.easeInOut(duration: 0.25), value: form)
-    }
-
-    private func row(index: Int, slot: SetupSlot) -> some View {
-        let urls = slot.urls.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        let text: String
-        switch slot.kind {
-        case .website:
-            text = urls.isEmpty ? "Empty" : urls.map { DomainMatcher.host(of: $0) ?? $0 }.joined(separator: ", ")
-        case .app:
-            text = (slot.app?.name ?? "No app") + (slot.folder.map { " · \(($0 as NSString).lastPathComponent)" } ?? "")
-        }
-        return HStack(spacing: 8) {
-            Text("\(index + 1)")
-                .font(.system(size: 10, weight: .bold))
-                .frame(width: 16, height: 16)
-                .background(RoundedRectangle(cornerRadius: 4).fill(accent.opacity(0.18)))
-            Image(systemName: slot.kind == .website ? "globe" : "app.dashed").font(.system(size: 11)).foregroundStyle(.secondary)
-            Text(text).font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
-        }
-    }
-
-    private func fact(_ title: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 66, alignment: .leading)
-            Text(value).font(.system(size: 12)).lineLimit(2)
-        }
     }
 }
 

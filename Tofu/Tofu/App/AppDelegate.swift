@@ -6,8 +6,6 @@ import AppKit
 
     private var storedModel: AppModel?
     private var presenter: MainWindowPresenter?
-    /// The live presenter, for the menu-bar timer's "Show Tofu" and "End session…".
-    var windowPresenter: MainWindowPresenter? { presenter }
     private var wakeObserver: NSObjectProtocol?
     private var sitePrompt: SitePromptController?
     private var endOfDayTimer: Timer?

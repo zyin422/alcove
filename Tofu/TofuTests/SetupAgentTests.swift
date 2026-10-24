@@ -130,10 +130,10 @@ final class SetupAgentToolsTests: XCTestCase {
             return (200, self.reply(content: "Set up CS128 with the course site, full screen."))
         }
         var form = SubjectFormState(subject: nil)
-        let agent = SetupAgent(apiKey: { "sk-test" }, transport: transport, lookupApp: { _ in nil })
+        let agent = SetupAgent(apiKey: { "sk-test" }, transport: transport, lookupApp: { _ in nil }, isNewSubject: true)
         agent.read = { form }
         agent.apply = { change in change(&form) }
-        agent.greet(isNew: true, name: "", lastNote: nil)
+        agent.greet(name: "", lastNote: nil)
 
         await agent.send("CS128, just the course site")
 
@@ -167,46 +167,60 @@ final class SetupAgentToolsTests: XCTestCase {
         XCTAssertEqual(form, original)
     }
 
-    func testLockInToolOnlyWhenTheSubjectIsSavedAndValid() async {
+    func testStartLockInIsNeverOffered() async {
+        let transport = MockTransport { _ in (200, self.reply(content: "Press LOCK IN when you're ready.")) }
+        let form = SubjectFormState(subject: Subject(name: "CS128", preset: .full, sites: ["https://cs128.org"]))
+        for isNew in [false, true] {
+            let agent = SetupAgent(apiKey: { "sk" }, transport: transport, lookupApp: { _ in nil }, isNewSubject: isNew)
+            agent.read = { form }
+            await agent.send("lock in for 50")
+        }
+        XCTAssertEqual(transport.requests.count, 2)
+        for request in transport.requests {
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertFalse(body.contains("start_lock_in"))
+            XCTAssertTrue(body.contains("update_setup"))
+            XCTAssertTrue(body.contains("LOCK IN button"))
+        }
+    }
+
+    func testOnlyTheNewSubjectSheetMentionsSaving() async {
+        let transport = MockTransport { _ in (200, self.reply(content: "Hi")) }
+        let form = SubjectFormState(subject: nil)
+        for isNew in [true, false] {
+            let agent = SetupAgent(apiKey: { "sk" }, transport: transport, lookupApp: { _ in nil }, isNewSubject: isNew)
+            agent.read = { form }
+            await agent.send("hi")
+        }
+        let bodies = transport.requests.map { String(data: $0.httpBody ?? Data(), encoding: .utf8) ?? "" }
+        XCTAssertTrue(bodies[0].contains("Save button"))
+        XCTAssertFalse(bodies[1].contains("Save button"))
+    }
+
+    func testToolOnlyReplyStillSaysWhatChanged() async {
         var step = 0
         let transport = MockTransport { _ in
             step += 1
             return step == 1
-                ? (200, self.reply(content: nil, toolCalls: [("l1", "start_lock_in", #"{"minutes":50}"#)]))
-                : (200, self.reply(content: "Go!"))
+                ? (200, self.reply(content: nil, toolCalls: [("c1", "update_setup", #"{"layout":"thirds"}"#)]))
+                : (200, self.reply(content: nil))
         }
-        var form = SubjectFormState(subject: Subject(name: "CS128", preset: .full, sites: ["https://cs128.org"]))
+        var form = SubjectFormState(subject: nil)
         let agent = SetupAgent(apiKey: { "sk" }, transport: transport, lookupApp: { _ in nil })
         agent.read = { form }
         agent.apply = { change in change(&form) }
-        var started: [Int] = []
-        agent.lockIn = { minutes in started.append(minutes); return nil }
-
-        await agent.send("lock in for 50")
-
-        XCTAssertEqual(started, [50])
-        XCTAssertEqual(agent.messages.last?.changes, ["Locked in for 50 min"])
-        let firstBody = String(data: transport.requests[0].httpBody ?? Data(), encoding: .utf8) ?? ""
-        XCTAssertTrue(firstBody.contains("start_lock_in"))
-    }
-
-    func testNewSubjectsDontOfferLockIn() async {
-        let transport = MockTransport { _ in (200, self.reply(content: "Hi")) }
-        let form = SubjectFormState(subject: nil)
-        let agent = SetupAgent(apiKey: { "sk" }, transport: transport, lookupApp: { _ in nil })
-        agent.read = { form }
-        await agent.send("hi")
-        let body = String(data: transport.requests[0].httpBody ?? Data(), encoding: .utf8) ?? ""
-        XCTAssertFalse(body.contains("start_lock_in"))
-        XCTAssertTrue(body.contains("update_setup"))
+        await agent.send("thirds please")
+        XCTAssertEqual(agent.messages.last?.text, "Done: Layout → Thirds.")
+        XCTAssertEqual(agent.messages.last?.changes, ["Layout → Thirds"])
     }
 
     func testGreetingMentionsMemoryForExistingSubjects() {
         let agent = SetupAgent(apiKey: { nil }, lookupApp: { _ in nil })
-        agent.greet(isNew: false, name: "CS128", lastNote: "You were on MP3 tests.")
+        agent.greet(name: "CS128", lastNote: "You were on MP3 tests.")
         XCTAssertTrue(agent.messages[0].text.contains("CS128"))
         XCTAssertTrue(agent.messages[0].text.contains("You were on MP3 tests."))
-        agent.greet(isNew: false, name: "CS128", lastNote: nil)
+        XCTAssertFalse(agent.messages[0].text.lowercased().contains("lock in"))
+        agent.greet(name: "CS128", lastNote: nil)
         XCTAssertEqual(agent.messages.count, 1)
     }
 }
