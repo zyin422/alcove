@@ -11,9 +11,11 @@ enum SetupMode: String, CaseIterable, Identifiable {
 }
 
 /// Arc-style two-segment switch for the top-right of a setup page: the chosen segment is a raised white pill.
+/// 32 pt tall, the height of the page's Lock in button. `compact` shows the icons only, for a narrow card.
 struct SetupModePicker: View {
     @Binding var mode: SetupMode
     let accent: Color
+    var compact = false
 
     var body: some View {
         HStack(spacing: 2) {
@@ -23,10 +25,11 @@ struct SetupModePicker: View {
                     withAnimation(.spring(duration: 0.25)) { mode = option }
                 } label: {
                     Label(option.title, systemImage: option.systemImage)
+                        .labelStyle(SetupModeLabelStyle(compact: compact))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(isSelected ? (option == .agent ? accent : Color.primary) : Color.secondary)
-                        .padding(.horizontal, 10)
-                        .frame(height: 26)
+                        .padding(.horizontal, compact ? 8 : 10)
+                        .frame(height: 28)
                         .background {
                             if isSelected {
                                 RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -37,6 +40,8 @@ struct SetupModePicker: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .help(compact ? option.title : "")
+                .accessibilityLabel(option.title)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
@@ -47,9 +52,29 @@ struct SetupModePicker: View {
     }
 }
 
+/// Icon and title, or the icon alone when compact.
+private struct SetupModeLabelStyle: LabelStyle {
+    let compact: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        if compact {
+            configuration.icon
+        } else {
+            HStack(spacing: 5) {
+                configuration.icon
+                configuration.title
+            }
+        }
+    }
+}
+
 /// Agent Setup: only the conversation — a full-width, command-bar-style chat card with Moss as the agent's face.
 /// What the agent changed shows as chips under its replies; the form itself lives in Manual Setup.
+/// The card takes all the height it is offered (the transcript grows, the input row stays at the bottom) and
+/// never gets shorter than `minTranscriptHeight` plus the input.
 struct AgentSetupView: View {
+    /// The transcript's height on a small window; the page scrolls rather than squeezing it further.
+    static let minTranscriptHeight: CGFloat = 260
+
     let agent: SetupAgent
     let accent: Color
     let suggestions: [String]
@@ -71,7 +96,7 @@ struct AgentSetupView: View {
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(minHeight: 300, maxHeight: 520)
+                .frame(maxWidth: .infinity, minHeight: Self.minTranscriptHeight, maxHeight: .infinity)
                 .onChange(of: agent.messages.count) {
                     withAnimation { proxy.scrollTo(agent.messages.last?.id, anchor: .bottom) }
                 }
@@ -85,7 +110,7 @@ struct AgentSetupView: View {
             Divider()
             inputRow
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.primary.opacity(0.1), lineWidth: 1))
         .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
@@ -169,6 +194,8 @@ private struct AgentMessageRow: View {
                     .padding(.vertical, 8)
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(accent))
                     .textSelection(.enabled)
+                    // Long messages wrap at a readable width instead of spanning a wide card.
+                    .frame(maxWidth: Theme.Page.readingWidth, alignment: .trailing)
             }
         case .agent:
             HStack(alignment: .top, spacing: 10) {
@@ -184,6 +211,7 @@ private struct AgentMessageRow: View {
                         FlowChips(items: message.changes, accent: accent)
                     }
                 }
+                .frame(maxWidth: Theme.Page.readingWidth, alignment: .leading)
                 Spacer(minLength: 0)
             }
             .accessibilityElement(children: .combine)
@@ -211,7 +239,7 @@ private struct FlowChips: View {
 }
 
 /// Left-to-right layout that wraps to a new row when the next item doesn't fit.
-private struct WrapLayout: Layout {
+struct WrapLayout: Layout {
     var spacing: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

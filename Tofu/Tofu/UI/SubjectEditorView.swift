@@ -80,10 +80,14 @@ struct SubjectFormState: Equatable {
 /// The subject form itself: windows (websites or apps), their layout (a preset or a custom layout
 /// captured from the screen), the browser, what happens to other apps, and the allowlists.
 /// Shared by the New-subject sheet and the subject page, which edits in place.
+/// On a wide page the sections sit in two columns: what opens (description, layout, windows) on the left and
+/// the rules (browser, other apps, allowlists) on the right.
 struct SubjectForm: View {
     @Binding var form: SubjectFormState
     /// The sheet shows a name field; the subject page edits the name in its title instead.
     var showsName = true
+    /// Two columns instead of one; the caller decides from its width (`Theme.Page.twoColumnWidth`).
+    var isWide = false
     @State private var siteDraft = ""
     @State private var isPickingApps = false
     /// The window whose app is being chosen.
@@ -101,15 +105,23 @@ struct SubjectForm: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Space.l) {
-            if showsName { nameSection }
-            detailsSection
-            layoutSection
-            windowsSection
-            browserSection
-            unusedAppsSection
-            appsSection
-            sitesAllowedSection
+        Group {
+            if isWide {
+                HStack(alignment: .top, spacing: Theme.Space.xl) {
+                    // Fixed vertically so each column keeps its text's natural height at the width it is given.
+                    setupColumn
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    rulesColumn
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(minWidth: 320, idealWidth: 400, maxWidth: 460, alignment: .leading)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: Theme.Space.l) {
+                    setupColumn
+                    rulesColumn
+                }
+            }
         }
         .sheet(isPresented: $isPickingApps) {
             AppPickerView(selection: $form.allowedApps)
@@ -119,6 +131,26 @@ struct SubjectForm: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             hasAccessibility = WindowPlacer.isTrusted
+        }
+    }
+
+    /// What opens when locking in.
+    private var setupColumn: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.l) {
+            if showsName { nameSection }
+            detailsSection
+            layoutSection
+            windowsSection
+        }
+    }
+
+    /// What is allowed while locked in.
+    private var rulesColumn: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.l) {
+            browserSection
+            unusedAppsSection
+            appsSection
+            sitesAllowedSection
         }
     }
 
@@ -135,7 +167,8 @@ struct SubjectForm: View {
                 .font(.body)
                 .scrollContentBackground(.hidden)
                 .padding(Theme.Space.s)
-                .frame(minHeight: 120)
+                // A fixed height: on a page that fills the window the editor would otherwise take the spare height.
+                .frame(height: 140)
                 .background(alignment: .topLeading) {
                     if form.details.isEmpty {
                         Text("e.g. Intro CS in C++: pointers, classes, linked lists. Goal: finish MP3 and study for the midterm.")
@@ -166,7 +199,8 @@ struct SubjectForm: View {
 
     private var layoutSection: some View {
         section("Layout") {
-            HStack(spacing: Theme.Space.s) {
+            // Wraps onto a second row when the column is narrower than the five tiles.
+            WrapLayout(spacing: Theme.Space.s) {
                 ForEach(LayoutPreset.allCases) { option in
                     tile(title: option.title, selected: !form.usesCustomLayout && form.preset == option) {
                         PresetThumbnail(preset: option)
@@ -362,7 +396,7 @@ struct SubjectForm: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 280)
+            .frame(minWidth: 240, idealWidth: 280, maxWidth: 360, alignment: .leading)
             if NSWorkspace.shared.urlForApplication(withBundleIdentifier: form.browser.bundleID) == nil {
                 Text("\(form.browser.title) isn't installed on this Mac.").font(.caption).foregroundStyle(.secondary)
             } else if form.browser == .arc {
@@ -379,7 +413,7 @@ struct SubjectForm: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 280)
+            .frame(minWidth: 240, idealWidth: 280, maxWidth: 360, alignment: .leading)
             Text(form.unusedApps == .quit
                  ? "Apps the setup doesn't use are asked to quit (they can ask to save first). At the end you choose which ones to open again. Finder, Terminal, Xcode and Cursor are only hidden."
                  : "Apps the setup doesn't use are hidden and shown again when the session ends.")
@@ -495,6 +529,7 @@ struct SubjectEditorView: View {
         _agent = State(initialValue: SetupAgent(
             apiKey: { [model] in model.openAIKey },
             lookupApp: { [model] name in model.installedApp(named: name) },
+            context: { [model] in model.agentContext() },
             isNewSubject: true))
     }
 
@@ -504,26 +539,29 @@ struct SubjectEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ScrollView {
+            PageScrollView(maxWidth: .infinity, fillsHeight: setupMode == .agent) { page in
                 VStack(alignment: .leading, spacing: Theme.Space.l) {
                     HStack {
                         Text("New subject").font(.title2.weight(.semibold))
                         Spacer()
-                        SetupModePicker(mode: $setupMode, accent: accent)
+                        SetupModePicker(mode: $setupMode, accent: accent, compact: page.isCompact)
+                            .fixedSize()
                     }
                     switch setupMode {
                     case .agent:
+                        // Fills the sheet above the footer, so the conversation grows when the sheet is resized.
                         AgentSetupView(agent: agent, accent: accent, suggestions: Self.suggestions)
                     case .manual:
-                        SubjectForm(form: $form)
+                        SubjectForm(form: $form, isWide: page.contentWidth >= Theme.Page.twoColumnWidth)
                     }
                 }
-                .padding(Theme.Space.l)
             }
             Divider()
             footer.padding(Theme.Space.l)
         }
-        .frame(width: 720, height: 780)
+        // Resizable: opens at the ideal size and can be dragged larger for a long conversation or the form.
+        .frame(minWidth: 620, idealWidth: 760, maxWidth: .infinity,
+               minHeight: 560, idealHeight: 780, maxHeight: .infinity)
         .onAppear {
             agent.read = { form }
             agent.apply = { change in change(&form) }

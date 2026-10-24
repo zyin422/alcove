@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Arc-style sidebar drawn on the tinted window chrome: a top bar beside the traffic lights (hide sidebar),
-/// a read-only summary pill, favorite tiles (Today, Stats, Settings), then the subjects as rounded rows with
+/// a read-only summary pill, favorite tiles (Today, Stats, Connections, Settings), then the subjects as rounded rows with
 /// their total time and a "New Subject" row. An update card (when Sparkle found one) sits at the bottom.
 /// Right-click deletes a subject.
 struct SidebarView: View {
@@ -116,6 +116,8 @@ struct SidebarView: View {
                          palette: palette, dark: dark) { model.selection = .today }
             FavoriteTile(title: "Stats", systemImage: "chart.bar", isSelected: model.selection == .stats,
                          palette: palette, dark: dark) { model.selection = .stats }
+            FavoriteTile(title: "Connections", systemImage: "link", isSelected: model.selection == .connections,
+                         palette: palette, dark: dark) { model.selection = .connections }
             FavoriteTile(title: "Settings", systemImage: "gearshape", isSelected: model.selection == .settings,
                          palette: palette, dark: dark) { model.selection = .settings }
         }

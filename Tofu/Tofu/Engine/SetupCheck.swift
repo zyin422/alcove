@@ -5,7 +5,7 @@ import Foundation
 struct SetupCheck: Equatable {
     enum State: Equatable {
         case ready
-        /// Works, with a limitation the user may accept (no OpenAI key: unsure sites are asked about instead).
+        /// Works, with a limitation the user may accept (Discord off, Google not connected).
         case optional
         case needsAction
         /// Not known yet (e.g. Chrome isn't running, so macOS can't say).
@@ -22,12 +22,17 @@ struct SetupCheck: Equatable {
     struct Inputs: Equatable {
         var accessibility: Bool
         var chrome: AutomationPermission
+        /// Only screen memory still depends on it; the key itself is no longer a row (users don't set one).
         var openAIKey: TokenSource
         var discordEnabled: Bool
         var discordToken: TokenSource
         var googleConnected: Bool
         var screenMemoryEnabled: Bool = false
         var screenRecording: Bool = false
+        /// The Google services that are on and granted, in display order.
+        var googleServices: [GoogleService] = []
+        /// Services that are on but missing from the token's scopes (connected before Gmail was added, say).
+        var googleNotGranted: [GoogleService] = []
     }
 
     static func items(_ inputs: Inputs) -> [Item] {
@@ -37,17 +42,31 @@ struct SetupCheck: Equatable {
                  detail: inputs.accessibility ? "Windows can be placed"
                     : "Needed to place app and Arc windows — see Window placement below"),
             chromeItem(inputs.chrome),
-            Item(title: "OpenAI key",
-                 state: inputs.openAIKey == .none ? .optional : .ready,
-                 detail: inputs.openAIKey == .none ? "No key: you're asked about each new site instead"
-                    : "Off-task tabs are judged automatically"),
             discordItem(enabled: inputs.discordEnabled, token: inputs.discordToken),
             screenMemoryItem(enabled: inputs.screenMemoryEnabled, permission: inputs.screenRecording,
                              hasKey: inputs.openAIKey != .none),
-            Item(title: "Google",
-                 state: inputs.googleConnected ? .ready : .optional,
-                 detail: inputs.googleConnected ? "Tasks and Calendar sync" : "Not connected (optional)"),
+            googleItem(inputs),
         ]
+    }
+
+    /// "Calendar, Tasks and Gmail", "Calendar and Gmail", "Gmail".
+    static func list(_ names: [String]) -> String {
+        guard names.count > 1 else { return names.first ?? "" }
+        return names.dropLast().joined(separator: ", ") + " and " + names[names.count - 1]
+    }
+
+    private static func googleItem(_ inputs: Inputs) -> Item {
+        let manage = " · Manage in Connections"
+        guard inputs.googleConnected else {
+            return Item(title: "Google", state: .optional, detail: "Not connected (optional)" + manage)
+        }
+        if !inputs.googleNotGranted.isEmpty {
+            return Item(title: "Google", state: .optional,
+                        detail: "Reconnect to enable " + list(inputs.googleNotGranted.map(\.shortTitle)) + manage)
+        }
+        let names = inputs.googleServices.map(\.shortTitle)
+        return Item(title: "Google", state: .ready,
+                    detail: (names.isEmpty ? "Connected, every service is off" : list(names) + " on") + manage)
     }
 
     /// "4 of 5 ready". Optional items count as ready; unknown ones don't.

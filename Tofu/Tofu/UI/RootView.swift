@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Arc-style main window: the sidebar sits on a tinted gradient (the selected subject's hue) and the detail is an
 /// inset rounded card. ⌘S hides the sidebar; it then peeks out while the pointer rests on the left edge.
+/// Dragging the gap between the sidebar and the card resizes the sidebar (double-click resets it); the width is
+/// remembered.
 /// When model.engine.isLocked shows LockedView(model:) full-window instead.
 /// Presents SessionSummaryView once a session has ended (not when it was interrupted by quitting).
 struct RootView: View {
@@ -10,9 +12,28 @@ struct RootView: View {
     @State private var isAddingSubject = false
     @AppStorage("sidebarVisible") private var sidebarVisible = true
     @State private var isPeeking = false
+    @AppStorage("sidebarWidth") private var storedSidebarWidth = Double(RootView.sidebarWidth)
+    /// The width while the resize handle is dragged; saved to `storedSidebarWidth` when the drag ends.
+    @State private var draggedSidebarWidth: CGFloat?
+    @State private var dragStartWidth: CGFloat?
+    @State private var isHoveringHandle = false
+    @State private var isResizeCursorPushed = false
     @Environment(\.colorScheme) private var colorScheme
 
+    /// The default sidebar width.
     static let sidebarWidth: CGFloat = 250
+    /// How narrow or wide the sidebar can be dragged.
+    static let sidebarWidthRange: ClosedRange<CGFloat> = 200...340
+
+    /// `width` limited to `sidebarWidthRange`; a stored value that isn't a number falls back to the default.
+    static func clampedSidebarWidth(_ width: CGFloat) -> CGFloat {
+        guard width.isFinite else { return sidebarWidth }
+        return min(max(width, sidebarWidthRange.lowerBound), sidebarWidthRange.upperBound)
+    }
+
+    private var currentSidebarWidth: CGFloat {
+        draggedSidebarWidth ?? Self.clampedSidebarWidth(CGFloat(storedSidebarWidth))
+    }
 
     var body: some View {
         Group {
@@ -50,6 +71,7 @@ struct RootView: View {
             HStack(spacing: 0) {
                 if sidebarVisible {
                     sidebar
+                        .overlay(alignment: .trailing) { resizeHandle }
                         .transition(.move(edge: .leading).combined(with: .opacity))
                 }
                 VStack(spacing: 0) {
@@ -70,7 +92,53 @@ struct RootView: View {
         SidebarView(model: model, palette: palette, dark: dark,
                     onHide: { setSidebar(visible: false) },
                     onAddSubject: { isAddingSubject = true })
-            .frame(width: Self.sidebarWidth)
+            .frame(width: currentSidebarWidth)
+    }
+
+    /// An invisible strip over the sidebar's trailing gutter, the gap before the card. Shows the resize cursor.
+    private var resizeHandle: some View {
+        Color.clear
+            .frame(width: Theme.Space.s)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                isHoveringHandle = inside
+                updateResizeCursor()
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        let start = dragStartWidth ?? currentSidebarWidth
+                        dragStartWidth = start
+                        draggedSidebarWidth = Self.clampedSidebarWidth(start + value.translation.width)
+                    }
+                    .onEnded { _ in
+                        if let draggedSidebarWidth { storedSidebarWidth = Double(draggedSidebarWidth) }
+                        draggedSidebarWidth = nil
+                        dragStartWidth = nil
+                        updateResizeCursor()
+                    }
+            )
+            .onTapGesture(count: 2) { storedSidebarWidth = Double(Self.sidebarWidth) }
+            .accessibilityElement()
+            .accessibilityLabel("Sidebar width")
+            .accessibilityValue("\(Int(currentSidebarWidth)) points")
+            .accessibilityAdjustableAction { direction in
+                let step: CGFloat = direction == .increment ? 20 : (direction == .decrement ? -20 : 0)
+                storedSidebarWidth = Double(Self.clampedSidebarWidth(currentSidebarWidth + step))
+            }
+    }
+
+    /// Keeps the resize cursor while the pointer is on the handle or a drag is under way, and only pops what it pushed.
+    private func updateResizeCursor() {
+        let wantsCursor = isHoveringHandle || dragStartWidth != nil
+        if wantsCursor && !isResizeCursorPushed {
+            NSCursor.resizeLeftRight.push()
+            isResizeCursorPushed = true
+        } else if !wantsCursor && isResizeCursorPushed {
+            NSCursor.pop()
+            isResizeCursorPushed = false
+        }
     }
 
     /// The detail on its own rounded, shadowed card, inset from the chrome like Arc's web view.
@@ -135,6 +203,8 @@ struct RootView: View {
 
     private func setSidebar(visible: Bool) {
         isPeeking = false
+        isHoveringHandle = false
+        updateResizeCursor()
         withAnimation(.spring(duration: 0.3)) { sidebarVisible = visible }
     }
 
@@ -151,6 +221,8 @@ struct RootView: View {
             }
         case .stats:
             StatsView(model: model)
+        case .connections:
+            ConnectionsView(model: model)
         case .settings:
             SettingsView(model: model)
         case nil:

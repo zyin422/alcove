@@ -13,7 +13,7 @@ struct StatsView: View {
         let sessions = model.data.sessions
         // Reading engine.now refreshes this view every second while locked; Date() keeps "today" right when idle.
         let stats = StatsEngine(now: max(model.engine.now, Date()))
-        ScrollView {
+        PageScrollView { page in
             VStack(alignment: .leading, spacing: Theme.Space.l) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Stats").font(Theme.titleFont)
@@ -44,7 +44,8 @@ struct StatsView: View {
                     VStack(alignment: .leading, spacing: Theme.Space.s) {
                         Text(StatsFormatting.rangeCaption(range)).font(Theme.captionFont).foregroundStyle(.secondary)
                         StatsStackedChart(buckets: stats.buckets(sessions, range: range, topSubjects: limit),
-                                          maxLabels: StatsFormatting.maxAxisLabels(range))
+                                          maxLabels: StatsFormatting.maxAxisLabels(range),
+                                          height: Self.chartHeight(visibleHeight: page.visibleHeight))
                     }
                     StatsSummaryGrid(summary: stats.summary(sessions))
                     VStack(alignment: .leading, spacing: Theme.Space.s) {
@@ -58,10 +59,13 @@ struct StatsView: View {
                         .frame(maxWidth: .infinity, minHeight: 240)
                 }
             }
-            .padding(Theme.Space.l)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("Stats")
+    }
+
+    /// The chart grows with the window: about a third of the visible height, between 220 and 420 pt.
+    static func chartHeight(visibleHeight: CGFloat) -> CGFloat {
+        min(max(visibleHeight * 0.36, 220), 420).rounded()
     }
 
     /// Asks where to save, then writes every finished, non-demo session. A failed write is shown as a toast.
@@ -81,8 +85,8 @@ struct StatsView: View {
     }
 }
 
-/// Adaptive card grid for the summary cards.
-private let statsGridColumns = [GridItem(.adaptive(minimum: 140), spacing: Theme.Space.m, alignment: .top)]
+/// Adaptive card grid for the summary cards: as many columns as fit, so a wide window shows them in one or two rows.
+private let statsGridColumns = [GridItem(.adaptive(minimum: 150), spacing: Theme.Space.m, alignment: .top)]
 
 /// X axis with at most `maxLabels` untruncated bucket labels (the newest always shown).
 private func bucketAxis(_ buckets: [StatsBucket], maxLabels: Int) -> some AxisContent {
@@ -99,6 +103,7 @@ private func bucketAxis(_ buckets: [StatsBucket], maxLabels: Int) -> some AxisCo
 private struct StatsStackedChart: View {
     let buckets: [StatsBucket]
     let maxLabels: Int
+    var height: CGFloat = 260
 
     var body: some View {
         let subjects = StatsFormatting.chartSubjects(buckets)
@@ -122,7 +127,7 @@ private struct StatsStackedChart: View {
                 Text("No time tracked in this range").foregroundStyle(.secondary)
             }
         }
-        .frame(height: 260)
+        .frame(height: height)
     }
 }
 

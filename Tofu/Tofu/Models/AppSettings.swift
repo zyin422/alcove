@@ -28,6 +28,12 @@ struct AppSettings: Codable, Equatable {
     var googleShowEventsEnabled: Bool
     /// The Google calendar sessions are written to, once chosen or created.
     var googleCalendarID: String?
+    /// Show unread Primary mail on Today and give its subjects to the assistants (Gmail, read-only).
+    var googleGmailEnabled: Bool
+    /// The scopes the last Google token response listed; nil until one has (or after disconnecting).
+    var googleGrantedScopes: [String]?
+    /// The connected Google account's address, from the sign-in's ID token. Shown on Connections only.
+    var googleAccountEmail: String?
     /// Every 5 minutes while locked in, describe a screenshot with OpenAI and remember the description.
     var screenMemoryEnabled: Bool
 
@@ -38,6 +44,7 @@ struct AppSettings: Codable, Equatable {
          companionEnabled: Bool = true, companionPersonality: CompanionPersonality = .gentle,
          googleTasksSyncEnabled: Bool = true, googleSessionLogEnabled: Bool = true,
          googleShowEventsEnabled: Bool = true, googleCalendarID: String? = nil,
+         googleGmailEnabled: Bool = true, googleGrantedScopes: [String]? = nil, googleAccountEmail: String? = nil,
          screenMemoryEnabled: Bool = true) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
@@ -54,6 +61,9 @@ struct AppSettings: Codable, Equatable {
         self.googleSessionLogEnabled = googleSessionLogEnabled
         self.googleShowEventsEnabled = googleShowEventsEnabled
         self.googleCalendarID = googleCalendarID
+        self.googleGmailEnabled = googleGmailEnabled
+        self.googleGrantedScopes = googleGrantedScopes
+        self.googleAccountEmail = googleAccountEmail
         self.screenMemoryEnabled = screenMemoryEnabled
     }
 }
@@ -86,6 +96,10 @@ extension AppSettings {
             googleShowEventsEnabled: try container.decodeIfPresent(Bool.self, forKey: .googleShowEventsEnabled)
                 ?? defaults.googleShowEventsEnabled,
             googleCalendarID: try container.decodeIfPresent(String.self, forKey: .googleCalendarID),
+            googleGmailEnabled: try container.decodeIfPresent(Bool.self, forKey: .googleGmailEnabled)
+                ?? defaults.googleGmailEnabled,
+            googleGrantedScopes: try container.decodeIfPresent([String].self, forKey: .googleGrantedScopes),
+            googleAccountEmail: try container.decodeIfPresent(String.self, forKey: .googleAccountEmail),
             screenMemoryEnabled: try container.decodeIfPresent(Bool.self, forKey: .screenMemoryEnabled)
                 ?? defaults.screenMemoryEnabled)
     }

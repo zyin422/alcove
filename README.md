@@ -53,10 +53,10 @@ Built for **Code Ada 2026, Off the Clock** track.
   - Apps blocked, tabs closed and bails.
   - A per-subject breakdown.
   - Each subject page shows its own cards and a 14-day chart.
-- **Demo data:** one click seeds about 30 days of sessions, so the charts look full.
-- **Arc-style window:** the sidebar sits on a tinted gradient that runs up behind the traffic lights, and each page is an inset rounded card. Each subject gets its own hue; Today, Stats and Settings use a soft violet. At the top: today's focus time and streak, then big tiles for Today, Stats and Settings, then your subjects and a **New Subject** row (**⌘N**). **⌘S** hides the sidebar (rest the pointer on the left edge to peek at it).
+- **Arc-style window:** the sidebar sits on a tinted gradient that runs up behind the traffic lights, and each page is an inset rounded card. Each subject gets its own hue; Today, Stats and Settings use a soft violet. At the top: today's focus time and streak, then big tiles for Today, Stats, Connections and Settings, then your subjects and a **New Subject** row (**⌘N**). **⌘S** hides the sidebar (rest the pointer on the left edge to peek at it); drag its edge to resize it (double-click resets). Pages grow with the window. A subject's page has its title, the Agent / Manual switch and a compact **Lock in** button (**⌘↩**) in one header row.
 - **Menu-bar clock:** while locked in, the time left (or so far) shows in the menu bar, and its menu says what you're locked in on. Bring Tofu forward or end the session from the mini timer or the End button. Turn it off in Settings › Menu bar.
-- **Setup check:** the top of Settings lists Accessibility, Chrome control, the OpenAI key, Discord and Google, each ready, optional or needing action, with a "4 of 5 ready" summary.
+- **Setup check:** the top of Settings lists Accessibility, Chrome control, Discord, screen memory and Google, each ready, optional or needing action, with an "N of N ready" summary.
+- **Connections:** the Connections tile in the sidebar is the one place to connect your Google account and choose what Tofu may use: **Google Calendar** (today's events on Today and the morning screen, finished sessions logged to a "Tofu" calendar), **Google Tasks** (Today's priorities mirrored) and **Gmail** (read-only: unread primary mail from the last 3 days listed on Today; the chat assistant and setup agent can mention deadlines in it). Each service has its own toggle and status; one that wasn't granted at sign-in shows *Reconnect to enable*.
 - **Export:** Stats › the share button saves every finished session as CSV or JSON.
 - **Monochrome pages** that follow the system light/dark appearance.
 - **Built-in toasts:** the app draws its own, so they need no notification permission and still show during Focus.
@@ -107,7 +107,7 @@ Each zone of a setup is a **window**: either a website window or an app.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) 2.46 or later: `brew install xcodegen`. The generated `.xcodeproj` is committed, so you only need XcodeGen after adding or removing source files.
 - Google Chrome. Without it, a lock-in still hides and blocks apps, but no sites open and no tabs are watched.
 - A Discord bot (optional). See Discord setup below.
-- An OpenAI API key (optional) for the tab relevance check. Without one, you are asked about each site instead. See Relevance check above.
+- An OpenAI key for the AI features (relevance check, assistants, screen memory), bundled at build time from the repo's `.env` / `.env.local` (`OPENAI_API_KEY`). There is no setting for it. Without one, you are asked about each site instead and the assistants say they're unavailable.
 
 ## Build and run
 
@@ -155,8 +155,8 @@ it comes back at the next daily check after Tofu restarts. **Tofu → Check for 
    unzip it and move `Tofu.app` to Applications.
 2. The first launch is blocked because the app isn't notarized: open **System Settings → Privacy & Security** and click
    **Open Anyway**. Updates after that install without this step.
-3. Release builds carry no keys. Paste the Discord bot token (ask the maintainer) and, optionally, your own OpenAI key
-   in **Settings**. They live in your Keychain and survive updates.
+3. Release builds carry no keys. Paste the Discord bot token (ask the maintainer) in **Settings**; it lives in your
+   Keychain and survives updates. Release builds have no OpenAI key, so the AI features stay off in them.
 
 **For the maintainer (publishing):**
 
@@ -227,7 +227,7 @@ The old website allowlist and blocklist are gone. While you're locked in, an AI 
 - **Not sure? The buddy asks, out loud.** When the AI can't decide, a small popup appears bottom-right. It reads the question aloud with a built-in macOS voice, shows a countdown, and you answer by holding **Hold to talk**. Your speech is transcribed on this Mac and shown live. **Close it** closes the site right away. With no answer in 1 minute, the site is closed. Voice is only used for these new-tab questions.
 - **Once per page.** Each URL is judged once per session. A tab that goes somewhere new is judged again. A URL that was judged off-task is closed straight away if it reappears.
 - **The key.** It resolves like the Discord token:
-  - A key saved in **Settings › Relevance check (OpenAI)** goes to the Keychain (service `com.tofu.openai`, account `api-key`) and wins.
+  - A key already in the Keychain (service `com.tofu.openai`, account `api-key`, saved by older builds) wins. There is no setting to add one.
   - Otherwise the team key from the repo-root `.env` is used. Add it next to the Discord token:
 
     ```
@@ -299,7 +299,7 @@ The name comes from **Settings › Profile › Display name**. Discord problems 
 | OpenAI API key (team) | The repo's `.env` (`OPENAI_API_KEY`), bundled into the app the same way as the Discord token (release builds bundle nothing). |
 | Discord Application ID (only used for the invite link) | App preferences, key `discordAppID` |
 
-To start over, quit the app and delete `~/Library/Application Support/Tofu/`. To remove your own token, use **Settings › Discord › Remove**. To remove your own OpenAI key, use **Settings › Relevance check (OpenAI) › Remove**.
+To start over, quit the app and delete `~/Library/Application Support/Tofu/`. To remove your own token, use **Settings › Discord › Remove**.
 
 ## Known limitations
 

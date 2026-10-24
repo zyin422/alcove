@@ -48,6 +48,37 @@ struct GoogleEvent: Decodable, Equatable, Identifiable {
     var end: GoogleEventTime
 }
 
+/// One unread message for the Today inbox (Gmail metadata only: no body is ever fetched).
+struct InboxMessage: Equatable, Identifiable {
+    let id: String
+    /// The From header as Gmail stores it, e.g. "Jane Doe <jane@illinois.edu>".
+    var from: String
+    var subject: String
+    /// Gmail's plain-text preview of the body (about 100 characters).
+    var snippet: String
+    /// When Gmail received it (`internalDate`).
+    var date: Date?
+
+    /// "Jane Doe" from "Jane Doe <jane@illinois.edu>" (quotes dropped), else the bare address.
+    var senderName: String {
+        let trimmed = from.trimmingCharacters(in: .whitespaces)
+        if let open = trimmed.firstIndex(of: "<") {
+            let name = trimmed[..<open].trimmingCharacters(in: CharacterSet(charactersIn: "\" ").union(.whitespaces))
+            if !name.isEmpty { return name }
+            let address = trimmed[trimmed.index(after: open)...].trimmingCharacters(in: CharacterSet(charactersIn: "<> "))
+            return address.isEmpty ? trimmed : address
+        }
+        return trimmed
+    }
+
+    /// The message in Gmail on the web. With the connected address the link opens that account even when
+    /// several Google accounts are signed in to the browser; without it, the first one (`u/0`).
+    func webURL(account: String?) -> URL? {
+        let user = account.flatMap { $0.isEmpty ? nil : $0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) } ?? "0"
+        return URL(string: "https://mail.google.com/mail/u/\(user)/#inbox/\(id)")
+    }
+}
+
 protocol GoogleAPI {
     func listTasks() async throws -> [GoogleTask]
     func insertTask(title: String, due: String?) async throws -> GoogleTask
@@ -57,12 +88,17 @@ protocol GoogleAPI {
     func insertCalendar(summary: String) async throws -> GoogleCalendarInfo
     func insertEvent(calendarID: String, summary: String, description: String, start: Date, end: Date) async throws
     func listEvents(calendarID: String, from: Date, to: Date) async throws -> [GoogleEvent]
+    /// Ids of the newest messages matching a Gmail search, newest first.
+    func listMessageIDs(query: String, maxResults: Int) async throws -> [String]
+    /// One message's From, Subject, snippet and date.
+    func message(id: String) async throws -> InboxMessage
 }
 
-/// Minimal REST client for the Google Tasks and Calendar APIs (spec §2 of the Google sync design).
+/// Minimal REST client for the Google Tasks, Calendar and Gmail (read-only) APIs (spec §2 of the Google sync design).
 final class GoogleClient: GoogleAPI {
     private static let tasksBase = "https://tasks.googleapis.com/tasks/v1"
     private static let calendarBase = "https://www.googleapis.com/calendar/v3"
+    private static let gmailBase = "https://gmail.googleapis.com/gmail/v1/users/me"
     private let tokenProvider: (Bool) async throws -> String
     private let transport: HTTPTransport
 
@@ -131,6 +167,40 @@ final class GoogleClient: GoogleAPI {
         let page: Page = try await get("\(Self.calendarBase)/calendars/\(encode(calendarID))/events"
             + "?singleEvents=true&orderBy=startTime&maxResults=50&timeMin=\(timeMin)&timeMax=\(timeMax)")
         return page.items ?? []
+    }
+
+    func listMessageIDs(query: String, maxResults: Int) async throws -> [String] {
+        struct Ref: Decodable { let id: String }
+        struct Page: Decodable { let messages: [Ref]? }
+        let page: Page = try await get("\(Self.gmailBase)/messages?q=\(encode(query))&maxResults=\(maxResults)")
+        return (page.messages ?? []).map(\.id)
+    }
+
+    func message(id: String) async throws -> InboxMessage {
+        struct Header: Decodable { let name: String; let value: String }
+        struct Payload: Decodable { let headers: [Header]? }
+        struct Message: Decodable {
+            let id: String
+            let snippet: String?
+            let internalDate: String?   // milliseconds since 1970, as a string
+            let payload: Payload?
+        }
+        let raw: Message = try await get("\(Self.gmailBase)/messages/\(encode(id))"
+            + "?format=metadata&metadataHeaders=From&metadataHeaders=Subject")
+        func header(_ name: String) -> String {
+            raw.payload?.headers?.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }?.value ?? ""
+        }
+        let date = raw.internalDate.flatMap(Double.init).map { Date(timeIntervalSince1970: $0 / 1000) }
+        return InboxMessage(id: raw.id, from: header("From"), subject: header("Subject"),
+                            snippet: Self.unescapeHTML(raw.snippet ?? ""), date: date)
+    }
+
+    /// Gmail snippets come HTML-escaped ("&#39;", "&amp;").
+    static func unescapeHTML(_ text: String) -> String {
+        let entities = ["&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "'", "&nbsp;": " "]
+        var result = text
+        for (entity, plain) in entities where entity != "&amp;" { result = result.replacingOccurrences(of: entity, with: plain) }
+        return result.replacingOccurrences(of: "&amp;", with: "&")
     }
 
     // MARK: - Plumbing

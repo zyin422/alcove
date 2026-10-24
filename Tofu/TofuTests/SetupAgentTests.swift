@@ -154,6 +154,18 @@ final class SetupAgentToolsTests: XCTestCase {
         XCTAssertEqual(messages.filter { $0["role"] as? String == "tool" }.count, 2)
     }
 
+    func testContextIsAppendedToTheSystemPrompt() async throws {
+        let transport = MockTransport { _ in (200, self.reply(content: "Hi")) }
+        let agent = SetupAgent(apiKey: { "sk" }, transport: transport, lookupApp: { _ in nil },
+                               context: { "Still on the calendar today:\n- 2:00 PM: CS128 lecture" })
+        agent.read = { SubjectFormState(subject: nil) }
+        await agent.send("hi")
+        let body = try XCTUnwrap(transport.requests.first?.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
+        XCTAssertTrue((messages.first?["content"] as? String ?? "").contains("CS128 lecture"))
+    }
+
     func testWithoutAKeyItSaysSoAndChangesNothing() async {
         let transport = MockTransport { _ in (500, Data()) }
         var form = SubjectFormState(subject: nil)

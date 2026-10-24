@@ -8,6 +8,8 @@ enum SidebarItem: Hashable {
     case today
     case subject(UUID)
     case stats
+    /// The Google account and the services it feeds (ConnectionsView).
+    case connections
     case settings
 }
 
@@ -76,9 +78,9 @@ enum TokenSource: Equatable {
     /// Google connection (OAuth) and the sync engine built over it; the engine is created at the end of init.
     let googleAuth: GoogleAuth
     @ObservationIgnored private(set) var googleSync: GoogleSync?
-    /// Whether a Google refresh token is held; stored so Settings and Today redraw on connect, disconnect and revoke.
+    /// Whether a Google refresh token is held; stored so Connections and Today redraw on connect, disconnect and revoke.
     private(set) var isGoogleConnected = false
-    /// Transient text under the Connect button in Settings.
+    /// Transient text under the Connect button on Connections.
     var googleStatus = ""
     /// The loopback redirect of the connect flow in progress.
     @ObservationIgnored private var pendingRedirectURI = ""
@@ -231,13 +233,19 @@ enum TokenSource: Equatable {
                               },
                               applyPlan: { [weak self] plan in self?.applyGooglePlan(plan) },
                               saveCalendarID: { [weak self] id in self?.updateSettings { $0.googleCalendarID = id } },
-                              onError: { message in ToastCenter.shared.show(message) })
+                              onError: { message in ToastCenter.shared.show(message) },
+                              canUse: { [weak self] service in
+                                  service.isGranted(by: self?.data.settings.googleGrantedScopes)
+                              })
         googleSync = sync
         isGoogleConnected = auth.isConnected
         auth.onRevoked = { [weak self] in
             self?.isGoogleConnected = false
             self?.googleSync?.stop()
+            self?.forgetGoogleGrant()
         }
+        auth.onGrant = { [weak self] grant in self?.recordGoogleGrant(grant) }
+        assistant.dayContext = { [weak self] in self?.agentContext() ?? "" }
         if auth.isConnected { sync.start() }
     }
 
@@ -296,6 +304,57 @@ enum TokenSource: Equatable {
         googleAuth.disconnect()
         isGoogleConnected = false
         googleStatus = ""
+        forgetGoogleGrant()
+    }
+
+    /// Keeps what the latest token response said: the granted scopes, and the address when it named one.
+    /// Saves only on a change (a refresh about every hour usually repeats the same grant).
+    private func recordGoogleGrant(_ grant: GoogleGrant) {
+        let scopes = grant.scopes.sorted()
+        let email = grant.email ?? data.settings.googleAccountEmail
+        guard scopes != data.settings.googleGrantedScopes || email != data.settings.googleAccountEmail else { return }
+        updateSettings {
+            $0.googleGrantedScopes = scopes
+            $0.googleAccountEmail = email
+        }
+    }
+
+    private func forgetGoogleGrant() {
+        guard data.settings.googleGrantedScopes != nil || data.settings.googleAccountEmail != nil else { return }
+        updateSettings {
+            $0.googleGrantedScopes = nil
+            $0.googleAccountEmail = nil
+        }
+    }
+
+    /// What a service card on Connections shows.
+    func googleState(of service: GoogleService) -> GoogleServiceState {
+        GoogleServiceState.of(service, connected: isGoogleConnected, settings: data.settings,
+                              granted: data.settings.googleGrantedScopes,
+                              gmailRefused: googleSync?.isGmailRefused ?? false)
+    }
+
+    /// True when a service that is turned on lacks its scope, so signing in again would enable it.
+    var googleNeedsReconnect: Bool {
+        GoogleService.allCases.contains { googleState(of: $0) == .notGranted }
+    }
+
+    /// The unread mail Today shows: empty unless Google is connected and Gmail is on and granted.
+    var inboxMessages: [InboxMessage] {
+        guard googleState(of: .gmail) == .on else { return [] }
+        return googleSync?.inbox ?? []
+    }
+
+    /// Today's calendar events, when Google is connected and showing events is on.
+    private var calendarEventsForContext: [GoogleEvent] {
+        guard isGoogleConnected, data.settings.googleShowEventsEnabled else { return [] }
+        return googleSync?.todayEvents ?? []
+    }
+
+    /// Today's remaining events and unread subjects for the assistants' prompts (GoogleDigest), or "".
+    /// The chat assistant reads it on every request; SubjectDetailView hands it to the setup agent.
+    func agentContext(now: Date = Date()) -> String {
+        GoogleDigest.promptBlock(events: calendarEventsForContext, inbox: inboxMessages, now: now)
     }
 
     /// The Mac woke from sleep: while locked in, the assistant welcomes the user back (which brings up the chat).

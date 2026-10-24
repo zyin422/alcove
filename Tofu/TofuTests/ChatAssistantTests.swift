@@ -168,6 +168,18 @@ final class ChatAssistantTests: XCTestCase {
 
     // MARK: - Request shape
 
+    func testSystemPromptIncludesTodaysCalendarAndMailWhenGiven() async throws {
+        let rig = makeRig([(200, chatTextBody("a")), (200, chatTextBody("b"))])
+        rig.assistant.beginSession(subject: "CS128")
+        await rig.assistant.send("hi")
+        var system = try XCTUnwrap(try wireMessages(rig, 0).first?["content"] as? String)
+        XCTAssertFalse(system.contains("Unread mail"))
+        rig.assistant.dayContext = { "Unread mail:\n- Prof: Exam moved" }
+        await rig.assistant.send("again")
+        system = try XCTUnwrap(try wireMessages(rig, 1).first?["content"] as? String)
+        XCTAssertTrue(system.contains("- Prof: Exam moved"))
+    }
+
     func testRequestHasModelToolsAuthAndSystemPromptWithSubjectAndOpenTabs() async throws {
         let rig = makeRig([(200, chatTextBody("Sure thing."))])
         rig.sites.openTabsSummary = ["piazza.com — CS128 Piazza", "youtube.com — Lo-fi beats"]
@@ -359,7 +371,7 @@ final class ChatAssistantTests: XCTestCase {
         await rig.assistant.send("hello?")
         XCTAssertTrue(rig.transport.requests.isEmpty)
         XCTAssertEqual(roles(rig.assistant), [.assistant, .user, .assistant])
-        XCTAssertEqual(rig.assistant.messages.last?.text, "I can't think without an OpenAI API key — add one in Settings.")
+        XCTAssertEqual(rig.assistant.messages.last?.text, ChatAssistant.noKeyReply)
         XCTAssertFalse(rig.assistant.isThinking)
     }
 

@@ -37,7 +37,29 @@ struct TodayView: View {
         Set(model.data.dayPlans.filter { $0.priorities.contains(where: \.isDone) }.map(\.day))
     }
 
+    /// Spans the card's width (capped on very wide windows) and scrolls when the list outgrows the window;
+    /// the day's actions stay at the bottom of the page.
     var body: some View {
+        PageScrollView(fillsHeight: true) { _ in
+            content
+        }
+        .navigationTitle("Today")
+        .sheet(item: $lockInSubject) { subject in
+            LockInSheet(model: model, subject: subject)
+        }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.l) {
+            planSection
+            Spacer(minLength: Theme.Space.l)
+            dayActions
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// The day, its events and priorities, at their natural height (a short window scrolls rather than squeezing them).
+    private var planSection: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
             HStack(alignment: .top, spacing: Theme.Space.l) {
                 dayStepper
@@ -49,6 +71,10 @@ struct TodayView: View {
             if model.data.settings.googleShowEventsEnabled, plan.day == todayKey,
                let events = model.googleSync?.todayEvents, !events.isEmpty {
                 eventsBlock(events)
+            }
+
+            if plan.day == todayKey, !model.inboxMessages.isEmpty {
+                InboxSection(messages: model.inboxMessages, account: model.data.settings.googleAccountEmail)
             }
 
             if plan.priorities.isEmpty {
@@ -64,17 +90,8 @@ struct TodayView: View {
             }
 
             if canEdit { addRow }
-
-            Spacer()
-
-            dayActions
         }
-        .padding(Theme.Space.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .navigationTitle("Today")
-        .sheet(item: $lockInSubject) { subject in
-            LockInSheet(model: model, subject: subject)
-        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     /// Read-only list of today's Google Calendar events.

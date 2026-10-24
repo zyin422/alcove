@@ -39,16 +39,19 @@ struct AgentMessage: Identifiable, Equatable {
     @ObservationIgnored private let lookupApp: (String) -> AllowedApp?
     /// Screen memory's digest for this subject, or "".
     @ObservationIgnored private let memory: () -> String
+    /// Today's calendar and inbox (AppModel.agentContext), or "". Untrusted; labeled as such in the text itself.
+    @ObservationIgnored private let context: () -> String
     @ObservationIgnored private var history: [ChatWireMessage] = []
 
     init(apiKey: @escaping () -> String?, transport: HTTPTransport = URLSessionTransport(),
          lookupApp: @escaping (String) -> AllowedApp?, memory: @escaping () -> String = { "" },
-         isNewSubject: Bool = false) {
+         context: @escaping () -> String = { "" }, isNewSubject: Bool = false) {
         self.isNewSubject = isNewSubject
         self.apiKey = apiKey
         self.transport = transport
         self.lookupApp = lookupApp
         self.memory = memory
+        self.context = context
     }
 
     /// The local opening line (no API call).
@@ -74,7 +77,7 @@ struct AgentMessage: Identifiable, Equatable {
         history.append(.user(text))
         guard let key = apiKey()?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
             messages.append(AgentMessage(role: .agent,
-                                         text: "I need an OpenAI API key to help — add one in Settings, or use Manual Setup."))
+                                         text: "I need an OpenAI API key to help, and this copy of Tofu doesn't have one. Use Manual Setup instead."))
             return
         }
         isThinking = true
@@ -152,6 +155,8 @@ struct AgentMessage: Identifiable, Equatable {
         """
         let notes = memory()
         if !notes.isEmpty { prompt += "\n\n" + notes }
+        let today = context()
+        if !today.isEmpty { prompt += "\n\n" + today }
         if isNewSubject {
             prompt += "\n\nThis subject isn't saved yet: the user saves it with the Save button, then presses LOCK IN on its page."
         }

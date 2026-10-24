@@ -11,15 +11,26 @@ enum GoogleAuthError: Error, Equatable {
     case tokenEndpoint(String)
 }
 
+/// What a token response said about the grant: every scope the user allowed (Google lets them untick some, and
+/// tokens from before Gmail was added lack it) and, from the ID token, the account's address.
+struct GoogleGrant: Equatable {
+    var scopes: [String]
+    var email: String?
+}
+
 /// OAuth 2.0 PKCE for the shared Desktop client (reused from uiuc_collective_mind; its Google Cloud
 /// project already has the Tasks and Calendar scopes). Desktop client secrets are not confidential
 /// (RFC 8252); the flow is protected by PKCE. Refresh token in the Keychain, access token in memory.
 @MainActor final class GoogleAuth {
     static let clientID = "727798165808-vkh1rujb994drot1gp3k5rk2jrmci23m.apps.googleusercontent.com"
     static let clientSecret = "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"
-    static let scope = "https://www.googleapis.com/auth/tasks "
-        + "https://www.googleapis.com/auth/calendar.events "
-        + "https://www.googleapis.com/auth/calendar"
+    nonisolated static let tasksScope = "https://www.googleapis.com/auth/tasks"
+    nonisolated static let calendarEventsScope = "https://www.googleapis.com/auth/calendar.events"
+    nonisolated static let calendarScope = "https://www.googleapis.com/auth/calendar"
+    nonisolated static let gmailScope = "https://www.googleapis.com/auth/gmail.readonly"
+    /// Everything Tofu asks for. `openid email` only adds the account's address to the ID token.
+    static let scope = [tasksScope, calendarEventsScope, calendarScope, gmailScope, "openid", "email"]
+        .joined(separator: " ")
     private static let authURL = "https://accounts.google.com/o/oauth2/v2/auth"
     private static let tokenURL = "https://oauth2.googleapis.com/token"
     private static let skew: TimeInterval = 60
@@ -39,6 +50,8 @@ enum GoogleAuthError: Error, Equatable {
     private var accessTokenExpiry = Date.distantPast
     /// Runs after a dead refresh token made the auth disconnect itself (AppModel flips the UI to Connect).
     var onRevoked: (() -> Void)?
+    /// Runs after every token response that lists its scopes (the sign-in and each refresh).
+    var onGrant: ((GoogleGrant) -> Void)?
 
     init(transport: HTTPTransport = URLSessionTransport(),
          readToken: @escaping () -> String? = { Keychain.get(service: Secrets.googleService, account: Secrets.googleAccount) },
@@ -70,6 +83,7 @@ enum GoogleAuthError: Error, Equatable {
             .init(name: "scope", value: Self.scope),
             .init(name: "access_type", value: "offline"),
             .init(name: "prompt", value: "consent"),
+            .init(name: "include_granted_scopes", value: "true"),
             .init(name: "state", value: state),
             .init(name: "code_challenge", value: challenge),
             .init(name: "code_challenge_method", value: "S256"),
@@ -89,6 +103,7 @@ enum GoogleAuthError: Error, Equatable {
         writeToken(refresh)
         accessTokenValue = response.accessToken
         accessTokenExpiry = now().addingTimeInterval(TimeInterval(response.expiresIn))
+        reportGrant(response)
     }
 
     /// A valid access token, refreshed through the stored refresh token when expired (60 s skew).
@@ -107,7 +122,28 @@ enum GoogleAuthError: Error, Equatable {
         }
         accessTokenValue = response.accessToken
         accessTokenExpiry = now().addingTimeInterval(TimeInterval(response.expiresIn))
+        reportGrant(response)
         return response.accessToken
+    }
+
+    private func reportGrant(_ response: TokenResponse) {
+        guard let scope = response.scope else { return }
+        let scopes = scope.split(separator: " ").map(String.init).filter { !$0.isEmpty }
+        onGrant?(GoogleGrant(scopes: scopes, email: response.idToken.flatMap(Self.email(fromIDToken:))))
+    }
+
+    /// The `email` claim of an ID token. It came straight from Google's token endpoint over TLS, so the
+    /// signature is not checked (OpenID Connect Core §3.1.3.7); it is only shown, never trusted for access.
+    nonisolated static func email(fromIDToken token: String) -> String? {
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = parts[1].replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+        struct Claims: Decodable { let email: String? }
+        guard let data = Data(base64Encoded: payload),
+              let email = (try? JSONDecoder().decode(Claims.self, from: data))?.email,
+              !email.isEmpty else { return nil }
+        return email
     }
 
     func disconnect() {
@@ -120,8 +156,12 @@ enum GoogleAuthError: Error, Equatable {
         let accessToken: String
         let expiresIn: Int
         let refreshToken: String?
+        /// Space-separated scopes this token carries.
+        let scope: String?
+        let idToken: String?
         enum CodingKeys: String, CodingKey {
             case accessToken = "access_token", expiresIn = "expires_in", refreshToken = "refresh_token"
+            case scope, idToken = "id_token"
         }
     }
 

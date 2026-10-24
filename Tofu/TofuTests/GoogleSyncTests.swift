@@ -9,6 +9,9 @@ import XCTest
     var error: Error?
     var insertEventErrors: [String: Error] = [:]   // calendarID -> error for insertEvent
     var listEventsErrors: [String: Error] = [:]    // calendarID -> error for listEvents
+    var inboxIDs: [String] = []
+    var inboxMessages: [String: InboxMessage] = [:]   // message id -> message
+    var gmailError: Error?                          // thrown by listMessageIDs
     var log: [String] = []
     private var nextID = 100
 
@@ -39,6 +42,16 @@ import XCTest
         if let failure = listEventsErrors[calendarID] { throw failure }
         return events[calendarID] ?? []
     }
+    func listMessageIDs(query: String, maxResults: Int) async throws -> [String] {
+        try bump("listMessageIDs \(query) \(maxResults)")
+        if let gmailError { throw gmailError }
+        return inboxIDs
+    }
+    func message(id: String) async throws -> InboxMessage {
+        try bump("message \(id)")
+        guard let message = inboxMessages[id] else { throw GoogleError.http(404) }
+        return message
+    }
     private func bump(_ entry: String) throws { log.append(entry); if let error { throw error } }
 }
 
@@ -48,6 +61,8 @@ import XCTest
     private var plan = DayPlan(day: DayKey.key(for: Date()))
     private var savedCalendarID: String??
     private var errors: [String] = []
+    /// What the token's scopes cover, as AppModel answers it from the stored grant.
+    private var granted: Set<GoogleService> = Set(GoogleService.allCases)
 
     private func makeSync(connected: Bool = true) -> GoogleSync {
         GoogleSync(api: api,
@@ -56,7 +71,107 @@ import XCTest
                    plan: { self.plan },
                    applyPlan: { self.plan = $0 },
                    saveCalendarID: { self.savedCalendarID = $0; self.settings.googleCalendarID = $0 },
-                   onError: { self.errors.append($0) })
+                   onError: { self.errors.append($0) },
+                   canUse: { self.granted.contains($0) })
+    }
+
+    /// Settings with only Gmail on.
+    private func gmailOnly() {
+        settings.googleTasksSyncEnabled = false
+        settings.googleSessionLogEnabled = false
+        settings.googleShowEventsEnabled = false
+        settings.googleGmailEnabled = true
+    }
+
+    private func mail(_ id: String, subject: String = "Hi") -> InboxMessage {
+        InboxMessage(id: id, from: "Jane <jane@x.edu>", subject: subject, snippet: "", date: nil)
+    }
+
+    func testInboxPullsUnreadPrimaryMail() async {
+        gmailOnly()
+        api.inboxIDs = ["m1", "m2"]
+        api.inboxMessages = ["m1": mail("m1", subject: "PS4 due Friday"), "m2": mail("m2")]
+        let sync = makeSync()
+        await sync.syncNow()
+        XCTAssertEqual(sync.inbox.map(\.subject), ["PS4 due Friday", "Hi"])
+        XCTAssertEqual(api.log.first, "listMessageIDs is:unread category:primary newer_than:3d 10")
+    }
+
+    func testInboxFetchesOnlyNewMessages() async {
+        gmailOnly()
+        api.inboxIDs = ["m1"]
+        api.inboxMessages = ["m1": mail("m1"), "m2": mail("m2")]
+        let sync = makeSync()
+        await sync.syncNow()
+        api.log.removeAll()
+        api.inboxIDs = ["m2", "m1"]
+        await sync.syncNow()
+        XCTAssertEqual(api.log.filter { $0.hasPrefix("message ") }, ["message m2"], "m1 is already held")
+        XCTAssertEqual(sync.inbox.map(\.id), ["m2", "m1"])
+    }
+
+    func testInboxSkipsAMessageDeletedMidPull() async {
+        gmailOnly()
+        api.inboxIDs = ["gone", "m1"]
+        api.inboxMessages = ["m1": mail("m1")]
+        let sync = makeSync()
+        await sync.syncNow()
+        XCTAssertEqual(sync.inbox.map(\.id), ["m1"])
+        XCTAssertTrue(errors.isEmpty)
+    }
+
+    func testGmailRefusedHidesInboxQuietly() async {
+        gmailOnly()
+        api.inboxIDs = ["m1"]
+        api.inboxMessages = ["m1": mail("m1")]
+        let sync = makeSync()
+        await sync.syncNow()
+        XCTAssertFalse(sync.inbox.isEmpty)
+        api.gmailError = GoogleError.http(403)
+        await sync.syncNow()
+        XCTAssertTrue(sync.inbox.isEmpty)
+        XCTAssertTrue(sync.isGmailRefused)
+        XCTAssertTrue(errors.isEmpty, "a disabled Gmail API is shown on Connections, not toasted: \(errors)")
+        api.gmailError = nil
+        await sync.syncNow()
+        XCTAssertFalse(sync.isGmailRefused)
+    }
+
+    func testGmailNotGrantedIsSkipped() async {
+        gmailOnly()
+        granted.remove(.gmail)
+        await makeSync().syncNow()
+        XCTAssertFalse(api.log.contains { $0.hasPrefix("listMessageIDs") }, "\(api.log)")
+        XCTAssertTrue(errors.isEmpty)
+    }
+
+    func testTurningGmailOffClearsTheInbox() async {
+        gmailOnly()
+        api.inboxIDs = ["m1"]
+        api.inboxMessages = ["m1": mail("m1")]
+        let sync = makeSync()
+        await sync.syncNow()
+        settings.googleGmailEnabled = false
+        await sync.syncNow()
+        XCTAssertTrue(sync.inbox.isEmpty)
+    }
+
+    func testTasksNotGrantedAreSkipped() async {
+        gmailOnly()
+        settings.googleTasksSyncEnabled = true
+        granted.remove(.tasks)
+        await makeSync().syncNow()
+        XCTAssertFalse(api.log.contains("listTasks"), "\(api.log)")
+    }
+
+    func testStopClearsInbox() async {
+        gmailOnly()
+        api.inboxIDs = ["m1"]
+        api.inboxMessages = ["m1": mail("m1")]
+        let sync = makeSync()
+        await sync.syncNow()
+        sync.stop()
+        XCTAssertTrue(sync.inbox.isEmpty)
     }
 
     func testSyncPullsTasksIntoPlan() async {

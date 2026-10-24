@@ -13,8 +13,19 @@ import os
     private let saveCalendarID: (String?) -> Void
     private let onError: (String) -> Void
     private let now: () -> Date
+    /// Whether the token's scopes cover a service; a service it doesn't cover is skipped instead of failing.
+    private let canUse: (GoogleService) -> Bool
+
+    /// The Gmail search behind the Today inbox: unread Primary mail of the last three days.
+    static let inboxQuery = "is:unread category:primary newer_than:3d"
+    static let inboxLimit = 10
 
     private(set) var todayEvents: [GoogleEvent] = []
+    /// Unread Primary mail, newest first. Empty while Gmail is off, not granted or refused.
+    private(set) var inbox: [InboxMessage] = []
+    /// True after Gmail answered 403 although the scope was granted (its API is off for the Cloud project,
+    /// or an admin blocked it). Cleared by the next successful pull.
+    private(set) var isGmailRefused = false
     @ObservationIgnored private var pendingSessions: [Session] = []
     @ObservationIgnored private var isSyncing = false
     @ObservationIgnored private var isApplyingRemote = false
@@ -29,7 +40,8 @@ import os
          applyPlan: @escaping (DayPlan) -> Void,
          saveCalendarID: @escaping (String?) -> Void,
          onError: @escaping (String) -> Void = { _ in },
-         now: @escaping () -> Date = Date.init) {
+         now: @escaping () -> Date = Date.init,
+         canUse: @escaping (GoogleService) -> Bool = { _ in true }) {
         self.api = api
         self.settings = settings
         self.isConnected = isConnected
@@ -38,6 +50,7 @@ import os
         self.saveCalendarID = saveCalendarID
         self.onError = onError
         self.now = now
+        self.canUse = canUse
     }
 
     /// Starts the 60 s poll and a sync on every app activation.
@@ -53,9 +66,11 @@ import os
         Task { await syncNow() }
     }
 
-    /// Tears down the timer and the activation observer, and forgets the pulled events.
+    /// Tears down the timer and the activation observer, and forgets the pulled events and mail.
     func stop() {
         todayEvents = []
+        inbox = []
+        isGmailRefused = false
         timer?.invalidate()
         timer = nil
         if let activeObserver { NotificationCenter.default.removeObserver(activeObserver) }
@@ -65,15 +80,20 @@ import os
     /// Runs one sync cycle; no-op when disconnected, all toggles are off, or a cycle is in flight.
     func syncNow() async {
         let current = settings()
+        let readsMail = current.googleGmailEnabled && canUse(.gmail)
+        // Mail turned off (or not granted) must not linger on Today.
+        if !readsMail, !inbox.isEmpty { inbox = [] }
         guard isConnected(), !isSyncing,
               current.googleTasksSyncEnabled || current.googleSessionLogEnabled || current.googleShowEventsEnabled
+                || current.googleGmailEnabled
         else { return }
         isSyncing = true
         defer { isSyncing = false }
         do {
-            if current.googleTasksSyncEnabled { try await syncTasks() }
-            if current.googleSessionLogEnabled { try await pushPendingSessions() }
-            if current.googleShowEventsEnabled { try await pullEvents() }
+            if current.googleTasksSyncEnabled, canUse(.tasks) { try await syncTasks() }
+            if current.googleSessionLogEnabled, canUse(.calendar) { try await pushPendingSessions() }
+            if current.googleShowEventsEnabled, canUse(.calendar) { try await pullEvents() }
+            if readsMail { try await pullInbox() }
             lastCycleFailed = false
         } catch GoogleAuthError.revoked {
             // The auth already dropped the token; the UI shows Connect again. Stay quiet.
@@ -141,7 +161,8 @@ import os
     }
 
     private func schedule(_ diff: PlanDiff) {
-        guard !isApplyingRemote, isConnected(), settings().googleTasksSyncEnabled, !diff.isEmpty else { return }
+        guard !isApplyingRemote, isConnected(), settings().googleTasksSyncEnabled, canUse(.tasks), !diff.isEmpty
+        else { return }
         Task { await push(diff) }
     }
 
@@ -176,7 +197,7 @@ import os
 
     /// AppModel calls this for every finalized session; eligibility is checked here.
     func sessionEnded(_ session: Session) {
-        guard isConnected(), settings().googleSessionLogEnabled, Self.shouldLog(session) else { return }
+        guard isConnected(), settings().googleSessionLogEnabled, canUse(.calendar), Self.shouldLog(session) else { return }
         pendingSessions.append(session)
         Task { await syncNow() }
     }
@@ -238,6 +259,33 @@ import os
         }
         if succeeded == 0, let lastError { throw lastError }
         todayEvents = all.sorted { GoogleEventFormat.sortKey($0, calendar: .current) < GoogleEventFormat.sortKey($1, calendar: .current) }
+    }
+
+    /// Lists unread Primary mail and fetches metadata only for messages not already held, so a quiet inbox
+    /// costs one request per cycle. A 403 hides the inbox quietly instead of failing the whole sync.
+    private func pullInbox() async throws {
+        let ids: [String]
+        do {
+            ids = try await api.listMessageIDs(query: Self.inboxQuery, maxResults: Self.inboxLimit)
+        } catch GoogleError.http(403) {
+            if !isGmailRefused { Log.google.notice("Gmail answered 403; the inbox stays hidden") }
+            isGmailRefused = true
+            if !inbox.isEmpty { inbox = [] }
+            return
+        }
+        let known = Dictionary(inbox.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var pulled: [InboxMessage] = []
+        for id in ids {
+            if let cached = known[id] { pulled.append(cached); continue }
+            do {
+                pulled.append(try await api.message(id: id))
+            } catch GoogleError.http(404) {
+                // Deleted between the list and the fetch.
+                continue
+            }
+        }
+        isGmailRefused = false
+        if pulled != inbox { inbox = pulled }
     }
 
     /// Completed sessions, or bailed ones of at least 5 minutes; never demo, interrupted or unfinished.
