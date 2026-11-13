@@ -217,6 +217,16 @@ final class MirrorTests: XCTestCase {
                        "I give up on Calc241")
     }
 
+    func testMirrorContextFormatsTelemetryInPrompt() {
+        let context = MirrorContext(priority: "CS128 lab", setup: "CS128", elapsedSeconds: 840,
+                                    goalMinutes: 45, reason: "Bail requested",
+                                    blockedAttempts: 3, closedTabs: 2)
+        let opening = context.userMessage(isOpening: true)
+        XCTAssertTrue(opening.contains("Distraction apps blocked this session: 3 times."))
+        XCTAssertTrue(opening.contains("Off-task browser tabs closed this session: 2 tabs."))
+        XCTAssertTrue(opening.contains("Active priority: CS128 lab"))
+    }
+
     @MainActor func testBreakWhileIdleDoesNothing() {
         let h = EngineHarness()
         h.engine.beginBreak(minutes: 5)

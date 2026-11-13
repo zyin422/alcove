@@ -446,6 +446,24 @@ enum CompanionViolation: Equatable {
         self.timer = timer
     }
 
+    @ObservationIgnored private var recentDistractions: [Date] = []
+    @ObservationIgnored private var lastAudioIntervention: Date?
+
+    /// Voice intervention when 3 or more distractions occur in rapid succession (< 90s).
+    private func checkDistractionSpike(subjectName: String) {
+        let now = clock()
+        recentDistractions.append(now)
+        recentDistractions.removeAll { now.timeIntervalSince($0) > 90 }
+
+        if recentDistractions.count >= 3 {
+            recentDistractions.removeAll()
+            if lastAudioIntervention == nil || now.timeIntervalSince(lastAudioIntervention!) > 180 {
+                lastAudioIntervention = now
+                VoiceOutput.shared.speak("Distraction spike detected. Take a breath and stay with \(subjectName).")
+            }
+        }
+    }
+
     private func recordBlocked(_ app: RunningAppInfo) {
         guard var current = session else { return }
         current.blockedAttempts += 1
@@ -461,12 +479,14 @@ enum CompanionViolation: Equatable {
         }
         companion?.violationOccurred(.app(name: name), subject: current.subjectName,
                                      violations: current.blockedAttempts + current.closedTabs)
+        checkDistractionSpike(subjectName: current.subjectName)
         onSessionChanged?(current)
     }
 
     private func recordClosedTab(_ host: String) {
         guard var current = session else { return }
         current.closedTabs += 1
+        current.closedTabHistory.append(host)
         session = current
         if onSpirit != nil {
             onSpirit?(.tabClosed(host))
@@ -475,6 +495,7 @@ enum CompanionViolation: Equatable {
         }
         companion?.violationOccurred(.tab(host: host), subject: current.subjectName,
                                      violations: current.blockedAttempts + current.closedTabs)
+        checkDistractionSpike(subjectName: current.subjectName)
         onSessionChanged?(current)
     }
 

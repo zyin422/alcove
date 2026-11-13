@@ -888,4 +888,16 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertNil(AppNameMatch.find("note", in: [AllowedApp(bundleID: "a", name: "Notes"),
                                                     AllowedApp(bundleID: "b", name: "Notepad")]))
     }
+
+    func testClosedTabHistoryAppendsClosedHosts() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        XCTAssertEqual(h.engine.session?.closedTabHistory, [])
+
+        h.chrome.simulateTabClosed("reddit.com")
+        h.chrome.simulateTabClosed("twitter.com")
+
+        XCTAssertEqual(h.engine.session?.closedTabs, 2)
+        XCTAssertEqual(h.engine.session?.closedTabHistory, ["reddit.com", "twitter.com"])
+    }
 }

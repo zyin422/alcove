@@ -80,6 +80,7 @@ struct LockedView: View {
         case assistant = "Assistant"
         case plan = "Plan"
         case thoughts = "Parked Thoughts"
+        case closedTabs = "Closed Tabs"
     }
 
     var body: some View {
@@ -126,6 +127,8 @@ struct LockedView: View {
                 PlanningPriorityView(model: model)
             } else if sessionTab == .thoughts {
                 ParkedThoughtsView(engine: model.engine)
+            } else if sessionTab == .closedTabs {
+                ClosedTabsRecoveryView(engine: model.engine)
             } else {
                 ChatView(assistant: model.assistant)
             }
@@ -490,5 +493,63 @@ private struct ParkedThoughtsView: View {
         guard !trimmed.isEmpty else { return }
         engine.addParkedThought(trimmed)
         newThoughtText = ""
+    }
+}
+
+/// Drawer showing all browser tabs closed during the session so the user never fears losing research URLs.
+private struct ClosedTabsRecoveryView: View {
+    let engine: SessionEngine
+
+    private var closed: [String] { engine.session?.closedTabHistory ?? [] }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                Text("CLOSED OFF-TASK TABS (\(closed.count))")
+                    .font(Theme.captionFont)
+                    .foregroundStyle(.secondary)
+                Text("These tabs were set aside so you could focus. Nothing was permanently lost.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, Theme.Space.m)
+            .padding(.top, Theme.Space.m)
+
+            if closed.isEmpty {
+                VStack(spacing: Theme.Space.s) {
+                    Image(systemName: "checkmark.shield")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.secondary)
+                    Text("No off-task tabs closed yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                        ForEach(Array(closed.enumerated()), id: \.offset) { index, host in
+                            HStack(spacing: Theme.Space.s) {
+                                Image(systemName: "safari")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                                Text(host)
+                                    .font(.system(size: 13, design: .monospaced))
+                                    .lineLimit(1)
+                                Spacer()
+                                Text("#\(index + 1)")
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, Theme.Space.m)
+                            .padding(.vertical, 8)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+                        }
+                    }
+                    .padding(.horizontal, Theme.Space.m)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

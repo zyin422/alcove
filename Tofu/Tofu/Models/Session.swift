@@ -34,11 +34,13 @@ struct Session: Codable, Identifiable, Hashable {
     var excluded: TimeInterval
     /// Stray thoughts jotted down during the session so focus is not broken.
     var parkedThoughts: [String]
+    /// History of off-task hosts closed during the block, so the user never fears losing tabs.
+    var closedTabHistory: [String]
 
     init(id: UUID = UUID(), subjectID: UUID, subjectName: String, mode: SessionMode, start: Date,
          end: Date? = nil, lastHeartbeat: Date? = nil, blockedAttempts: Int = 0, closedTabs: Int = 0,
          outcome: SessionOutcome? = nil, isDemo: Bool = false, excluded: TimeInterval = 0,
-         parkedThoughts: [String] = []) {
+         parkedThoughts: [String] = [], closedTabHistory: [String] = []) {
         self.id = id
         self.subjectID = subjectID
         self.subjectName = subjectName
@@ -52,6 +54,7 @@ struct Session: Codable, Identifiable, Hashable {
         self.isDemo = isDemo
         self.excluded = excluded
         self.parkedThoughts = parkedThoughts
+        self.closedTabHistory = closedTabHistory
     }
 
     /// Seconds from start to end (or to the last heartbeat while active), minus time the Mac was asleep.
@@ -59,7 +62,7 @@ struct Session: Codable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, subjectID, subjectName, mode, start, end, lastHeartbeat
-        case blockedAttempts, closedTabs, outcome, isDemo, excluded, parkedThoughts
+        case blockedAttempts, closedTabs, outcome, isDemo, excluded, parkedThoughts, closedTabHistory
     }
 
     init(from decoder: Decoder) throws {
@@ -77,5 +80,6 @@ struct Session: Codable, Identifiable, Hashable {
         isDemo = try container.decodeIfPresent(Bool.self, forKey: .isDemo) ?? false
         excluded = try container.decodeIfPresent(TimeInterval.self, forKey: .excluded) ?? 0
         parkedThoughts = try container.decodeIfPresent([String].self, forKey: .parkedThoughts) ?? []
+        closedTabHistory = try container.decodeIfPresent([String].self, forKey: .closedTabHistory) ?? []
     }
 }

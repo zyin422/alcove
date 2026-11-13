@@ -457,7 +457,9 @@ enum TokenSource: Equatable {
         return MirrorContext(priority: mirrorTaskName, setup: setup,
                              elapsedSeconds: Int(engine.elapsed.rounded()),
                              goalMinutes: engine.session?.mode.goalMinutes ?? 0,
-                             reason: reason)
+                             reason: reason,
+                             blockedAttempts: engine.session?.blockedAttempts ?? 0,
+                             closedTabs: engine.session?.closedTabs ?? 0)
     }
 
     /// Starts a session on the subject using the display name from settings.

@@ -46,9 +46,14 @@ struct TodayView: View {
                               onShiftMonth: { shiftMonth($0) }, onSelect: { showDay($0) })
             }
 
-            if model.data.settings.googleShowEventsEnabled, plan.day == todayKey,
-               let events = model.googleSync?.todayEvents, !events.isEmpty {
-                eventsBlock(events)
+            let todaySessions = model.data.sessions.filter {
+                DayKey.key(for: $0.start) == shownDay && !$0.isDemo
+            }
+            let events = (plan.day == todayKey && model.data.settings.googleShowEventsEnabled)
+                ? (model.googleSync?.todayEvents ?? []) : []
+
+            if !events.isEmpty || !todaySessions.isEmpty {
+                TodayScheduleView(events: events, sessions: todaySessions, model: model)
             }
 
             if plan.priorities.isEmpty {
@@ -74,22 +79,6 @@ struct TodayView: View {
         .navigationTitle("Today")
         .sheet(item: $lockInSubject) { subject in
             LockInSheet(model: model, subject: subject)
-        }
-    }
-
-    /// Read-only list of today's Google Calendar events.
-    private func eventsBlock(_ events: [GoogleEvent]) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Space.xs) {
-            Text("Today's events").font(.headline)
-            ForEach(events) { event in
-                HStack(spacing: Theme.Space.s) {
-                    Text(GoogleEventFormat.timeLabel(event))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .frame(width: 140, alignment: .leading)
-                    Text(event.summary ?? "(untitled)")
-                }
-            }
         }
     }
 
@@ -372,5 +361,149 @@ private struct MonthCalendar: View {
         .buttonStyle(.plain)
         .disabled(upcoming)
         .accessibilityLabel(cell.key)
+    }
+}
+
+/// Visual daily rhythm timeline combining calendar events and completed focus sessions.
+private struct TodayScheduleView: View {
+    let events: [GoogleEvent]
+    let sessions: [Session]
+    let model: AppModel
+
+    private let dayStartHour = 8.0   // 8:00 AM
+    private let dayEndHour = 22.0    // 10:00 PM
+    private var totalSpanHours: Double { dayEndHour - dayStartHour }
+
+    private var totalMeetingSeconds: TimeInterval {
+        events.reduce(0) { total, event in
+            guard let s = event.start.parsed, let e = event.end.parsed else { return total }
+            return total + max(0, e.timeIntervalSince(s))
+        }
+    }
+
+    private var totalFocusSeconds: TimeInterval {
+        sessions.reduce(0) { $0 + $1.duration }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            HStack {
+                Text("Today's Schedule")
+                    .font(.headline)
+                Spacer()
+                Text("\(events.count) events (\(TimeFormat.short(totalMeetingSeconds))) · \(TimeFormat.short(totalFocusSeconds)) focused")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            // Visual 8 AM - 10 PM Schedule Bar
+            GeometryReader { geo in
+                let width = geo.size.width
+                ZStack(alignment: .leading) {
+                    // Track background
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(0.06))
+
+                    // Calendar events
+                    ForEach(events) { event in
+                        if let s = event.start.parsed, let e = event.end.parsed {
+                            let (startFraction, durationFraction) = fractions(start: s, end: e)
+                            if durationFraction > 0 {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.primary.opacity(0.2))
+                                    .frame(width: max(4, width * durationFraction), height: 18)
+                                    .offset(x: width * startFraction)
+                                    .help("\(event.summary ?? "Event") (\(GoogleEventFormat.timeLabel(event)))")
+                            }
+                        }
+                    }
+
+                    // Completed focus sessions
+                    ForEach(sessions) { session in
+                        let end = session.end ?? session.lastHeartbeat
+                        let (startFraction, durationFraction) = fractions(start: session.start, end: end)
+                        if durationFraction > 0 {
+                            let color = subjectColor(id: session.subjectID, name: session.subjectName)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(color)
+                                .frame(width: max(4, width * durationFraction), height: 18)
+                                .offset(x: width * startFraction)
+                                .help("\(session.subjectName) (\(TimeFormat.short(session.duration)))")
+                        }
+                    }
+
+                    // Current time indicator line
+                    let nowFraction = currentFraction()
+                    if nowFraction >= 0 && nowFraction <= 1.0 {
+                        Rectangle()
+                            .fill(Color.accentColor)
+                            .frame(width: 2, height: 22)
+                            .offset(x: width * nowFraction)
+                    }
+                }
+            }
+            .frame(height: 22)
+
+            // Hour markers: 8 AM, 12 PM, 4 PM, 8 PM, 10 PM
+            HStack {
+                Text("8 AM").font(.system(size: 10)).foregroundStyle(.secondary)
+                Spacer()
+                Text("12 PM").font(.system(size: 10)).foregroundStyle(.secondary)
+                Spacer()
+                Text("4 PM").font(.system(size: 10)).foregroundStyle(.secondary)
+                Spacer()
+                Text("8 PM").font(.system(size: 10)).foregroundStyle(.secondary)
+                Spacer()
+                Text("10 PM").font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+
+            // Compact event list if events are present
+            if !events.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                    ForEach(events) { event in
+                        HStack(spacing: Theme.Space.s) {
+                            Text(GoogleEventFormat.timeLabel(event))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 130, alignment: .leading)
+                            Text(event.summary ?? "(untitled)")
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(Theme.Space.m)
+        .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Color.primary.opacity(0.04)))
+    }
+
+    private func fractions(start: Date, end: Date) -> (start: CGFloat, duration: CGFloat) {
+        let cal = Calendar.current
+        let startH = Double(cal.component(.hour, from: start)) + Double(cal.component(.minute, from: start)) / 60.0
+        let endH = Double(cal.component(.hour, from: end)) + Double(cal.component(.minute, from: end)) / 60.0
+
+        let clampedStart = max(dayStartHour, min(dayEndHour, startH))
+        let clampedEnd = max(dayStartHour, min(dayEndHour, endH))
+
+        let startF = CGFloat((clampedStart - dayStartHour) / totalSpanHours)
+        let durationF = CGFloat(max(0, clampedEnd - clampedStart) / totalSpanHours)
+        return (startF, durationF)
+    }
+
+    private func currentFraction() -> CGFloat {
+        let cal = Calendar.current
+        let now = Date()
+        let nowH = Double(cal.component(.hour, from: now)) + Double(cal.component(.minute, from: now)) / 60.0
+        guard nowH >= dayStartHour && nowH <= dayEndHour else { return -1 }
+        return CGFloat((nowH - dayStartHour) / totalSpanHours)
+    }
+
+    private func subjectColor(id: UUID, name: String) -> Color {
+        if let subject = model.data.subjects.first(where: { $0.id == id }) {
+            return Theme.subjectColor(subject.colorHex)
+        }
+        return Theme.subjectColor(SubjectColor.hex(for: name))
     }
 }

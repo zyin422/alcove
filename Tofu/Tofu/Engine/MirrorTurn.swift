@@ -259,6 +259,19 @@ struct MirrorContext: Equatable {
     var goalMinutes: Int
     /// Why the sheet opened, e.g. "The user asked to end the session early."
     var reason: String
+    var blockedAttempts: Int
+    var closedTabs: Int
+
+    init(priority: String, setup: String, elapsedSeconds: Int, goalMinutes: Int, reason: String,
+         blockedAttempts: Int = 0, closedTabs: Int = 0) {
+        self.priority = priority
+        self.setup = setup
+        self.elapsedSeconds = elapsedSeconds
+        self.goalMinutes = goalMinutes
+        self.reason = reason
+        self.blockedAttempts = blockedAttempts
+        self.closedTabs = closedTabs
+    }
 
     /// The first user message: the facts, plus the opening instruction when nobody has spoken yet.
     func userMessage(isOpening: Bool) -> String {
@@ -270,6 +283,12 @@ struct MirrorContext: Equatable {
                 : "Time spent: \(elapsedSeconds) seconds of an open-ended session.",
             "What just happened: \(reason)",
         ]
+        if blockedAttempts > 0 {
+            lines.append("Distraction apps blocked this session: \(blockedAttempts) times.")
+        }
+        if closedTabs > 0 {
+            lines.append("Off-task browser tabs closed this session: \(closedTabs) tabs.")
+        }
         if isOpening {
             lines.append("This is interrogation_turn 1. The user has not spoken. Open with the Cold Mirror. "
                 + "Do not forfeit and do not start a break until they answer.")
