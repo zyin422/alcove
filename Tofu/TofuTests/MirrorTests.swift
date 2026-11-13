@@ -179,6 +179,7 @@ final class MirrorTests: XCTestCase {
         h.blocker.simulateBlocked("com.spotify.client", name: "Spotify")
         let stops = h.chrome.stopWatchCount
         h.clock.advance(SessionEngine.breakCooldown)
+        h.engine.allowsOffTaskDuringBreak = { true }
         XCTAssertTrue(h.engine.beginBreak(minutes: 5))
         XCTAssertEqual(h.blocker.stopCount, 1)
         XCTAssertEqual(h.chrome.stopWatchCount, stops + 1)

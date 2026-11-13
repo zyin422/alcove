@@ -75,6 +75,16 @@ enum SpiritLayout {
         let y = min(max(frame.minY, visible.minY), max(visible.minY, visible.maxY - frame.height))
         return CGRect(x: x, y: y, width: frame.width, height: frame.height)
     }
+
+    /// Goal progress from 0 to 1. If goal is nil or <= 0, cycles through a 25-minute Pomodoro wave.
+    static func progress(elapsed: TimeInterval, goal: TimeInterval?) -> Double {
+        if let goal, goal > 0 {
+            return min(1.0, max(0.0, elapsed / goal))
+        }
+        let cycle: TimeInterval = 25 * 60
+        guard cycle > 0 else { return 0 }
+        return (elapsed.truncatingRemainder(dividingBy: cycle)) / cycle
+    }
 }
 
 /// Short lines the spirit says. The same host always gets the same line, and different hosts rotate the pool.
@@ -129,6 +139,17 @@ struct SpiritView: View {
         return TimeFormat.clock(engine.remaining ?? engine.elapsed)
     }
 
+    private var progress: Double {
+        if let breakRem = engine.breakRemaining, let breakTotal = engine.breakTotal, breakTotal > 0 {
+            return min(1.0, max(0.0, 1.0 - (breakRem / breakTotal)))
+        }
+        return SpiritLayout.progress(elapsed: engine.elapsed, goal: engine.session?.mode.goalSeconds)
+    }
+
+    private var isDeepWork: Bool {
+        engine.elapsed >= 25 * 60
+    }
+
     var body: some View {
         HStack(spacing: Theme.Space.s) {
             if chrome.expanded { circle }
@@ -144,17 +165,40 @@ struct SpiritView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Text(clock)
-                    .font(Theme.timerFont(size: 11))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
+                VStack(spacing: 1) {
+                    Text(clock)
+                        .font(Theme.timerFont(size: 11))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                    if isDeepWork {
+                        Circle()
+                            .fill(Color.lockBackground.opacity(0.85))
+                            .frame(width: 3, height: 3)
+                    }
+                }
             }
         }
         .padding(chrome.expanded ? Theme.Space.s : 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .foregroundStyle(Color.lockBackground)
         .background(RoundedRectangle(cornerRadius: chrome.expanded ? 28 : 26).fill(Color.primary))
+        .overlay {
+            if !chrome.expanded {
+                ZStack {
+                    Circle()
+                        .stroke(Color.primary.opacity(0.18), lineWidth: 2.5)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(progress))
+                        .stroke(isDeepWork ? Color.accentColor : Color.primary,
+                                style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                .padding(2)
+            }
+        }
+        .shadow(color: !chrome.expanded && isDeepWork ? Color.accentColor.opacity(0.35) : .clear,
+                radius: 6, x: 0, y: 0)
         .overlay(alignment: .topTrailing) {
             if chrome.expanded {
                 Text("×")

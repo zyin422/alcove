@@ -20,6 +20,7 @@ xcuserdata/
 
 # IDE
 .vscode/
+.cursor/
 .idea/
 *.swp
 *.log

@@ -114,4 +114,45 @@ final class StatsFormattingTests: XCTestCase {
         XCTAssertTrue(StatsFormatting.hasTrackedSessions(sessions))
         XCTAssertEqual(StatsFormatting.totalSeconds(sessions), 45 * 60, accuracy: 0.001)
     }
+
+    func testSubjectBlocksGroupAPeriodOldestFirstInsideEachSubject() {
+        let later = Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
+                            start: start.addingTimeInterval(3600), end: start.addingTimeInterval(5400), outcome: .completed)
+        let earlier = Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
+                              start: start, end: start.addingTimeInterval(600), outcome: .completed)
+        let other = Session(subjectID: UUID(), subjectName: "MATH241", mode: .open,
+                            start: start.addingTimeInterval(7200), end: start.addingTimeInterval(9000), outcome: .completed)
+        let live = Session(subjectID: UUID(), subjectName: "CS128", mode: .open, start: start, lastHeartbeat: start)
+        let grouped = StatsFormatting.subjectBlocks([later, other, earlier, live])
+
+        XCTAssertEqual(grouped.map(\.name), ["CS128", "MATH241"])
+        XCTAssertEqual(grouped[0].seconds, 2400)
+        XCTAssertEqual(grouped[0].sessionCount, 2)
+        XCTAssertEqual(grouped[0].average, 1200)
+        XCTAssertEqual(grouped[0].longest, 1800)
+        XCTAssertEqual(grouped[0].blocks.map(\.seconds), [600, 1800])
+        XCTAssertEqual(StatsFormatting.subjectLine(sessions: 1, average: 600, longest: 600),
+                       "1 session · avg 10m · longest 10m")
+        XCTAssertEqual(StatsFormatting.subjectLine(sessions: 2, average: 1200, longest: 1800),
+                       "2 sessions · avg 20m · longest 30m")
+        XCTAssertEqual(grouped[0].fraction, 2400.0 / 4200.0, accuracy: 1e-9)
+        XCTAssertEqual(grouped[1].blocks.map(\.seconds), [1800])
+    }
+
+    func testTimeBlocksAreNewestFirstAndSkipALiveBlock() {
+        let older = Session(subjectID: UUID(), subjectName: "MATH241", mode: .open, start: start,
+                            end: start.addingTimeInterval(600), outcome: .completed)
+        let newerStart = start.addingTimeInterval(3600)
+        let newer = Session(subjectID: UUID(), subjectName: "CS173", mode: .open, start: newerStart,
+                            end: newerStart.addingTimeInterval(1800), outcome: .completed)
+        let live = Session(subjectID: UUID(), subjectName: "Research", mode: .open,
+                           start: start.addingTimeInterval(8000))
+
+        let blocks = StatsFormatting.timeBlocks([older, live, newer])
+
+        XCTAssertEqual(blocks.map(\.id), [newer.id, older.id])
+        XCTAssertEqual(blocks.map(\.subjectName), ["CS173", "MATH241"])
+        XCTAssertEqual(blocks[0].seconds, 1800)
+        XCTAssertEqual(blocks[1].seconds, 600)
+    }
 }

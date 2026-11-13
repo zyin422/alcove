@@ -59,6 +59,22 @@ final class LockedLayoutTests: XCTestCase {
                        CGRect(x: 250, y: 140, width: 900, height: 600))
     }
 
+    func testASecondDocumentWindowIsClosedAndTheOriginalStays() {
+        let windows = [
+            MainWindowCandidate(id: "main", isPanel: false, isBorderless: false, canBecomeMain: true, isSheet: false, title: "Tofu"),
+            MainWindowCandidate(id: "extra", isPanel: false, isBorderless: false, canBecomeMain: true, isSheet: false, title: "Tofu"),
+            MainWindowCandidate(id: "spirit", isPanel: true, isBorderless: true, canBecomeMain: false, isSheet: false, title: ""),
+            MainWindowCandidate(id: "settings", isPanel: false, isBorderless: false, canBecomeMain: true, isSheet: false, title: "Settings"),
+        ]
+        XCTAssertEqual(MainWindowPolicy.windowsToClose(windows, keeping: "main"), ["extra"])
+    }
+
+    func testOneWindowAndAMissingOriginalCloseNothing() {
+        let only = MainWindowCandidate(id: "main", isPanel: false, isBorderless: false, canBecomeMain: true, isSheet: false, title: "Tofu")
+        XCTAssertEqual(MainWindowPolicy.windowsToClose([only], keeping: "main"), [])
+        XCTAssertEqual(MainWindowPolicy.windowsToClose([], keeping: nil), [])
+    }
+
     func testCenteredFrameShrinksToASmallScreen() {
         let visible = CGRect(x: 0, y: 25, width: 800, height: 500)
         XCTAssertEqual(LockedLayout.centeredFrame(size: CGSize(width: 900, height: 600), in: visible),

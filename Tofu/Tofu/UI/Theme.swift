@@ -25,6 +25,11 @@ enum Theme {
     }
     static let titleFont = Font.system(size: 34, weight: .semibold)
     static let captionFont = Font.system(size: 11, weight: .medium).smallCaps()
+
+    static func subjectColor(_ hex: String) -> Color {
+        let parts = SubjectColor.components(hex)
+        return Color(red: parts.red, green: parts.green, blue: parts.blue)
+    }
 }
 
 /// Solid fill in the label color (black in light mode, white in dark) with inverted text.

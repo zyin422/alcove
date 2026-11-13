@@ -1,46 +1,145 @@
 import AppKit
 import SwiftUI
 
-/// Borderless windows can't become key by default, and the morning screen has text fields and buttons.
-private final class KeyableWindow: NSWindow {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+/// The pick-priority screen stays up until a block starts. Closing the window or switching apps does not dismiss it.
+enum MorningWindowPolicy {
+    /// One full-screen frame per display. An empty display is left out.
+    static func frames(covering screens: [CGRect]) -> [CGRect] {
+        screens.filter { $0.width >= 1 && $0.height >= 1 }
+    }
 }
 
-/// The full-screen "Good morning" window over the main screen. Shown and hidden through AppModel
-/// (`onShowMorning` / `onHideMorning`).
+/// Borderless windows can't become key by default, and the morning screen has text fields and buttons.
+/// Closing is refused until the controller hides the screen itself.
+private final class MorningWindow: NSWindow {
+    var allowsClose = false
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+    override func close() {
+        if allowsClose { super.close() }
+    }
+}
+
+/// The full-screen "Good morning" window over every display. Shown and hidden through AppModel
+/// (`onShowMorning` / `onHideMorning`). While it is up, switching apps or closing the window brings it back.
 @MainActor final class MorningWindowController {
     private let model: AppModel
-    private var window: NSWindow?
+    private var windows: [MorningWindow] = []
+    private var coveredFrames: [CGRect] = []
+    private var observers: [NSObjectProtocol] = []
+    private var guardTimer: Timer?
 
     init(model: AppModel) {
         self.model = model
     }
 
     func show() {
-        guard window == nil, let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-        let window = KeyableWindow(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.level = .floating
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        window.backgroundColor = .windowBackgroundColor
-        window.contentView = NSHostingView(rootView: MorningView(model: model))
-        window.setFrame(screen.frame, display: true)
-        self.window = window
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        if windows.isEmpty { createWindows() }
+        startGuarding()
+        reassert()
     }
 
     func hide() {
-        window?.orderOut(nil)
-        window = nil
+        stopGuarding()
+        tearDownWindows()
+    }
+
+    private func createWindows() {
+        let frames = MorningWindowPolicy.frames(covering: NSScreen.screens.map(\.frame))
+        guard !frames.isEmpty else { return }
+        let hostIndex = frames.firstIndex(of: NSScreen.main?.frame ?? .null) ?? 0
+        coveredFrames = frames
+        for (index, frame) in frames.enumerated() {
+            let window = MorningWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            window.allowsClose = false
+            window.isReleasedWhenClosed = false
+            window.level = .screenSaver
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+            window.hidesOnDeactivate = false
+            window.isMovable = false
+            window.backgroundColor = .windowBackgroundColor
+            window.setFrame(frame, display: true)
+            if index == hostIndex {
+                window.contentView = NSHostingView(rootView: MorningView(model: model))
+            }
+            windows.append(window)
+        }
+    }
+
+    /// Switching away, hiding the app, or closing the window brings the screen back.
+    private func reassert() {
+        guard !windows.isEmpty else { return }
+        let alreadyUp = windows.allSatisfy(\.isVisible) && NSApp.isActive
+        guard !alreadyUp else { return }
+        for window in windows {
+            window.orderFrontRegardless()
+        }
+        NSRunningApplication.current.activate(options: .activateIgnoringOtherApps)
+        windows.first { $0.contentView is NSHostingView<MorningView> }?.makeKey()
+    }
+
+    private func refit() {
+        let frames = MorningWindowPolicy.frames(covering: NSScreen.screens.map(\.frame))
+        guard frames != coveredFrames else { return }
+        let wasUp = !windows.isEmpty
+        tearDownWindows()
+        guard wasUp else { return }
+        createWindows()
+        reassert()
+    }
+
+    private func startGuarding() {
+        guard observers.isEmpty else { return }
+        let center = NotificationCenter.default
+        let names: [Notification.Name] = [
+            NSApplication.didResignActiveNotification,
+            NSApplication.didHideNotification,
+            NSApplication.didChangeScreenParametersNotification,
+        ]
+        for name in names {
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                MainActor.assumeIsolated {
+                    if note.name == NSApplication.didChangeScreenParametersNotification {
+                        self?.refit()
+                    }
+                    self?.reassert()
+                }
+            })
+        }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reassert() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        guardTimer = timer
+    }
+
+    private func stopGuarding() {
+        for observer in observers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        observers.removeAll()
+        guardTimer?.invalidate()
+        guardTimer = nil
+    }
+
+    private func tearDownWindows() {
+        for window in windows {
+            window.allowsClose = true
+            window.orderOut(nil)
+        }
+        windows.removeAll()
+        coveredFrames = []
     }
 }
 
-/// Greeting, today's unfinished priorities as cards, and LOCK IN on the chosen one's setup.
+/// Greeting, today's unfinished priorities or other setups as cards, and LOCK IN on the chosen one.
 struct MorningView: View {
     let model: AppModel
-    @State private var selectedID: UUID?
+    private enum Target: Hashable {
+        case priority(UUID)
+        case subject(UUID)
+    }
+    @State private var selection: Target?
     /// Setups chosen here for priorities that had none (or a different one).
     @State private var chosenSetups: [UUID: UUID] = [:]
     @State private var option: LockInOption = .minutes50
@@ -49,7 +148,33 @@ struct MorningView: View {
 
     private var plan: DayPlan { model.todayPlan() }
     private var open: [Priority] { plan.priorities.filter { !$0.isDone } }
-    private var selected: Priority? { open.first { $0.id == selectedID } ?? open.first }
+    private var otherSubjects: [Subject] {
+        let prioritizedIDs = Set(open.compactMap { setupID(for: $0) })
+        return model.data.subjects.filter { !prioritizedIDs.contains($0.id) }
+    }
+    private var activeTarget: Target? {
+        if let selection {
+            switch selection {
+            case .priority(let id):
+                if open.contains(where: { $0.id == id }) { return selection }
+            case .subject(let id):
+                if model.subject(id: id) != nil { return selection }
+            }
+        }
+        if let first = open.first { return .priority(first.id) }
+        if let firstSubject = otherSubjects.first ?? model.data.subjects.first {
+            return .subject(firstSubject.id)
+        }
+        return nil
+    }
+    private var selectedPriority: Priority? {
+        guard case .priority(let id) = activeTarget else { return nil }
+        return open.first { $0.id == id }
+    }
+    private var selectedSubject: Subject? {
+        guard case .subject(let id) = activeTarget else { return nil }
+        return model.subject(id: id)
+    }
 
     private func setupID(for priority: Priority) -> UUID? {
         let id = chosenSetups[priority.id] ?? priority.subjectID
@@ -73,22 +198,44 @@ struct MorningView: View {
                 eventsBlock(events)
             }
 
-            if open.isEmpty {
+            if open.isEmpty && otherSubjects.isEmpty {
                 emptyState
             } else {
                 Text("What are you starting with?").font(.title2)
-                VStack(spacing: Theme.Space.s) {
-                    ForEach(open) { card($0) }
-                }
-                .frame(maxWidth: 560)
+                cardsList
                 startControls
+                if open.isEmpty {
+                    addPriorityRow
+                }
             }
             Spacer()
-            Button("Not now") { model.dismissMorning() }
+            HStack(spacing: Theme.Space.l) {
+                if model.canPostponeMorning {
+                    Button("Not now (10 min)") {
+                        model.postponeMorning()
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .keyboardShortcut(.cancelAction)
+
+                    Button("Open Plan") {
+                        model.openPlan()
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                } else {
+                    Text("10-minute delay used today")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+
+                Button("15m Planning Mode") {
+                    Task { await model.startPlanningMode() }
+                }
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
-                .keyboardShortcut(.cancelAction)
-                .padding(.bottom, Theme.Space.xl)
+            }
+            .padding(.bottom, Theme.Space.xl)
         }
         .padding(Theme.Space.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -115,10 +262,43 @@ struct MorningView: View {
         .frame(maxWidth: 560, alignment: .leading)
     }
 
+    private var cardsList: some View {
+        let totalCount = open.count + otherSubjects.count
+        return Group {
+            if totalCount > 4 {
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: Theme.Space.s) {
+                        cardsContent
+                    }
+                    .padding(.horizontal, 2)
+                }
+                .frame(maxWidth: 560)
+                .frame(maxHeight: 280)
+            } else {
+                VStack(spacing: Theme.Space.s) {
+                    cardsContent
+                }
+                .frame(maxWidth: 560)
+            }
+        }
+    }
+
+    @ViewBuilder private var cardsContent: some View {
+        ForEach(open) { card($0) }
+        if !open.isEmpty && !otherSubjects.isEmpty {
+            Text("Other subjects")
+                .font(Theme.captionFont)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, Theme.Space.xs)
+        }
+        ForEach(otherSubjects) { subjectCard($0) }
+    }
+
     private func card(_ priority: Priority) -> some View {
-        let isSelected = selected?.id == priority.id
+        let isSelected = activeTarget == .priority(priority.id)
         return Button {
-            selectedID = priority.id
+            selection = .priority(priority.id)
         } label: {
             HStack(spacing: Theme.Space.m) {
                 Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
@@ -142,10 +322,52 @@ struct MorningView: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
+    private func subjectCard(_ subject: Subject) -> some View {
+        let isSelected = activeTarget == .subject(subject.id)
+        return Button {
+            selection = .subject(subject.id)
+        } label: {
+            HStack(spacing: Theme.Space.m) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 20))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(subject.name).font(.title3.weight(.medium))
+                    let details = subject.details.trimmingCharacters(in: .whitespacesAndNewlines)
+                    Text(details.isEmpty ? (open.isEmpty ? "Subject" : "Other subject") : details)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+            .padding(Theme.Space.m)
+            .overlay(RoundedRectangle(cornerRadius: Theme.radius)
+                .stroke(Color.primary.opacity(isSelected ? 1 : 0.15), lineWidth: isSelected ? 2 : 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var isLockInDisabled: Bool {
+        if let priority = selectedPriority {
+            return setupID(for: priority) == nil
+        }
+        return selectedSubject == nil
+    }
+
+    private func performLockIn() {
+        if let priority = selectedPriority {
+            start(priority)
+        } else if let subject = selectedSubject {
+            startSubject(subject.id)
+        }
+    }
+
     @ViewBuilder private var startControls: some View {
-        if let priority = selected {
+        if selectedPriority != nil || selectedSubject != nil {
             VStack(spacing: Theme.Space.m) {
-                if setupID(for: priority) == nil {
+                if let priority = selectedPriority, setupID(for: priority) == nil {
                     HStack {
                         Text("Setup for “\(priority.title)”").foregroundStyle(.secondary)
                         SetupPicker(subjects: model.data.subjects, selection: Binding(
@@ -167,14 +389,14 @@ struct MorningView: View {
                     CustomMinutesField(minutes: $customMinutes)
                 }
                 Button {
-                    start(priority)
+                    performLockIn()
                 } label: {
                     Text("LOCK IN").tracking(3).frame(width: 240, height: 44)
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .fixedSize()
-                .disabled(setupID(for: priority) == nil)
-                .opacity(setupID(for: priority) == nil ? 0.35 : 1)
+                .disabled(isLockInDisabled)
+                .opacity(isLockInDisabled ? 0.35 : 1)
                 .keyboardShortcut(.defaultAction)
             }
         }
@@ -194,12 +416,24 @@ struct MorningView: View {
         }
     }
 
+    private var addPriorityRow: some View {
+        HStack {
+            TextField("e.g. Finish the CS128 lab", text: $newTitle)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(add)
+            Button("Add priority", action: add)
+                .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .frame(width: 420)
+        .padding(.top, Theme.Space.s)
+    }
+
     private func add() {
         let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
         let priority = Priority(title: title, subjectID: DayPlanner.matchSubject(title, subjects: model.data.subjects))
         model.updatePlan(day: plan.day) { $0.priorities.append(priority) }
-        selectedID = priority.id
+        selection = .priority(priority.id)
         newTitle = ""
     }
 
@@ -208,5 +442,11 @@ struct MorningView: View {
         let mode = option.mode(customMinutes: customMinutes)
         let model = model
         Task { await model.start(priority: priority, subjectID: subjectID, mode: mode) }
+    }
+
+    private func startSubject(_ subjectID: UUID) {
+        let mode = option.mode(customMinutes: customMinutes)
+        let model = model
+        Task { await model.start(subjectID: subjectID, mode: mode) }
     }
 }

@@ -13,11 +13,12 @@ struct EndOfDayView: View {
     @State private var original: [Priority] = []
     @State private var spoken = ""
     @State private var tomorrow: [Priority] = []
+    @State private var pendingParkedThoughts: Set<String> = []
     @State private var isMakingList = false
     @State private var plannerLines: [PlannerLine] = []
     @State private var plannerOffline = false
     @State private var voiceIn = VoiceInput()
-    @State private var voiceOut = VoiceOutput()
+    private var voiceOut: VoiceOutput { .shared }
     /// Text already in the box when dictation started, so a restarted hypothesis cannot wipe earlier words.
     @State private var dictationBase: String?
 
@@ -89,6 +90,13 @@ struct EndOfDayView: View {
 
     // MARK: Step 1: today
 
+    private var parkedThoughts: [String] {
+        let day = wrappingPreviousDay ? model.todayPlan().day : DayKey.key(for: Date())
+        return model.data.sessions
+            .filter { DayKey.key(for: $0.start) == day }
+            .flatMap(\.parkedThoughts)
+    }
+
     private var recap: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
             if today.isEmpty {
@@ -106,6 +114,40 @@ struct EndOfDayView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+
+            if !parkedThoughts.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                    Text("Thoughts parked during focus (\(parkedThoughts.count))")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(parkedThoughts, id: \.self) { thought in
+                        HStack(spacing: Theme.Space.s) {
+                            Button {
+                                if pendingParkedThoughts.contains(thought) {
+                                    pendingParkedThoughts.remove(thought)
+                                } else {
+                                    pendingParkedThoughts.insert(thought)
+                                }
+                            } label: {
+                                Image(systemName: pendingParkedThoughts.contains(thought) ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 14))
+                            }
+                            .buttonStyle(.plain)
+                            Text(thought)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                            Spacer()
+                            Text(pendingParkedThoughts.contains(thought) ? "Queued for \(nextWord)" : "Queue for \(nextWord)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .padding(Theme.Space.s)
+                .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Color.primary.opacity(0.04)))
+            }
+
             Spacer()
             HStack {
                 Spacer()
@@ -270,11 +312,19 @@ struct EndOfDayView: View {
 
     private func makeList() {
         let source = listSource
-        guard !source.isEmpty else { return }
+        guard !source.isEmpty || !pendingParkedThoughts.isEmpty else { return }
         if voiceIn.isRecording { voiceIn.stop() }
         isMakingList = true
         Task {
-            tomorrow = await model.priorityExtractor.priorities(from: source, subjects: model.data.subjects)
+            var result = source.isEmpty ? [] : await model.priorityExtractor.priorities(from: source, subjects: model.data.subjects)
+            for pending in pendingParkedThoughts {
+                let (title, estimated) = DayPlanner.parseTimeEstimate(from: pending)
+                let subject = DayPlanner.matchSubject(title, subjects: model.data.subjects)
+                if !result.contains(where: { $0.title == title }) {
+                    result.append(Priority(title: title, subjectID: subject, estimatedMinutes: estimated))
+                }
+            }
+            tomorrow = result
             isMakingList = false
             step = .review
         }

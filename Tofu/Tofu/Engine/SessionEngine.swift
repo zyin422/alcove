@@ -75,6 +75,8 @@ enum CompanionViolation: Equatable {
 
     /// When the current break ends. Nil while monitoring is running.
     private(set) var breakEndsAt: Date?
+    /// Total duration in seconds of the current break.
+    private(set) var breakTotal: TimeInterval?
     /// Seconds left in the break, nil when there isn't one.
     var breakRemaining: TimeInterval? {
         guard let breakEndsAt else { return nil }
@@ -83,6 +85,15 @@ enum CompanionViolation: Equatable {
     var isOnBreak: Bool { breakEndsAt != nil }
     /// True once 25 minutes of work have passed since the block started, or since the last break ended.
     var canTakeBreak: Bool { isLocked && !isOnBreak && elapsed >= nextBreakElapsed }
+
+    /// Maximum active time allowed for Discord during Planning Mode (5 minutes).
+    static let discordPlanningBudget: TimeInterval = 5 * 60
+    /// Active time remaining for Discord during Planning Mode.
+    private(set) var discordBudgetRemaining: TimeInterval = discordPlanningBudget
+    /// True when the current lock-in is the 15-minute planning session.
+    var isPlanningMode: Bool { subject?.id == Subject.planningID }
+    /// Resolves the frontmost bundle identifier; tests replace it.
+    @ObservationIgnored var activeAppBundleID: () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
 
     @ObservationIgnored weak var presenter: WindowPresenting?
     /// Called on create, every heartbeat, counter changes, and end. AppModel persists it.
@@ -101,6 +112,8 @@ enum CompanionViolation: Equatable {
     @ObservationIgnored var onAppAllowed: ((AllowedApp) -> Void)?
     /// Resolves an app name to an installed app. Nil result means the name is unknown. Tests replace it.
     @ObservationIgnored var lookupApp: (String) -> AllowedApp? = { _ in nil }
+    /// When true, a break stops app blocking and the tab check. Default is false: the break only pauses the timer.
+    @ObservationIgnored var allowsOffTaskDuringBreak: () -> Bool = { false }
     /// The study companion overlay; nil (e.g. in tests) means no companion.
     @ObservationIgnored var companion: CompanionReacting?
 
@@ -135,8 +148,18 @@ enum CompanionViolation: Equatable {
     @ObservationIgnored private var nextBreakElapsed: TimeInterval = SessionEngine.breakCooldown
     /// The allowlist from lock-in, so a break can resume blocking with the same set.
     @ObservationIgnored private var sessionAllowed: Set<String> = []
-    /// True when the tab watch was started, so a break resumes it.
+    /// True when the tab watch was started, so a break that opened the lock can resume it.
     @ObservationIgnored private var resumesTabWatch = false
+    /// True when this break stopped blocking and the tab check, so ending it has to put them back.
+    @ObservationIgnored private var breakOpenedTheLock = false
+    /// True after the system starts sleeping. A dark wake does not clear this while the display stays off.
+    @ObservationIgnored private var systemAsleep = false
+    /// True while the display is off. The countdown stays put until the display is back.
+    @ObservationIgnored private var displayAsleep = false
+    /// When the countdown first stopped for sleep. Nil while the Mac is awake with the display on.
+    @ObservationIgnored private var asleepSince: Date?
+    /// `now` at the moment the 1s timer jumped. Held until did-wake or the next tick, so a closed lid is not counted.
+    @ObservationIgnored private var unexplainedGapFrom: Date?
     @ObservationIgnored private var timer: Timer?
     /// Set synchronously when the goal auto-finish is scheduled so it is scheduled only once.
     @ObservationIgnored private var isEnding = false
@@ -171,16 +194,40 @@ enum CompanionViolation: Equatable {
         applyRelaunch()
         let startDate = clock()
         let newSession = Session(subjectID: subject.id, subjectName: subject.name, mode: mode, start: startDate)
-        let sessionID = newSession.id
-        now = startDate
-        session = newSession
+        await lockIn(session: newSession, subject: subject, displayName: displayName, announce: true)
+    }
+
+    /// Continues a block that was still open when the process was killed. Time since the last heartbeat
+    /// is left out of the countdown, the same way sleep is.
+    func resume(session saved: Session, subject: Subject, displayName: String) async {
+        guard !isLocked, saved.end == nil, !saved.isDemo else { return }
+        var saved = saved
+        let gap = max(0, clock().timeIntervalSince(saved.lastHeartbeat))
+        saved.excluded += gap
+        saved.lastHeartbeat = clock()
+        await lockIn(session: saved, subject: subject, displayName: displayName, announce: false)
+    }
+
+    /// Puts `saved` in force: hides other apps, opens the setup, and starts the countdown where it left off.
+    private func lockIn(session saved: Session, subject: Subject, displayName: String, announce: Bool) async {
+        let sessionID = saved.id
+        now = clock()
+        session = saved
         self.subject = subject
         self.displayName = displayName
         isEnding = false
-        pausedAccumulated = 0
+        pausedAccumulated = saved.excluded
         pauseStartedAt = nil
+        systemAsleep = false
+        displayAsleep = false
+        asleepSince = nil
+        unexplainedGapFrom = nil
+        breakOpenedTheLock = false
         nextBreakElapsed = Self.breakCooldown
-        onSessionChanged?(newSession)
+        if subject.id == Subject.planningID {
+            discordBudgetRemaining = Self.discordPlanningBudget
+        }
+        onSessionChanged?(saved)
 
         quitApps = []
         blockedDuringSession = []
@@ -223,6 +270,7 @@ enum CompanionViolation: Equatable {
         blocker.onBlocked = { [weak self] app in self?.recordBlocked(app) }
         sessionAllowed = allowed
         breakEndsAt = nil
+        breakTotal = nil
         blocker.start(allowed: allowed)
         doNotDisturb.beginBlock()
         silencing = true
@@ -235,8 +283,12 @@ enum CompanionViolation: Equatable {
         }
 
         if startsTimers { startTimer() }
-        announcer.announce(DiscordMessages.start(name: displayName, subject: subject.name, mode: mode))
-        companion?.sessionDidStart(subject: subject.name, goalSeconds: mode.goalSeconds)
+        if announce {
+            announcer.announce(DiscordMessages.start(name: displayName, subject: subject.name, mode: saved.mode))
+        } else {
+            toaster.show("Still locked in on \(subject.name).")
+        }
+        companion?.sessionDidStart(subject: subject.name, goalSeconds: saved.mode.goalSeconds)
         onLockedIn?(subject)
     }
 
@@ -271,24 +323,115 @@ enum CompanionViolation: Equatable {
 
     // MARK: Running
 
+    /// The Mac is about to sleep. The countdown stops until the display is back on.
+    func macWillSleep() { beginSleep(system: true) }
+
+    /// The display turned off. The countdown stops until `macDisplayWake()`.
+    func macDisplaySleep() { beginSleep(system: false) }
+
+    /// The Mac woke. Time asleep is left out once the display is on as well.
+    /// A dark wake leaves the countdown stopped. A break stays the same length.
+    /// Blocking and Do Not Disturb stay as they were.
+    func macDidWake() { endSleep(system: true, catchMissed: true) }
+
+    /// The display turned on. Time it was off is left out of the work countdown.
+    func macDisplayWake() { endSleep(system: false, catchMissed: false) }
+
+    private var sleepIsHolding: Bool { systemAsleep || displayAsleep }
+
+    private func beginSleep(system: Bool) {
+        guard isLocked else { return }
+        let already = sleepIsHolding
+        if system { systemAsleep = true } else { displayAsleep = true }
+        if !already { asleepSince = clock() }
+    }
+
+    /// Drops one sleep reason. The closed stretch is applied when both the system and the display are awake.
+    private func endSleep(system: Bool, catchMissed: Bool) {
+        let woke = clock()
+        if system { systemAsleep = false } else { displayAsleep = false }
+        guard !sleepIsHolding else { return }
+        let hadPause = asleepSince != nil
+        if let started = asleepSince {
+            if woke.timeIntervalSince(started) >= 3 {
+                holdClosedMac(from: started, until: woke)
+            } else {
+                asleepSince = nil
+            }
+        } else if catchMissed, isLocked, woke.timeIntervalSince(now) >= 3 {
+            // Sleep can suspend the process before the will-sleep notice is handled.
+            holdClosedMac(from: now, until: woke)
+        } else if !catchMissed {
+            return
+        }
+        if hadPause || catchMissed {
+            unexplainedGapFrom = nil
+            now = woke
+        }
+    }
+
+    /// Leaves `slept` out of the work countdown. A break in progress is extended by the same amount
+    /// so it does not expire while the lid is shut. Does not stop blocking or Do Not Disturb.
+    private func holdClosedMac(from started: Date, until woke: Date) {
+        let slept = max(0, woke.timeIntervalSince(started))
+        asleepSince = nil
+        unexplainedGapFrom = nil
+        guard slept > 0, var current = session else { return }
+        if let end = breakEndsAt {
+            breakEndsAt = end.addingTimeInterval(slept)
+        } else {
+            pausedAccumulated += slept
+        }
+        current.excluded += slept
+        current.lastHeartbeat = woke
+        session = current
+        onSessionChanged?(current)
+    }
+
     /// Updates `now` from clock, heartbeats, auto-finishes when goal reached.
     func tick() {
-        now = clock()
-        guard var current = session else { return }
-        if now.timeIntervalSince(current.lastHeartbeat) >= Self.heartbeatInterval {
-            current.lastHeartbeat = now
-            session = current
-            onSessionChanged?(current)
+        let current = clock()
+        if isLocked, sleepIsHolding {
+            // The display is off or the Mac is asleep. Ticks keep coming on a dark wake and while the
+            // screen is black; they must not move the countdown or forget that it is paused.
+            return
+        } else if unexplainedGapFrom != nil {
+            // The timer fired again, so the jump was a stall, not the lid. Count it.
+            unexplainedGapFrom = nil
+        } else if startsTimers, isLocked, current.timeIntervalSince(now) >= 3 {
+            // The 1s timer jumped and will-sleep was missed. Leave `now` so did-wake can drop the gap.
+            unexplainedGapFrom = now
+            return
+        }
+        now = current
+        guard var currentSession = session else { return }
+        if now.timeIntervalSince(currentSession.lastHeartbeat) >= Self.heartbeatInterval {
+            currentSession.lastHeartbeat = now
+            session = currentSession
+            onSessionChanged?(currentSession)
         }
         if let breakEndsAt, now >= breakEndsAt {
             resumeMonitoring()
         }
+        updateDiscordBudget()
         if goalReached && !isEnding {
             isEnding = true
-            let sessionID = current.id
+            let sessionID = currentSession.id
             Task { [weak self] in
                 guard let self, self.session?.id == sessionID else { return }
                 await self.finish()
+            }
+        }
+    }
+
+    private func updateDiscordBudget() {
+        guard isPlanningMode, discordBudgetRemaining > 0 else { return }
+        if activeAppBundleID() == "com.hnc.Discord" {
+            discordBudgetRemaining = max(0, discordBudgetRemaining - 1)
+            if discordBudgetRemaining <= 0 {
+                blocker.revoke("com.hnc.Discord")
+                chrome.closeHost("discord.com")
+                toaster.show("Discord 5-minute planning budget reached.")
             }
         }
     }
@@ -337,7 +480,8 @@ enum CompanionViolation: Equatable {
 
     // MARK: Break
 
-    /// Pauses app blocking, the tab watch, and the countdown for `minutes` (1...15).
+    /// Pauses the countdown for `minutes` (1...15). App blocking and the tab check keep running unless
+    /// `allowsOffTaskDuringBreak` is on, in which case they stop for the break and resume at the end.
     /// Available only after 25 minutes of work, then again 25 minutes after the previous break ends.
     /// Apps that were already hidden stay hidden. Returns false when a break is not available.
     @discardableResult
@@ -351,9 +495,13 @@ enum CompanionViolation: Equatable {
         }
         let clamped = min(max(minutes, 1), MirrorTurn.breakRange.upperBound)
         pauseStartedAt = now
-        blocker.stop()
-        chrome.pauseTabWatch()
+        breakOpenedTheLock = allowsOffTaskDuringBreak()
+        if breakOpenedTheLock {
+            blocker.stop()
+            chrome.pauseTabWatch()
+        }
         breakEndsAt = now.addingTimeInterval(TimeInterval(clamped * 60))
+        breakTotal = TimeInterval(clamped * 60)
         return true
     }
 
@@ -370,9 +518,12 @@ enum CompanionViolation: Equatable {
             pauseStartedAt = nil
         }
         breakEndsAt = nil
+        breakTotal = nil
         nextBreakElapsed = elapsed + Self.breakCooldown
-        guard session != nil else { return }
-        // Apps opened during the break are hidden. Apps hidden at lock-in were never brought back.
+        let opened = breakOpenedTheLock
+        breakOpenedTheLock = false
+        guard opened, session != nil else { return }
+        // Apps opened during an open break are hidden. Apps hidden at lock-in were never brought back.
         for id in workspace.hideOthers(allowed: sessionAllowed) where !hiddenByUs.contains(id) {
             hiddenByUs.append(id)
         }
@@ -441,8 +592,14 @@ enum CompanionViolation: Equatable {
         timer?.invalidate()
         timer = nil
         breakEndsAt = nil
+        breakTotal = nil
         pauseStartedAt = nil
+        systemAsleep = false
+        displayAsleep = false
+        asleepSince = nil
+        unexplainedGapFrom = nil
         pausedAccumulated = 0
+        breakOpenedTheLock = false
         nextBreakElapsed = Self.breakCooldown
         blocker.stop()
         if silencing {
@@ -510,6 +667,11 @@ enum CompanionViolation: Equatable {
         guard let app = AppNameMatch.find(query, in: running) ?? lookupApp(query) else {
             return "No app named \(query)."
         }
+        if let category = DistractionApps.category(of: app.bundleID) {
+            if !(isPlanningMode && category == .messaging) {
+                return "Cannot allow \(app.name): It is classified as a high-distraction app (\(category.rawValue)). Prohibited during focus sessions. Wait for your scheduled break or use Planning Mode."
+            }
+        }
         sessionAllowed.insert(app.bundleID)
         blocker.allow(app.bundleID)
         workspace.unhide([app.bundleID])
@@ -536,6 +698,26 @@ enum CompanionViolation: Equatable {
     func setRelaunchSelection(_ id: String, selected: Bool) {
         guard let index = relaunchOffer.firstIndex(where: { $0.id == id }) else { return }
         relaunchOffer[index].selected = selected
+    }
+
+    /// Stray thoughts jotted down during the session.
+    var parkedThoughts: [String] {
+        session?.parkedThoughts ?? []
+    }
+
+    func addParkedThought(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, var current = session else { return }
+        current.parkedThoughts.append(trimmed)
+        session = current
+        onSessionChanged?(current)
+    }
+
+    func removeParkedThought(at index: Int) {
+        guard var current = session, current.parkedThoughts.indices.contains(index) else { return }
+        current.parkedThoughts.remove(at: index)
+        session = current
+        onSessionChanged?(current)
     }
 
     /// Opens the checked tabs and apps, then forgets the offer. Safe to call again.

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Subjects (with total time); an update card (when Sparkle found one), Stats, Settings and "Add subject" (⌘N) stay pinned at the bottom. Right-click deletes a subject.
+/// Subjects (with this week's time); an update card (when Sparkle found one), Stats, Settings and "Add subject" (⌘N) stay pinned at the bottom. Right-click deletes a subject.
 struct SidebarView: View {
     @Bindable var model: AppModel
     @State private var isAddingSubject = false
@@ -9,29 +9,40 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $model.selection) {
             Section {
-                Label("Today", systemImage: "checklist").tag(SidebarItem.today)
+                Label("Plan", systemImage: "checklist").tag(SidebarItem.today)
             }
-            Section("Subjects") {
+            Section {
                 if model.data.subjects.isEmpty {
                     Text("No subjects yet. Add one to lock in.")
                         .foregroundStyle(.secondary)
                         .selectionDisabled()
-                } else {
-                    ForEach(model.data.subjects) { subject in
-                        HStack {
-                            Text(subject.name).lineLimit(1)
-                            Spacer()
-                            Text(TimeFormat.short(totalTime(of: subject.id)))
-                                .font(.callout)
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                        }
-                        .tag(SidebarItem.subject(subject.id))
-                        .contextMenu {
-                            Button("Delete “\(subject.name)”…") { subjectToDelete = subject }
-                        }
+                }
+                ForEach(model.data.subjects) { subject in
+                    HStack {
+                        Circle()
+                            .fill(Theme.subjectColor(subject.colorHex))
+                            .frame(width: 8, height: 8)
+                        Text(subject.name).lineLimit(1)
+                        Spacer()
+                        Text(TimeFormat.short(totalTime(of: subject.id)))
+                            .font(.callout)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    .tag(SidebarItem.subject(subject.id))
+                    .contextMenu {
+                        Button("Delete “\(subject.name)”…") { subjectToDelete = subject }
                     }
                 }
+                .onMove { source, destination in
+                    withAnimation(.spring(duration: 0.22)) {
+                        model.moveSubjects(from: source, to: destination)
+                    }
+                }
+            } header: {
+                Text("Subjects")
+            } footer: {
+                Text(SubjectHoursWindow.week.caption)
             }
         }
         .listStyle(.sidebar)
@@ -96,10 +107,9 @@ struct SidebarView: View {
         )
     }
 
-    /// Total time of the subject's finished sessions.
+    /// Hours for this subject in the current calendar week. Older weeks stay on the stats page.
     private func totalTime(of subjectID: UUID) -> TimeInterval {
-        model.data.sessions
-            .filter { $0.subjectID == subjectID && $0.end != nil }
-            .reduce(0) { $0 + $1.duration }
+        let stats = StatsEngine(now: max(model.engine.now, Date()))
+        return stats.seconds(for: subjectID, in: model.data.sessions, window: .week)
     }
 }

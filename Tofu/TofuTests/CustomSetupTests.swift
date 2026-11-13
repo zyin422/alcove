@@ -22,6 +22,7 @@ final class CustomSetupTests: XCTestCase {
         XCTAssertEqual(subject.unusedApps, .hide)
         XCTAssertFalse(subject.usesCustomLayout)
         XCTAssertEqual(subject.details, "")
+        XCTAssertEqual(subject.colorHex, SubjectColor.hex(for: "CS128"))
     }
 
     func testSubjectRoundTripsSlotsAndChoices() throws {
@@ -43,6 +44,12 @@ final class CustomSetupTests: XCTestCase {
         form.details = "  Data structures: trees and graphs\n"
         XCTAssertEqual(form.subject(id: subject.id, createdAt: subject.createdAt).details,
                        "Data structures: trees and graphs")
+        XCTAssertEqual(form.subject(id: subject.id, createdAt: subject.createdAt).colorHex, subject.colorHex)
+        form.colorHex = "E45756"
+        XCTAssertEqual(form.subject(id: subject.id, createdAt: subject.createdAt).colorHex, "E45756")
+        form.colorHex = "FFFFFF"
+        XCTAssertEqual(form.subject(id: subject.id, createdAt: subject.createdAt).colorHex,
+                       SubjectColor.hex(for: "CS128"))
     }
 
     func testDescriptionIsCappedAtTheWordLimit() {

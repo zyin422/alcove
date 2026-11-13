@@ -141,11 +141,13 @@ struct Subject: Codable, Identifiable, Hashable {
     var usesCustomLayout: Bool
     var browser: Browser
     var unusedApps: UnusedAppsAction
+    /// Color of this class on the stats chart, as `RRGGBB`. Older saves get one from the name.
+    var colorHex: String
 
     init(id: UUID = UUID(), name: String, details: String = "", preset: LayoutPreset = .split, sites: [String] = [],
          allowedApps: [AllowedApp] = [], extraDomains: [String] = [], createdAt: Date = Date(),
          slots: [SetupSlot]? = nil, usesCustomLayout: Bool = false, browser: Browser = .chrome,
-         unusedApps: UnusedAppsAction = .hide) {
+         unusedApps: UnusedAppsAction = .hide, colorHex: String? = nil) {
         self.id = id
         self.name = name
         self.details = details
@@ -158,10 +160,34 @@ struct Subject: Codable, Identifiable, Hashable {
         self.usesCustomLayout = usesCustomLayout
         self.browser = browser
         self.unusedApps = unusedApps
+        self.colorHex = SubjectColor.canonical(colorHex, name: name)
     }
 
     /// The apps the setup opens in its windows.
     var slotApps: [AllowedApp] { slots.filter { $0.kind == .app }.compactMap(\.app) }
+
+    /// Protected non-editable system identifier for 15-minute planning mode.
+    static let planningID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+
+    /// Non-tamperable planning setup with feed URL and fixed communication allowances.
+    static func planningSetup(feedURL: String = "https://news.ycombinator.com") -> Subject {
+        let feed = feedURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedFeed = feed.isEmpty ? "https://news.ycombinator.com" : feed
+        return Subject(
+            id: planningID,
+            name: "Planning Mode",
+            details: "15m daily planning: read AI digest, set priorities, triage urgent messages",
+            preset: .split,
+            sites: [resolvedFeed],
+            allowedApps: [
+                AllowedApp(bundleID: "com.apple.MobileSMS", name: "Messages"),
+                AllowedApp(bundleID: "com.tinyspeck.slackmacgap", name: "Slack"),
+                AllowedApp(bundleID: "ru.keepcoder.Telegram", name: "Telegram"),
+                AllowedApp(bundleID: "com.hnc.Discord", name: "Discord"),
+            ],
+            colorHex: "4f46e5"
+        )
+    }
 }
 
 extension Subject {
@@ -181,6 +207,51 @@ extension Subject {
                   slots: try container.decodeIfPresent([SetupSlot].self, forKey: .slots),
                   usesCustomLayout: try container.decodeIfPresent(Bool.self, forKey: .usesCustomLayout) ?? false,
                   browser: try container.decodeIfPresent(Browser.self, forKey: .browser) ?? .chrome,
-                  unusedApps: try container.decodeIfPresent(UnusedAppsAction.self, forKey: .unusedApps) ?? .hide)
+                  unusedApps: try container.decodeIfPresent(UnusedAppsAction.self, forKey: .unusedApps) ?? .hide,
+                  colorHex: try container.decodeIfPresent(String.self, forKey: .colorHex))
+    }
+}
+
+/// A chart color for a class. Stored as `RRGGBB` so older subject files still load.
+/// Only `palette` is allowed. Anything else (a free-form picker color) snaps back to the name's swatch.
+enum SubjectColor {
+    static let palette = ["4C78A8", "F58518", "54A24B", "E45756", "72B7B2", "B279A2", "C4A017", "9D755D"]
+
+    /// Stable color for a name, so two launches assign the same class the same default.
+    static func hex(for name: String) -> String {
+        var hash = 5381
+        for byte in name.utf8 {
+            hash = ((hash << 5) &+ hash) &+ Int(byte)
+        }
+        return palette[abs(hash) % palette.count]
+    }
+
+    /// A palette color, or the name's default when `stored` is missing or not one of the swatches.
+    static func canonical(_ stored: String?, name: String) -> String {
+        guard let stored else { return hex(for: name) }
+        let cleaned = String(stored.uppercased().filter(\.isHexDigit).suffix(6))
+        return palette.contains(cleaned) ? cleaned : hex(for: name)
+    }
+
+    /// One swatch each, in order. A class keeps its color; a duplicate takes the next free swatch.
+    static func assigned(_ subjects: [(name: String, colorHex: String)]) -> [String] {
+        var used = Set<String>()
+        return subjects.map { subject in
+            var hex = canonical(subject.colorHex, name: subject.name)
+            if used.contains(hex) {
+                hex = palette.first { !used.contains($0) } ?? hex
+            }
+            used.insert(hex)
+            return hex
+        }
+    }
+
+    static func components(_ hex: String) -> (red: Double, green: Double, blue: Double) {
+        let digits = hex.filter { $0.isHexDigit }
+        var value: UInt64 = 0
+        Scanner(string: String(digits)).scanHexInt64(&value)
+        return (Double((value >> 16) & 0xFF) / 255,
+                Double((value >> 8) & 0xFF) / 255,
+                Double(value & 0xFF) / 255)
     }
 }

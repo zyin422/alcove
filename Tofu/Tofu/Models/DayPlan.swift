@@ -8,14 +8,17 @@ struct Priority: Codable, Identifiable, Hashable {
     var isDone: Bool
     /// The linked Google Tasks task, once synced.
     var googleTaskID: String?
+    /// Estimated time in minutes (e.g. 25, 45, 60), optional.
+    var estimatedMinutes: Int?
 
     init(id: UUID = UUID(), title: String, subjectID: UUID? = nil, isDone: Bool = false,
-         googleTaskID: String? = nil) {
+         googleTaskID: String? = nil, estimatedMinutes: Int? = nil) {
         self.id = id
         self.title = title
         self.subjectID = subjectID
         self.isDone = isDone
         self.googleTaskID = googleTaskID
+        self.estimatedMinutes = estimatedMinutes
     }
 }
 
@@ -80,7 +83,16 @@ enum DayKey {
         return (parts[0], parts[1], parts[2])
     }
 
-    /// Minutes since midnight, counting the small hours (before `dayStartHour`) as 24:00 and later,
+    /// The next 4 AM. A wrapped-up day waits until then before asking again.
+    static func nextStart(after date: Date, calendar: Calendar = .current) -> Date {
+        var parts = calendar.dateComponents([.year, .month, .day], from: date)
+        parts.hour = dayStartHour
+        parts.minute = 0
+        parts.second = 0
+        let thisMorning = calendar.date(from: parts) ?? date
+        if thisMorning > date { return thisMorning }
+        return calendar.date(byAdding: .day, value: 1, to: thisMorning) ?? thisMorning.addingTimeInterval(86_400)
+    }
     /// so 00:30 is past a 22:00 end of day.
     static func minutesIntoDay(_ date: Date, calendar: Calendar = .current) -> Int {
         let parts = calendar.dateComponents([.hour, .minute], from: date)

@@ -34,7 +34,7 @@ final class Store {
     }
 
     /// Missing file -> .empty, no warning. Corrupt -> rename to store.corrupt-<unix>.json, .empty, warning.
-    /// Always applies finalizeInterrupted.
+    /// A real session that was still open stays open. An open demo session is closed.
     func load() -> StoreLoadResult {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return StoreLoadResult(data: .empty, warning: nil)
@@ -42,7 +42,11 @@ final class Store {
         do {
             let raw = try Data(contentsOf: fileURL)
             let decoded = try Self.makeDecoder().decode(StoreData.self, from: raw)
-            return StoreLoadResult(data: Self.finalizeInterrupted(decoded), warning: nil)
+            let cleaned = Self.finalizeInterrupted(decoded)
+            if cleaned != decoded {
+                try? save(cleaned)
+            }
+            return StoreLoadResult(data: cleaned, warning: nil)
         } catch {
             return StoreLoadResult(data: .empty, warning: backUpUnreadableFile())
         }
@@ -56,12 +60,25 @@ final class Store {
         try encoded.write(to: fileURL, options: .atomic)
     }
 
-    /// Sessions with end == nil get end = lastHeartbeat, outcome = .interrupted.
+    /// Sessions left open by a killed process stay open, so the next launch continues the block.
+    /// A demo session with no end is closed: demo data must not lock the Mac.
+    /// A finished block shorter than a real one is dropped, so it never lands in stats.
     static func finalizeInterrupted(_ data: StoreData) -> StoreData {
         var result = data
-        for index in result.sessions.indices where result.sessions[index].end == nil {
-            result.sessions[index].end = result.sessions[index].lastHeartbeat
+        for index in result.sessions.indices {
+            let session = result.sessions[index]
+            guard session.end == nil, session.isDemo else { continue }
+            result.sessions[index].end = session.lastHeartbeat
             result.sessions[index].outcome = .interrupted
+        }
+        return droppingShortBlocks(result)
+    }
+
+    /// Finished blocks under the real-block floor are not kept. A live session is left alone.
+    static func droppingShortBlocks(_ data: StoreData) -> StoreData {
+        var result = data
+        result.sessions.removeAll { session in
+            session.end != nil && session.duration < DayPlanner.realBlockSeconds
         }
         return result
     }

@@ -301,6 +301,18 @@ final class ChatAssistantTests: XCTestCase {
         XCTAssertEqual(rig.sites.closed, ["reddit.com"])
     }
 
+    func testAllowSiteToolRefusesDistractionDomains() async throws {
+        let rig = makeRig([
+            (200, chatToolBody([("call_dist", "allow_site", #"{"host":"reddit.com","reason":"research"}"#)])),
+            (200, chatTextBody("Reddit is blocked.")),
+        ])
+        rig.assistant.beginSession(subject: "CS128")
+        await rig.assistant.send("Can I check reddit?")
+
+        XCTAssertEqual(rig.sites.allowed, [])
+        XCTAssertFalse(texts(rig.assistant).contains("Allowed reddit.com"))
+    }
+
     func testSeveralToolCallsInOneReplyAllRun() async throws {
         let rig = makeRig([
             (200, chatToolBody([("a", "allow_site", #"{"host":"piazza.com","reason":"x"}"#),

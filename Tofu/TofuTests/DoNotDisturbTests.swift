@@ -23,6 +23,7 @@ final class DoNotDisturbTests: XCTestCase {
         let action = try actionParameters(workflow)
 
         XCTAssertEqual(workflow["WFWorkflowName"] as? String, DoNotDisturbPlan.onName)
+        XCTAssertEqual(action["Operation"] as? String, "Turn")
         XCTAssertEqual(action["Enabled"] as? Bool, true)
         XCTAssertEqual(action["AssertionType"] as? String, "Turned Off")
         let mode = try XCTUnwrap(action["FocusModes"] as? [String: Any])
@@ -35,6 +36,7 @@ final class DoNotDisturbTests: XCTestCase {
         let action = try actionParameters(workflow)
 
         XCTAssertEqual(workflow["WFWorkflowName"] as? String, DoNotDisturbPlan.offName)
+        XCTAssertEqual(action["Operation"] as? String, "Turn")
         XCTAssertEqual(action["Enabled"] as? Bool, false)
         XCTAssertNil(action["AssertionType"])
         let mode = try XCTUnwrap(action["FocusModes"] as? [String: Any])

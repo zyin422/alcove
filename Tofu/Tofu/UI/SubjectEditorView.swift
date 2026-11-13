@@ -16,6 +16,7 @@ struct SubjectFormState: Equatable {
     var unusedApps: UnusedAppsAction
     var allowedApps: [AllowedApp]
     var extraDomains: [String]
+    var colorHex: String
 
     init(subject: Subject?) {
         let custom = subject?.usesCustomLayout ?? false
@@ -29,6 +30,7 @@ struct SubjectFormState: Equatable {
         unusedApps = subject?.unusedApps ?? .hide
         allowedApps = subject?.allowedApps ?? []
         extraDomains = subject?.extraDomains ?? []
+        colorHex = SubjectColor.canonical(subject?.colorHex, name: subject?.name ?? "")
     }
 
     /// Website windows always show at least one address field.
@@ -60,7 +62,8 @@ struct SubjectFormState: Equatable {
                        slots: slots,
                        usesCustomLayout: usesCustomLayout,
                        browser: browser,
-                       unusedApps: unusedApps)
+                       unusedApps: unusedApps,
+                       colorHex: colorHex)
     }
 
     func slot(_ id: UUID) -> SetupSlot? {
@@ -103,6 +106,7 @@ struct SubjectForm: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
             if showsName { nameSection }
+            colorSection
             detailsSection
             layoutSection
             windowsSection
@@ -126,6 +130,31 @@ struct SubjectForm: View {
         section("Name") {
             TextField("e.g. CS128", text: $form.name)
                 .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private var colorSection: some View {
+        section("Chart color") {
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
+                Text("This color marks the class on the stats chart.")
+                    .foregroundStyle(.secondary)
+                HStack(spacing: Theme.Space.s) {
+                    ForEach(SubjectColor.palette, id: \.self) { hex in
+                        Button {
+                            form.colorHex = hex
+                        } label: {
+                            Circle()
+                                .fill(Theme.subjectColor(hex))
+                                .frame(width: 22, height: 22)
+                                .padding(3)
+                                .overlay(Circle().stroke(Color.primary, lineWidth: form.colorHex == hex ? 2 : 0))
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Chart color \(hex)")
+                    }
+                }
+            }
         }
     }
 
@@ -410,6 +439,9 @@ struct SubjectForm: View {
             }
             Button("Add apps…") { isPickingApps = true }
                 .buttonStyle(SecondaryButtonStyle())
+            Text("High-distraction apps (Discord, Telegram, Slack, Steam, games, social media) are automatically blocked during focus sessions and cannot be unlocked mid-session by the assistant.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

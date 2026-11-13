@@ -14,6 +14,13 @@ enum StatsFormatting {
         }
     }
 
+    /// One line under a subject: "2 sessions · avg 20m · longest 30m".
+    static func subjectLine(sessions: Int, average: TimeInterval, longest: TimeInterval) -> String {
+        let count = max(0, sessions)
+        let noun = count == 1 ? "session" : "sessions"
+        return "\(count) \(noun) · avg \(TimeFormat.short(average)) · longest \(TimeFormat.short(longest))"
+    }
+
     /// "0 days", "1 day", "12 days".
     static func streak(_ days: Int) -> String {
         days == 1 ? "1 day" : "\(max(0, days)) days"
@@ -82,4 +89,53 @@ enum StatsFormatting {
     static func totalSeconds(_ sessions: [Session]) -> TimeInterval {
         sessions.filter { $0.end != nil }.reduce(0) { $0 + $1.duration }
     }
+
+    /// Subjects in a period, longest first. Each subject's blocks are oldest first. A live block is left out.
+    static func subjectBlocks(_ sessions: [Session]) -> [SubjectBlocks] {
+        let ended = sessions.filter { $0.end != nil }
+        var groups: [String: [Session]] = [:]
+        for session in ended { groups[session.subjectName, default: []].append(session) }
+        let totals = groups.mapValues { group in group.reduce(0) { $0 + $1.duration } }
+        let total = totals.values.reduce(0, +)
+        return totals.sorted { lhs, rhs in
+            lhs.value != rhs.value ? lhs.value > rhs.value : lhs.key < rhs.key
+        }.map { name, seconds in
+            let blocks = (groups[name] ?? []).sorted { lhs, rhs in
+                if lhs.start != rhs.start { return lhs.start < rhs.start }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }.map { TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration) }
+            return SubjectBlocks(name: name, seconds: seconds, fraction: total > 0 ? seconds / total : 0, blocks: blocks)
+        }
+    }
+
+    /// Finished blocks, newest first. A block that is still running is left out.
+    static func timeBlocks(_ sessions: [Session]) -> [TimeBlock] {
+        sessions
+            .filter { $0.end != nil }
+            .sorted { lhs, rhs in
+                if lhs.start != rhs.start { return lhs.start > rhs.start }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            .map { TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration) }
+    }
+}
+
+/// One subject's hours in the period being viewed, with its blocks oldest first.
+struct SubjectBlocks: Identifiable, Equatable {
+    let name: String
+    let seconds: TimeInterval
+    let fraction: Double
+    let blocks: [TimeBlock]
+    var id: String { name }
+    var sessionCount: Int { blocks.count }
+    var average: TimeInterval { blocks.isEmpty ? 0 : seconds / Double(blocks.count) }
+    var longest: TimeInterval { blocks.map(\.seconds).max() ?? 0 }
+}
+
+/// One finished work block, as shown in the stats list.
+struct TimeBlock: Identifiable, Equatable {
+    let id: UUID
+    let subjectName: String
+    let start: Date
+    let seconds: TimeInterval
 }

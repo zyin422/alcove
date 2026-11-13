@@ -1,5 +1,16 @@
 import Foundation
 
+/// Ambient soundscape to mask background distractions during lock-in sessions.
+enum FocusSound: String, Codable, CaseIterable, Identifiable {
+    case off = "Off"
+    case brownNoise = "Brown Noise"
+    case pinkNoise = "Pink Noise"
+    case alphaBinaural = "Alpha Waves (10Hz)"
+    case gammaBinaural = "Gamma Focus (40Hz)"
+
+    var id: String { rawValue }
+}
+
 /// User preferences persisted in store.json. The Discord bot token is NOT here (Keychain only).
 struct AppSettings: Codable, Equatable {
     var displayName: String
@@ -12,10 +23,20 @@ struct AppSettings: Codable, Equatable {
     var dayEndMinutes: Int
     /// `DayKey` of the last automatic wrap-up prompt, so it is shown once per day.
     var lastDayPromptKey: String?
-    /// Show the "Good morning" screen the first time the Mac is used each day.
+    /// Show the "Good morning" screen until a work block starts that day.
     var morningScreenEnabled: Bool
-    /// `DayKey` of the last day the morning screen was shown, so it shows once per day.
+    /// `DayKey` of the last day a work block started, so later wakes that day stay quiet.
     var lastMorningKey: String?
+    /// When the morning screen comes back after "Start in 10 minutes". Set means that delay was used.
+    var morningPostponeUntil: Date?
+    /// `DayKey` when "Not now" (10-minute delay) was used, capping it to once per day.
+    var lastPostponeKey: String?
+    /// When the quiet time after a real block ends.
+    var morningGraceUntil: Date?
+    /// Seconds of grace frozen while the lid is closed. Set means the deadline is not running.
+    var morningGraceHeld: TimeInterval?
+    /// The block `morningGraceUntil` belongs to.
+    var morningGraceSessionID: UUID?
     /// Show the study companion overlay while locked in.
     var companionEnabled: Bool
     /// How the companion talks.
@@ -28,14 +49,35 @@ struct AppSettings: Codable, Equatable {
     var googleShowEventsEnabled: Bool
     /// The Google calendar sessions are written to, once chosen or created.
     var googleCalendarID: String?
+    /// When true, a break stops app blocking and the tab check. Off by default, so Discord and
+    /// other off-task pages stay closed and the break only pauses the timer.
+    var allowOffTaskDuringBreak: Bool
+    /// Full-screen lock on the Mac between 00:00 and 04:00 AM unless 15m planning mode is running.
+    var bedtimeGuardEnabled: Bool
+    /// The AI digest or RSS feed URL opened in Planning Mode.
+    var aiFeedURL: String
+    /// DayKey when midnight 15m planning mode was last activated, capping it to once per night.
+    var lastMidnightPlanningKey: String?
+    /// Ambient focus audio played during lock-in sessions.
+    var focusSound: FocusSound
+    /// Volume of ambient focus audio (0.0 to 1.0).
+    var focusSoundVolume: Double
 
     init(displayName: String = NSFullUserName(), discordEnabled: Bool = false,
          giveUpTemplate: String = "I give up on {subject}", channelCache: [String: String] = [:],
          dayEndPromptEnabled: Bool = true, dayEndMinutes: Int = 22 * 60, lastDayPromptKey: String? = nil,
-         morningScreenEnabled: Bool = true, lastMorningKey: String? = nil,
-         companionEnabled: Bool = true, companionPersonality: CompanionPersonality = .escalation,
+         morningScreenEnabled: Bool = true, lastMorningKey: String? = nil, morningPostponeUntil: Date? = nil,
+         lastPostponeKey: String? = nil,
+         morningGraceUntil: Date? = nil, morningGraceHeld: TimeInterval? = nil, morningGraceSessionID: UUID? = nil,
+         companionEnabled: Bool = false, companionPersonality: CompanionPersonality = .escalation,
          googleTasksSyncEnabled: Bool = true, googleSessionLogEnabled: Bool = true,
-         googleShowEventsEnabled: Bool = true, googleCalendarID: String? = nil) {
+         googleShowEventsEnabled: Bool = true, googleCalendarID: String? = nil,
+         allowOffTaskDuringBreak: Bool = false,
+         bedtimeGuardEnabled: Bool = true,
+         aiFeedURL: String = "https://news.ycombinator.com",
+         lastMidnightPlanningKey: String? = nil,
+         focusSound: FocusSound = .off,
+         focusSoundVolume: Double = 0.5) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
         self.giveUpTemplate = giveUpTemplate
@@ -45,12 +87,23 @@ struct AppSettings: Codable, Equatable {
         self.lastDayPromptKey = lastDayPromptKey
         self.morningScreenEnabled = morningScreenEnabled
         self.lastMorningKey = lastMorningKey
+        self.morningPostponeUntil = morningPostponeUntil
+        self.lastPostponeKey = lastPostponeKey
+        self.morningGraceUntil = morningGraceUntil
+        self.morningGraceHeld = morningGraceHeld
+        self.morningGraceSessionID = morningGraceSessionID
         self.companionEnabled = companionEnabled
         self.companionPersonality = companionPersonality
         self.googleTasksSyncEnabled = googleTasksSyncEnabled
         self.googleSessionLogEnabled = googleSessionLogEnabled
         self.googleShowEventsEnabled = googleShowEventsEnabled
         self.googleCalendarID = googleCalendarID
+        self.allowOffTaskDuringBreak = allowOffTaskDuringBreak
+        self.bedtimeGuardEnabled = bedtimeGuardEnabled
+        self.aiFeedURL = aiFeedURL
+        self.lastMidnightPlanningKey = lastMidnightPlanningKey
+        self.focusSound = focusSound
+        self.focusSoundVolume = focusSoundVolume
     }
 }
 
@@ -71,6 +124,11 @@ extension AppSettings {
             morningScreenEnabled: try container.decodeIfPresent(Bool.self, forKey: .morningScreenEnabled)
                 ?? defaults.morningScreenEnabled,
             lastMorningKey: try container.decodeIfPresent(String.self, forKey: .lastMorningKey),
+            morningPostponeUntil: try container.decodeIfPresent(Date.self, forKey: .morningPostponeUntil),
+            lastPostponeKey: try container.decodeIfPresent(String.self, forKey: .lastPostponeKey),
+            morningGraceUntil: try container.decodeIfPresent(Date.self, forKey: .morningGraceUntil),
+            morningGraceHeld: try container.decodeIfPresent(TimeInterval.self, forKey: .morningGraceHeld),
+            morningGraceSessionID: try container.decodeIfPresent(UUID.self, forKey: .morningGraceSessionID),
             companionEnabled: try container.decodeIfPresent(Bool.self, forKey: .companionEnabled)
                 ?? defaults.companionEnabled,
             companionPersonality: try container.decodeIfPresent(CompanionPersonality.self, forKey: .companionPersonality)
@@ -81,7 +139,18 @@ extension AppSettings {
                 ?? defaults.googleSessionLogEnabled,
             googleShowEventsEnabled: try container.decodeIfPresent(Bool.self, forKey: .googleShowEventsEnabled)
                 ?? defaults.googleShowEventsEnabled,
-            googleCalendarID: try container.decodeIfPresent(String.self, forKey: .googleCalendarID))
+            googleCalendarID: try container.decodeIfPresent(String.self, forKey: .googleCalendarID),
+            allowOffTaskDuringBreak: try container.decodeIfPresent(Bool.self, forKey: .allowOffTaskDuringBreak)
+                ?? defaults.allowOffTaskDuringBreak,
+            bedtimeGuardEnabled: try container.decodeIfPresent(Bool.self, forKey: .bedtimeGuardEnabled)
+                ?? defaults.bedtimeGuardEnabled,
+            aiFeedURL: try container.decodeIfPresent(String.self, forKey: .aiFeedURL)
+                ?? defaults.aiFeedURL,
+            lastMidnightPlanningKey: try container.decodeIfPresent(String.self, forKey: .lastMidnightPlanningKey),
+            focusSound: try container.decodeIfPresent(FocusSound.self, forKey: .focusSound)
+                ?? defaults.focusSound,
+            focusSoundVolume: try container.decodeIfPresent(Double.self, forKey: .focusSoundVolume)
+                ?? defaults.focusSoundVolume)
     }
 }
 

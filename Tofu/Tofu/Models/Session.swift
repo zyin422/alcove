@@ -30,10 +30,15 @@ struct Session: Codable, Identifiable, Hashable {
     var closedTabs: Int
     var outcome: SessionOutcome?
     var isDemo: Bool
+    /// Seconds the Mac was asleep during this block. Left out of `duration`. Older saves omit it.
+    var excluded: TimeInterval
+    /// Stray thoughts jotted down during the session so focus is not broken.
+    var parkedThoughts: [String]
 
     init(id: UUID = UUID(), subjectID: UUID, subjectName: String, mode: SessionMode, start: Date,
          end: Date? = nil, lastHeartbeat: Date? = nil, blockedAttempts: Int = 0, closedTabs: Int = 0,
-         outcome: SessionOutcome? = nil, isDemo: Bool = false) {
+         outcome: SessionOutcome? = nil, isDemo: Bool = false, excluded: TimeInterval = 0,
+         parkedThoughts: [String] = []) {
         self.id = id
         self.subjectID = subjectID
         self.subjectName = subjectName
@@ -45,8 +50,32 @@ struct Session: Codable, Identifiable, Hashable {
         self.closedTabs = closedTabs
         self.outcome = outcome
         self.isDemo = isDemo
+        self.excluded = excluded
+        self.parkedThoughts = parkedThoughts
     }
 
-    /// Seconds from start to end (or to the last heartbeat while active). Never negative.
-    var duration: TimeInterval { max(0, (end ?? lastHeartbeat).timeIntervalSince(start)) }
+    /// Seconds from start to end (or to the last heartbeat while active), minus time the Mac was asleep.
+    var duration: TimeInterval { max(0, (end ?? lastHeartbeat).timeIntervalSince(start) - excluded) }
+
+    enum CodingKeys: String, CodingKey {
+        case id, subjectID, subjectName, mode, start, end, lastHeartbeat
+        case blockedAttempts, closedTabs, outcome, isDemo, excluded, parkedThoughts
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        subjectID = try container.decode(UUID.self, forKey: .subjectID)
+        subjectName = try container.decode(String.self, forKey: .subjectName)
+        mode = try container.decode(SessionMode.self, forKey: .mode)
+        start = try container.decode(Date.self, forKey: .start)
+        end = try container.decodeIfPresent(Date.self, forKey: .end)
+        lastHeartbeat = try container.decodeIfPresent(Date.self, forKey: .lastHeartbeat) ?? start
+        blockedAttempts = try container.decodeIfPresent(Int.self, forKey: .blockedAttempts) ?? 0
+        closedTabs = try container.decodeIfPresent(Int.self, forKey: .closedTabs) ?? 0
+        outcome = try container.decodeIfPresent(SessionOutcome.self, forKey: .outcome)
+        isDemo = try container.decodeIfPresent(Bool.self, forKey: .isDemo) ?? false
+        excluded = try container.decodeIfPresent(TimeInterval.self, forKey: .excluded) ?? 0
+        parkedThoughts = try container.decodeIfPresent([String].self, forKey: .parkedThoughts) ?? []
+    }
 }

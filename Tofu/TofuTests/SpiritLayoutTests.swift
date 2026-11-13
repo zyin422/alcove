@@ -64,4 +64,18 @@ final class SpiritLayoutTests: XCTestCase {
                        "Does reddit.com help? Lecture 3")
         XCTAssertTrue(SpiritLines.appHidden("Discord").contains("Discord"))
     }
+
+    func testSpiritProgressWithAndWithoutGoal() {
+        // With explicit goal:
+        XCTAssertEqual(SpiritLayout.progress(elapsed: 0, goal: 3600), 0.0, accuracy: 0.001)
+        XCTAssertEqual(SpiritLayout.progress(elapsed: 1800, goal: 3600), 0.5, accuracy: 0.001)
+        XCTAssertEqual(SpiritLayout.progress(elapsed: 3600, goal: 3600), 1.0, accuracy: 0.001)
+        XCTAssertEqual(SpiritLayout.progress(elapsed: 4000, goal: 3600), 1.0, accuracy: 0.001)
+
+        // Without goal (open-ended Pomodoro 25m = 1500s cycle):
+        XCTAssertEqual(SpiritLayout.progress(elapsed: 0, goal: nil), 0.0, accuracy: 0.001)
+        XCTAssertEqual(SpiritLayout.progress(elapsed: 750, goal: nil), 0.5, accuracy: 0.001)
+        XCTAssertEqual(SpiritLayout.progress(elapsed: 1500, goal: nil), 0.0, accuracy: 0.001)
+        XCTAssertEqual(SpiritLayout.progress(elapsed: 2250, goal: nil), 0.5, accuracy: 0.001)
+    }
 }

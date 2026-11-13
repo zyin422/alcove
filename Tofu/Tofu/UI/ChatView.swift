@@ -18,6 +18,10 @@ enum ChatInput {
 struct ChatView: View {
     let assistant: ChatAssistant
     @State private var voice = VoiceInput()
+    @State private var voiceOut = VoiceOutput.shared
+    @State private var autoSpeakReplies = false
+    @State private var spokeViaVoice = false
+    @State private var currentlySpeakingID: UUID?
     @State private var text = ""
     /// What was in the field when dictation started; non-nil while the transcript should be merged into the field.
     @State private var dictationBase: String?
@@ -32,7 +36,11 @@ struct ChatView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { isFieldFocused = true }
-        .onDisappear { voice.stop() }
+        .onDisappear {
+            voice.stop()
+            voiceOut.stop()
+            currentlySpeakingID = nil
+        }
         .onChange(of: voice.transcript) { _, transcript in
             guard let base = dictationBase else { return }
             text = VoiceInput.merged(base: base, transcript: transcript)
@@ -46,7 +54,20 @@ struct ChatView: View {
             ScrollView {
                 VStack(spacing: Theme.Space.s) {
                     ForEach(assistant.messages) { message in
-                        MessageRow(message: message)
+                        MessageRow(
+                            message: message,
+                            isSpeaking: currentlySpeakingID == message.id && voiceOut.isSpeaking,
+                            onSpeak: {
+                                if currentlySpeakingID == message.id && voiceOut.isSpeaking {
+                                    voiceOut.stop()
+                                    currentlySpeakingID = nil
+                                } else {
+                                    voiceOut.stop()
+                                    currentlySpeakingID = message.id
+                                    voiceOut.speak(message.text)
+                                }
+                            }
+                        )
                     }
                     if assistant.isThinking {
                         TypingIndicator()
@@ -106,6 +127,24 @@ struct ChatView: View {
                 .help(voice.isRecording ? "Stop dictation" : "Dictate a message")
                 .accessibilityLabel(voice.isRecording ? "Stop dictation" : "Dictate a message")
 
+                Button {
+                    if voiceOut.isSpeaking {
+                        voiceOut.stop()
+                        currentlySpeakingID = nil
+                    } else {
+                        autoSpeakReplies.toggle()
+                    }
+                } label: {
+                    Image(systemName: voiceOut.isSpeaking ? "speaker.wave.3.fill" : (autoSpeakReplies ? "speaker.wave.2.fill" : "speaker.slash"))
+                        .font(.system(size: 16))
+                        .frame(width: 28, height: 28)
+                        .foregroundStyle(voiceOut.isSpeaking ? Color.accentColor : (autoSpeakReplies ? Color.primary : Color.secondary))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(voiceOut.isSpeaking ? "Stop talking" : (autoSpeakReplies ? "Voice replies active (click to mute)" : "Enable voice replies"))
+                .accessibilityLabel(voiceOut.isSpeaking ? "Stop talking" : (autoSpeakReplies ? "Voice replies active" : "Enable voice replies"))
+
                 Button { submit() } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 22))
@@ -131,6 +170,8 @@ struct ChatView: View {
                 if newValue != text {
                     dictationBase = nil
                     voice.stop()
+                    voiceOut.stop()
+                    currentlySpeakingID = nil
                 }
                 text = newValue
             }
@@ -138,27 +179,43 @@ struct ChatView: View {
     }
 
     private func toggleMic() {
+        voiceOut.stop()
+        currentlySpeakingID = nil
         if voice.isRecording {
             voice.stop()
         } else {
             dictationBase = text
+            spokeViaVoice = true
             Task { await voice.start() }
         }
     }
 
     private func submit() {
         guard ChatInput.canSend(text, isThinking: assistant.isThinking) else { return }
+        voiceOut.stop()
+        currentlySpeakingID = nil
         let message = ChatInput.trimmed(text)
+        let wasVoice = spokeViaVoice || dictationBase != nil
         dictationBase = nil
+        spokeViaVoice = false
         voice.stop()
         text = ""
-        Task { await assistant.send(message) }
+        Task {
+            await assistant.send(message)
+            if (wasVoice || autoSpeakReplies),
+               let lastReply = assistant.messages.last(where: { $0.role == .assistant }) {
+                currentlySpeakingID = lastReply.id
+                voiceOut.speak(lastReply.text)
+            }
+        }
     }
 }
 
 /// One chat line: bot (avatar + filled bubble, left), user (inverted bubble, right) or a centered notice.
 private struct MessageRow: View {
     let message: ChatMessage
+    var isSpeaking: Bool = false
+    var onSpeak: (() -> Void)? = nil
 
     var body: some View {
         switch message.role {
@@ -171,6 +228,17 @@ private struct MessageRow: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, Theme.Space.s)
                     .background(RoundedRectangle(cornerRadius: 14).fill(Color.primary.opacity(0.08)))
+                if let onSpeak {
+                    Button(action: onSpeak) {
+                        Image(systemName: isSpeaking ? "stop.circle.fill" : "speaker.wave.2")
+                            .font(.system(size: 13))
+                            .foregroundStyle(isSpeaking ? Color.accentColor : Color.secondary)
+                            .frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(isSpeaking ? "Stop" : "Read aloud")
+                }
                 Spacer(minLength: 40)
             }
         case .user:

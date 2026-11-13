@@ -5,7 +5,7 @@ import XCTest
 final class CompanionSettingsTests: XCTestCase {
     func testDefaultsAreEnabledEscalation() {
         let settings = AppSettings()
-        XCTAssertTrue(settings.companionEnabled)
+        XCTAssertFalse(settings.companionEnabled)
         XCTAssertEqual(settings.companionPersonality, .escalation)
     }
 
@@ -13,8 +13,9 @@ final class CompanionSettingsTests: XCTestCase {
     func testOlderStoreFileFallsBackToCompanionDefaults() throws {
         let json = #"{"displayName":"Alex","discordEnabled":false,"giveUpTemplate":"I give up on {subject}","channelCache":{}}"#
         let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
-        XCTAssertTrue(settings.companionEnabled)
+        XCTAssertFalse(settings.companionEnabled)
         XCTAssertEqual(settings.companionPersonality, .escalation)
+        XCTAssertFalse(settings.allowOffTaskDuringBreak)
     }
 
     func testCompanionFieldsRoundTrip() throws {

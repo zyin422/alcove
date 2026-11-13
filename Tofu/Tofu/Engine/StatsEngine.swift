@@ -1,5 +1,64 @@
 import Foundation
 
+/// Which sessions count toward a subject's hours. The sidebar uses `.week`, so each number
+/// is only the calendar week that contains today and returns to zero when that week ends.
+enum SubjectHoursWindow: String, Codable, CaseIterable, Identifiable {
+    case rolling
+    case week
+
+    var id: String { rawValue }
+
+    /// Segmented-control title on the stats page.
+    var title: String {
+        switch self {
+        case .rolling: return "Rolling"
+        case .week: return "Weekly"
+        }
+    }
+
+    /// Short label under the subject list.
+    var caption: String {
+        switch self {
+        case .rolling: return "Last 7 days"
+        case .week: return "This week"
+        }
+    }
+
+    /// What the stats page says under the control.
+    var detail: String {
+        switch self {
+        case .rolling:
+            return "Each subject’s hours are the last 7 days. A session drops off a week after it started."
+        case .week:
+            return "Each subject’s hours are this calendar week. They go back to zero when the week changes."
+        }
+    }
+
+    /// Shown when nothing in this window has ended.
+    var emptyHours: String {
+        switch self {
+        case .rolling: return "No hours in the last 7 days"
+        case .week: return "No hours this week"
+        }
+    }
+}
+
+/// One period on the stats page. Day, week, and month show that period alone; year shows its twelve months.
+enum StatsSpan: String, CaseIterable, Identifiable {
+    case day, week, month, year
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .day: return "Day"
+        case .week: return "Week"
+        case .month: return "Month"
+        case .year: return "Year"
+        }
+    }
+}
+
 /// Time range shown by the stats bar chart.
 enum StatsRange: String, CaseIterable, Identifiable {
     case day, week, month
@@ -29,6 +88,8 @@ struct StatsBucket: Identifiable, Equatable {
 struct StatsSummary: Equatable {
     var today: TimeInterval
     var thisWeek: TimeInterval
+    /// Sum of the sessions this summary was built from. On the stats page that is the selected range.
+    var total: TimeInterval
     var currentStreak: Int
     var longestStreak: Int
     var sessionCount: Int
@@ -37,13 +98,40 @@ struct StatsSummary: Equatable {
     var blockedAttempts: Int
     var closedTabs: Int
     var bails: Int
+    /// Focus purity index (0-100%): ratio of undisturbed focus time after penalizing distraction attempts.
+    var focusScore: Int
+    /// Total duration spent in deep focus blocks (>= 25 minutes).
+    var deepWorkSeconds: TimeInterval
+
+    init(today: TimeInterval = 0, thisWeek: TimeInterval = 0, total: TimeInterval = 0,
+         currentStreak: Int = 0, longestStreak: Int = 0, sessionCount: Int = 0,
+         average: TimeInterval = 0, longest: TimeInterval = 0, blockedAttempts: Int = 0,
+         closedTabs: Int = 0, bails: Int = 0, focusScore: Int = 100,
+         deepWorkSeconds: TimeInterval = 0) {
+        self.today = today
+        self.thisWeek = thisWeek
+        self.total = total
+        self.currentStreak = currentStreak
+        self.longestStreak = longestStreak
+        self.sessionCount = sessionCount
+        self.average = average
+        self.longest = longest
+        self.blockedAttempts = blockedAttempts
+        self.closedTabs = closedTabs
+        self.bails = bails
+        self.focusScore = focusScore
+        self.deepWorkSeconds = deepWorkSeconds
+    }
 }
 
-/// Total time of one subject and its fraction of all tracked time.
+/// Total time of one subject, its fraction of the period, and a few counts for that subject.
 struct SubjectShare: Identifiable, Equatable {
     let name: String
     let seconds: TimeInterval
     let fraction: Double
+    let sessionCount: Int
+    let average: TimeInterval
+    let longest: TimeInterval
     var id: String { name }
 }
 
@@ -53,6 +141,8 @@ struct SubjectShare: Identifiable, Equatable {
 struct StatsEngine {
     static let streakThreshold: TimeInterval = 300
     static let otherLabel = "Other"
+    /// Length of the rolling subject-hours window.
+    static let rollingWindow: TimeInterval = 7 * 24 * 60 * 60
     let calendar: Calendar
     let now: Date
 
@@ -80,6 +170,17 @@ struct StatsEngine {
         return starts.map { start in
             StatsBucket(start: start, label: formatter.string(from: start), minutesBySubject: minutes[start] ?? [:])
         }
+    }
+
+    /// Ended sessions whose start falls in the same window the chart draws for `range`.
+    func matching(_ sessions: [Session], range: StatsRange) -> [Session] {
+        let starts = Set(bucketStarts(range))
+        return Self.ended(sessions).filter { starts.contains(periodStart(range.component, for: $0.start)) }
+    }
+
+    /// Summary cards for the chart's window: last 14 days, 12 weeks, or 12 months.
+    func summary(_ sessions: [Session], range: StatsRange) -> StatsSummary {
+        summary(matching(sessions, range: range))
     }
 
     /// Summary cards. Streaks count days with >= streakThreshold seconds in total; the current streak
@@ -121,26 +222,179 @@ struct StatsEngine {
 
         let durations = ended.map(\.duration)
         let total = durations.reduce(0, +)
+        let blocked = ended.reduce(0) { $0 + $1.blockedAttempts }
+        let closed = ended.reduce(0) { $0 + $1.closedTabs }
+        let score: Int
+        if total <= 0 {
+            score = 100
+        } else {
+            let penaltySeconds = Double(blocked + closed) * 180.0
+            let ratio = max(0.0, min(1.0, 1.0 - (penaltySeconds / total)))
+            score = Int((ratio * 100.0).rounded())
+        }
+        let deepWork = ended.filter { $0.duration >= 25 * 60 }.reduce(0.0) { $0 + $1.duration }
         return StatsSummary(
             today: today,
             thisWeek: thisWeek,
+            total: total,
             currentStreak: currentStreak,
             longestStreak: longestStreak,
             sessionCount: ended.count,
             average: ended.isEmpty ? 0 : total / Double(ended.count),
             longest: durations.max() ?? 0,
-            blockedAttempts: ended.reduce(0) { $0 + $1.blockedAttempts },
-            closedTabs: ended.reduce(0) { $0 + $1.closedTabs },
-            bails: ended.filter { $0.outcome == .bailed }.count
+            blockedAttempts: blocked,
+            closedTabs: closed,
+            bails: ended.filter { $0.outcome == .bailed }.count,
+            focusScore: score,
+            deepWorkSeconds: deepWork
         )
     }
 
-    /// Desc by seconds; fraction of total (0 if total == 0).
+    /// Ended sessions whose start falls in `window`. A session stays on the day it started.
+    func matching(_ sessions: [Session], window: SubjectHoursWindow) -> [Session] {
+        let ended = Self.ended(sessions)
+        switch window {
+        case .rolling:
+            let cutoff = now.addingTimeInterval(-Self.rollingWindow)
+            return ended.filter { $0.start >= cutoff }
+        case .week:
+            let weekStart = periodStart(.weekOfYear, for: now)
+            return ended.filter { periodStart(.weekOfYear, for: $0.start) == weekStart }
+        }
+    }
+
+    /// Hours for one subject inside `window`.
+    func seconds(for subjectID: UUID, in sessions: [Session], window: SubjectHoursWindow) -> TimeInterval {
+        matching(sessions, window: window)
+            .filter { $0.subjectID == subjectID }
+            .reduce(0) { $0 + $1.duration }
+    }
+
+    /// Start of the day, week, month, or year that contains `date`.
+    func startOf(_ span: StatsSpan, containing date: Date) -> Date {
+        switch span {
+        case .day: return periodStart(.day, for: date)
+        case .week: return periodStart(.weekOfYear, for: date)
+        case .month: return periodStart(.month, for: date)
+        case .year: return periodStart(.year, for: date)
+        }
+    }
+
+    /// Moves by whole periods. `shift` of a Wednesday by one day is the next midnight, not 24 hours later.
+    func shift(_ date: Date, span: StatsSpan, by offset: Int) -> Date {
+        let start = startOf(span, containing: date)
+        let moved = calendar.date(byAdding: span.step, value: offset, to: start) ?? start
+        return startOf(span, containing: moved)
+    }
+
+    /// Every period from the earliest ended session through the one containing `now`, including empty ones in between.
+    func timeline(_ sessions: [Session], span: StatsSpan) -> [Date] {
+        let latest = startOf(span, containing: now)
+        let earliest = Self.ended(sessions).map { startOf(span, containing: $0.start) }.min() ?? latest
+        var cursor = min(earliest, latest)
+        var dates: [Date] = []
+        while cursor <= latest && dates.count < 4000 {
+            dates.append(cursor)
+            let next = shift(cursor, span: span, by: 1)
+            if next <= cursor { break }
+            cursor = next
+        }
+        return dates
+    }
+
+    /// Ended sessions whose start falls in the period containing `date`.
+    func matching(_ sessions: [Session], span: StatsSpan, containing date: Date) -> [Session] {
+        let start = startOf(span, containing: date)
+        return Self.ended(sessions).filter { startOf(span, containing: $0.start) == start }
+    }
+
+    /// Heading for the period containing `date`.
+    func heading(_ span: StatsSpan, containing date: Date) -> String {
+        let start = startOf(span, containing: date)
+        switch span {
+        case .day:
+            return formatted(start, "EEEE, MMM d")
+        case .week:
+            let end = shiftDay(start, by: 6)
+            return "\(formatted(start, "MMM d")) – \(formatted(end, "MMM d"))"
+        case .month:
+            return formatted(start, "MMMM yyyy")
+        case .year:
+            return formatted(start, "yyyy")
+        }
+    }
+
+    /// Day buttons: "10/10".
+    func monthDay(_ date: Date) -> String {
+        formatted(startOf(.day, containing: date), "MM/dd")
+    }
+
+    /// Short label for a period chip in the scroller.
+    func chipTitle(_ span: StatsSpan, containing date: Date) -> String {
+        let start = startOf(span, containing: date)
+        switch span {
+        case .day, .week: return formatted(start, "MMM d")
+        case .month: return formatted(start, "MMM")
+        case .year: return formatted(start, "yyyy")
+        }
+    }
+
+    /// Bars for one period. Week is its seven days, month is each day of that month, year is its twelve months.
+    /// Day is a single bar; the stats page uses a subject list there instead of this chart.
+    func periodBuckets(_ sessions: [Session], span: StatsSpan, containing date: Date, topSubjects: Int = 5) -> [StatsBucket] {
+        let anchor = startOf(span, containing: date)
+        let starts: [Date]
+        let format: String
+        let component: Calendar.Component
+        switch span {
+        case .day:
+            starts = [anchor]
+            format = "MMM d"
+            component = .day
+        case .week:
+            starts = (0..<7).map { shiftDay(anchor, by: $0) }
+            format = "MMM d"
+            component = .day
+        case .month:
+            let days = calendar.range(of: .day, in: .month, for: anchor)?.count ?? 30
+            starts = (0..<days).map { shiftDay(anchor, by: $0) }
+            format = "d"
+            component = .day
+        case .year:
+            starts = (0..<12).map { offset in
+                let shifted = calendar.date(byAdding: .month, value: offset, to: anchor) ?? anchor
+                return periodStart(.month, for: shifted)
+            }
+            format = "MMM"
+            component = .month
+        }
+        return filledBuckets(sessions, starts: starts, component: component, dateFormat: format, topSubjects: topSubjects)
+    }
+
+    /// Per-subject shares inside the chart's window.
+    func shares(_ sessions: [Session], range: StatsRange) -> [SubjectShare] {
+        shares(matching(sessions, range: range))
+    }
+
+    /// Desc by seconds; fraction of total (0 if total == 0). Average and longest are per session of that subject.
     func shares(_ sessions: [Session]) -> [SubjectShare] {
-        let totals = totalsByName(Self.ended(sessions))
+        var durations: [String: [TimeInterval]] = [:]
+        for session in Self.ended(sessions) {
+            durations[session.subjectName, default: []].append(session.duration)
+        }
+        let totals = durations.mapValues { $0.reduce(0, +) }
         let total = totals.values.reduce(0, +)
         return Self.ranked(totals).map { entry in
-            SubjectShare(name: entry.key, seconds: entry.value, fraction: total > 0 ? entry.value / total : 0)
+            let times = durations[entry.key] ?? []
+            let count = times.count
+            return SubjectShare(
+                name: entry.key,
+                seconds: entry.value,
+                fraction: total > 0 ? entry.value / total : 0,
+                sessionCount: count,
+                average: count == 0 ? 0 : entry.value / Double(count),
+                longest: times.max() ?? 0
+            )
         }
     }
 
@@ -191,12 +445,52 @@ struct StatsEngine {
     }
 
     private func labelFormatter(_ range: StatsRange) -> DateFormatter {
+        formatter(range == .month ? "MMM" : "MMM d")
+    }
+
+    private func formatted(_ date: Date, _ format: String) -> String {
+        formatter(format).string(from: date)
+    }
+
+    private func formatter(_ format: String) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = calendar.locale ?? Locale.current
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = range == .month ? "MMM" : "MMM d"
+        formatter.dateFormat = format
         return formatter
+    }
+
+    /// Minutes per subject for each `starts` entry. Ranking uses only sessions inside those periods.
+    private func filledBuckets(_ sessions: [Session], starts: [Date], component: Calendar.Component,
+                               dateFormat: String, topSubjects: Int) -> [StatsBucket] {
+        let keys = Set(starts)
+        let relevant = Self.ended(sessions).filter { keys.contains(periodStart(component, for: $0.start)) }
+        let kept = topNames(relevant, limit: topSubjects)
+        var minutes: [Date: [String: Double]] = [:]
+        for start in starts { minutes[start] = [:] }
+        for session in relevant {
+            let key = periodStart(component, for: session.start)
+            guard var perSubject = minutes[key] else { continue }
+            let name = kept.contains(session.subjectName) ? session.subjectName : Self.otherLabel
+            perSubject[name, default: 0] += session.duration / 60
+            minutes[key] = perSubject
+        }
+        let labels = formatter(dateFormat)
+        return starts.map { start in
+            StatsBucket(start: start, label: labels.string(from: start), minutesBySubject: minutes[start] ?? [:])
+        }
+    }
+}
+
+private extension StatsSpan {
+    var step: Calendar.Component {
+        switch self {
+        case .day: return .day
+        case .week: return .weekOfYear
+        case .month: return .month
+        case .year: return .year
+        }
     }
 }
 

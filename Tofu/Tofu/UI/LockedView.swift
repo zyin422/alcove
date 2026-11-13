@@ -74,6 +74,13 @@ enum LockedLayout {
 struct LockedView: View {
     let model: AppModel
     @State private var isShowingMirror = false
+    @State private var sessionTab: SessionTab = .assistant
+
+    private enum SessionTab: String, CaseIterable {
+        case assistant = "Assistant"
+        case plan = "Plan"
+        case thoughts = "Parked Thoughts"
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -85,8 +92,7 @@ struct LockedView: View {
                     stackedInfo(engine: model.engine, width: proxy.size.width)
                     separator(stacked: true)
                 }
-                ChatView(assistant: model.assistant)
-                    .frame(minWidth: stacked ? nil : LockedLayout.chatMinWidth, maxWidth: .infinity, maxHeight: .infinity)
+                mainContent(stacked: stacked)
                 if !stacked {
                     separator(stacked: false)
                     sideInfo(engine: model.engine)
@@ -103,6 +109,35 @@ struct LockedView: View {
         }
     }
 
+    @ViewBuilder
+    private func mainContent(stacked: Bool) -> some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $sessionTab) {
+                ForEach(SessionTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, Theme.Space.m)
+            .padding(.top, Theme.Space.s)
+            .padding(.bottom, Theme.Space.xs)
+
+            if sessionTab == .plan {
+                PlanningPriorityView(model: model)
+            } else if sessionTab == .thoughts {
+                ParkedThoughtsView(engine: model.engine)
+            } else {
+                ChatView(assistant: model.assistant)
+            }
+        }
+        .frame(minWidth: stacked ? nil : LockedLayout.chatMinWidth, maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            if model.engine.isPlanningMode {
+                sessionTab = .plan
+            }
+        }
+    }
+
     // MARK: Session info
 
     /// Right pane beside the chat: subject, timer, goal progress, counters and End, top to bottom.
@@ -111,8 +146,12 @@ struct LockedView: View {
         return VStack(alignment: .leading, spacing: Theme.Space.m) {
             subjectCaption(engine: engine)
             timerText(engine: engine, width: contentWidth)
+            if engine.isPlanningMode {
+                discordBadge(engine: engine)
+            }
             breakLine(engine: engine)
             goalBlock(engine: engine, barWidth: nil)
+            focusSoundControl
             countersText(engine: engine)
             Spacer(minLength: Theme.Space.m)
             endButton
@@ -128,6 +167,9 @@ struct LockedView: View {
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 subjectCaption(engine: engine)
                 timerText(engine: engine, width: max(0, width / 2 - Theme.Space.m))
+                if engine.isPlanningMode {
+                    discordBadge(engine: engine)
+                }
                 breakLine(engine: engine)
                 goalBlock(engine: engine, barWidth: 160)
             }
@@ -214,5 +256,239 @@ struct LockedView: View {
     /// Shared by the End button and the mini timer's ✕.
     private func endTapped() {
         isShowingMirror = true
+    }
+
+    private func discordBadge(engine: SessionEngine) -> some View {
+        let remaining = Int(engine.discordBudgetRemaining)
+        let formatted = String(format: "%d:%02d", remaining / 60, remaining % 60)
+        let isExhausted = remaining <= 0
+        return HStack(spacing: 6) {
+            Image(systemName: isExhausted ? "slash.circle.fill" : "bubble.left.and.bubble.right.fill")
+                .font(.system(size: 11))
+            Text(isExhausted ? "Discord: limit reached" : "Discord: \(formatted) left")
+                .font(.system(size: 11, weight: .medium))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isExhausted ? Color.primary.opacity(0.06) : Color.primary.opacity(0.12))
+        )
+        .foregroundStyle(isExhausted ? Color.secondary : Color.primary)
+    }
+
+    private var focusSoundControl: some View {
+        Menu {
+            ForEach(FocusSound.allCases) { sound in
+                Button {
+                    model.updateSettings { $0.focusSound = sound }
+                    FocusAudioEngine.shared.play(sound)
+                } label: {
+                    if FocusAudioEngine.shared.activeSound == sound {
+                        Label(sound.rawValue, systemImage: "checkmark")
+                    } else {
+                        Text(sound.rawValue)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: FocusAudioEngine.shared.isPlaying ? "waveform" : "waveform.slash")
+                    .font(.system(size: 11))
+                Text(FocusAudioEngine.shared.activeSound == .off ? "Sound: Off" : FocusAudioEngine.shared.activeSound.rawValue)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(FocusAudioEngine.shared.isPlaying ? 0.12 : 0.05)))
+        }
+        .menuStyle(.borderlessButton)
+        .help("Ambient focus sound")
+    }
+}
+
+/// Direct in-session priority editor during 15-minute planning mode.
+private struct PlanningPriorityView: View {
+    let model: AppModel
+    @State private var newTitle = ""
+    @State private var newSubjectID: UUID?
+
+    private var plan: DayPlan { model.todayPlan() }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                Text("DAY PRIORITIES")
+                    .font(Theme.captionFont)
+                    .foregroundStyle(.secondary)
+                Text("Check off tasks or add priorities for today while your 15m timer runs.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, Theme.Space.m)
+            .padding(.top, Theme.Space.m)
+
+            ScrollView {
+                VStack(spacing: Theme.Space.xs) {
+                    ForEach(plan.priorities) { priority in
+                        priorityRow(priority)
+                    }
+                    if plan.priorities.isEmpty {
+                        Text("No priorities set yet. Add one below.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, Theme.Space.xl)
+                    }
+                }
+                .padding(.horizontal, Theme.Space.m)
+            }
+
+            HStack(spacing: Theme.Space.s) {
+                TextField("Add a priority", text: $newTitle)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(add)
+                SetupPicker(subjects: model.data.subjects, selection: $newSubjectID)
+                    .frame(width: 140)
+                Button("Add", action: add)
+                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(Theme.Space.m)
+            .background(Color.primary.opacity(0.04))
+        }
+    }
+
+    private func priorityRow(_ priority: Priority) -> some View {
+        HStack(spacing: Theme.Space.s) {
+            Button {
+                model.setPriority(priority.id, done: !priority.isDone, day: plan.day)
+            } label: {
+                Image(systemName: priority.isDone ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 18))
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(priority.title)
+                    .strikethrough(priority.isDone)
+                    .foregroundStyle(priority.isDone ? .secondary : .primary)
+                if let subject = priority.subjectID.flatMap(model.subject(id:)) {
+                    Text(subject.name).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Button {
+                model.updatePlan(day: plan.day) { $0.priorities.removeAll { $0.id == priority.id } }
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, Theme.Space.s)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.03)))
+    }
+
+    private func add() {
+        let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        let subjectID = newSubjectID ?? DayPlanner.matchSubject(title, subjects: model.data.subjects)
+        model.updatePlan(day: plan.day) { $0.priorities.append(Priority(title: title, subjectID: subjectID)) }
+        newTitle = ""
+        newSubjectID = nil
+    }
+}
+
+/// In-session scratchpad to park intrusive ideas or urgent reminders without leaving lock-in.
+private struct ParkedThoughtsView: View {
+    let engine: SessionEngine
+    @State private var newThoughtText = ""
+    @FocusState private var isFieldFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                Text("Parked Thoughts")
+                    .font(.headline)
+                Text("Jot down intrusive ideas or tasks here to preserve your focus. You can review them when the session ends.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(Theme.Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.primary.opacity(0.02))
+
+            Divider()
+
+            if engine.parkedThoughts.isEmpty {
+                VStack(spacing: Theme.Space.s) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.secondary)
+                    Text("No parked thoughts yet")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Text("Type any random thought below and press Enter to save it for later.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(Theme.Space.l)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(Array(engine.parkedThoughts.enumerated()), id: \.offset) { index, thought in
+                        HStack(alignment: .top, spacing: Theme.Space.s) {
+                            Circle()
+                                .fill(Color.primary.opacity(0.3))
+                                .frame(width: 6, height: 6)
+                                .padding(.top, 6)
+                            Text(thought)
+                                .font(.body)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Button {
+                                engine.removeParkedThought(at: index)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .listStyle(.plain)
+            }
+
+            Divider()
+
+            HStack(spacing: Theme.Space.s) {
+                TextField("Park a thought for later… (Enter to save)", text: $newThoughtText)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($isFieldFocused)
+                    .onSubmit {
+                        submit()
+                    }
+                Button("Save") {
+                    submit()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(newThoughtText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(Theme.Space.m)
+        }
+        .onAppear {
+            isFieldFocused = true
+        }
+    }
+
+    private func submit() {
+        let trimmed = newThoughtText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        engine.addParkedThought(trimmed)
+        newThoughtText = ""
     }
 }

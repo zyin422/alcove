@@ -92,7 +92,7 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(try backupFiles().count, 2)
     }
 
-    func testFinalizeInterruptedClosesOpenSessionsAtLastHeartbeat() {
+    func testAKilledBlockStaysOpen() {
         var data = sampleData()
         let finished = data.sessions[0]
         let active = Session(subjectID: UUID(), subjectName: "MATH241", mode: .open, start: t0,
@@ -103,15 +103,12 @@ final class StoreTests: XCTestCase {
 
         XCTAssertEqual(result.sessions[0], finished)
         XCTAssertEqual(result.sessions[1], data.sessions[1])
-        let closed = result.sessions[2]
-        XCTAssertEqual(closed.end, t0.addingTimeInterval(600))
-        XCTAssertEqual(closed.outcome, .interrupted)
-        XCTAssertEqual(closed.duration, 600)
-        XCTAssertEqual(closed.blockedAttempts, 4)
-        XCTAssertEqual(closed.id, active.id)
+        XCTAssertNil(result.sessions[2].end)
+        XCTAssertNil(result.sessions[2].outcome)
+        XCTAssertEqual(result.sessions[2].id, active.id)
     }
 
-    func testLoadAppliesFinalizeInterrupted() throws {
+    func testLoadKeepsAKilledBlockOpen() throws {
         var data = sampleData()
         data.sessions.append(Session(subjectID: UUID(), subjectName: "MATH241", mode: .goal(minutes: 50),
                                      start: t0, lastHeartbeat: t0.addingTimeInterval(1200)))
@@ -121,9 +118,52 @@ final class StoreTests: XCTestCase {
         let loaded = store.load().data
 
         XCTAssertEqual(loaded.sessions.count, 3)
-        XCTAssertEqual(loaded.sessions[2].end, t0.addingTimeInterval(1200))
-        XCTAssertEqual(loaded.sessions[2].outcome, .interrupted)
+        XCTAssertNil(loaded.sessions[2].end)
+        XCTAssertNil(loaded.sessions[2].outcome)
         XCTAssertEqual(Array(loaded.sessions.prefix(2)), Array(data.sessions.prefix(2)))
+    }
+
+    func testAnOpenDemoSessionIsClosed() {
+        var data = sampleData()
+        data.sessions.append(Session(subjectID: UUID(), subjectName: "Demo", mode: .open, start: t0,
+                                     lastHeartbeat: t0.addingTimeInterval(400), isDemo: true))
+        let closed = Store.finalizeInterrupted(data).sessions[2]
+        XCTAssertEqual(closed.end, t0.addingTimeInterval(400))
+        XCTAssertEqual(closed.outcome, .interrupted)
+    }
+
+    func testLoadSavesAfterDroppingAShortBlock() throws {
+        var data = sampleData()
+        data.sessions.append(Session(subjectID: UUID(), subjectName: "MATH241", mode: .open,
+                                     start: t0, end: t0.addingTimeInterval(90),
+                                     lastHeartbeat: t0.addingTimeInterval(90), outcome: .bailed))
+        let store = Store(fileURL: fileURL)
+        try store.save(data)
+
+        let loaded = store.load().data
+        XCTAssertEqual(loaded.sessions.map(\.id), data.sessions.prefix(2).map(\.id))
+        XCTAssertEqual(store.load().data.sessions.map(\.id), loaded.sessions.map(\.id))
+    }
+
+    func testAFinishedBlockUnderFiveMinutesIsDropped() {
+        var data = sampleData()
+        data.sessions.append(Session(subjectID: UUID(), subjectName: "MATH241", mode: .open,
+                                     start: t0, end: t0.addingTimeInterval(120),
+                                     lastHeartbeat: t0.addingTimeInterval(120), outcome: .bailed))
+        let kept = Store.finalizeInterrupted(data).sessions
+        XCTAssertEqual(kept.map(\.id), data.sessions.prefix(2).map(\.id))
+    }
+
+    func testOlderSessionSaveWithoutSleepTimeStillLoads() throws {
+        let json = """
+        {"blockedAttempts":1,"closedTabs":0,"id":"00000000-0000-0000-0000-000000000001","isDemo":false,"lastHeartbeat":"2025-10-09T00:00:00Z","mode":{"open":{}},"start":"2025-10-09T00:00:00Z","subjectID":"00000000-0000-0000-0000-000000000002","subjectName":"CS128"}
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let session = try decoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertEqual(session.excluded, 0)
+        XCTAssertEqual(session.subjectName, "CS128")
+        XCTAssertEqual(session.blockedAttempts, 1)
     }
 
     func testDefaultURLIsInApplicationSupport() {

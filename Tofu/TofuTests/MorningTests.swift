@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import Tofu
 
@@ -13,15 +14,37 @@ final class MorningTests: XCTestCase {
     }
 
     private func shouldShow(at now: Date, settings: AppSettings = AppSettings(), isLocked: Bool = false,
-                            isBusy: Bool = false) -> Bool {
-        DayPlanner.shouldShowMorning(now: now, settings: settings, isLocked: isLocked, isBusy: isBusy, calendar: calendar)
+                            isBusy: Bool = false, hasStartedBlock: Bool = false, postponeUntil: Date? = nil) -> Bool {
+        DayPlanner.shouldShowMorning(now: now, settings: settings, isLocked: isLocked, isBusy: isBusy,
+                                     hasStartedBlock: hasStartedBlock, postponeUntil: postponeUntil, calendar: calendar)
+    }
+
+    func testPickPriorityScreenCoversEveryDisplay() {
+        let laptop = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let external = CGRect(x: 1440, y: -180, width: 1920, height: 1080)
+        XCTAssertEqual(MorningWindowPolicy.frames(covering: [laptop, external, .zero]), [laptop, external])
+    }
+
+    func testQuitIsRefusedDuringABlock() {
+        XCTAssertFalse(QuitPolicy.allowsQuit(isLocked: true))
+        XCTAssertTrue(QuitPolicy.allowsQuit(isLocked: false))
+    }
+
+    func testForceQuitWatchRestartsOnlyWhileTheFlagExists() {
+        let text = BlockGuard.plist(script: "/tmp/block-guard.sh", flag: "/tmp/block-open")
+        XCTAssertTrue(text.contains(BlockGuard.label))
+        XCTAssertTrue(text.contains("<key>/tmp/block-open</key>"))
+        XCTAssertTrue(text.contains("<key>PathState</key>"))
+        XCTAssertTrue(text.contains("/tmp/block-guard.sh"))
     }
 
     func testShowsOncePerDayFromFourAM() {
         XCTAssertTrue(shouldShow(at: date(11, 7)))
         XCTAssertTrue(shouldShow(at: date(11, 4)))
-        XCTAssertFalse(shouldShow(at: date(11, 7), settings: AppSettings(lastMorningKey: "2026-10-11")))
-        XCTAssertTrue(shouldShow(at: date(12, 7), settings: AppSettings(lastMorningKey: "2026-10-11")))
+        XCTAssertFalse(shouldShow(at: date(11, 7), hasStartedBlock: true))
+        XCTAssertTrue(shouldShow(at: date(12, 7)))
+        XCTAssertFalse(shouldShow(at: date(11, 7), postponeUntil: date(11, 7, 10)))
+        XCTAssertTrue(shouldShow(at: date(11, 7, 10), postponeUntil: date(11, 7, 10)))
     }
 
     func testNotLateAtNightLockedBusyOrOff() {
@@ -53,22 +76,56 @@ final class MorningTests: XCTestCase {
         return AppModel(store: Store(fileURL: directory.appendingPathComponent("store.json")), engine: harness.engine)
     }
 
-    @MainActor func testCheckMorningShowsOnceAndMarksTheDay() throws {
+    @MainActor func testMorningPostponeDelaysTenMinutes() throws {
         let model = try makeModel(EngineHarness())
+        let now = Date()
         var shown = 0
         model.onShowMorning = { shown += 1 }
         model.updateSettings { $0.dayEndMinutes = 24 * 60 + 3 * 60 }   // never "too late" during the test
-        model.checkMorning()
-        model.checkMorning()
+        model.checkMorning(now: now)
         XCTAssertEqual(shown, 1)
         XCTAssertTrue(model.isShowingMorning)
-        XCTAssertEqual(model.data.settings.lastMorningKey, DayKey.key(for: Date()))
-        var hidden = 0
-        model.onHideMorning = { hidden += 1 }
-        model.dismissMorning()
-        model.checkMorning()
-        XCTAssertEqual(shown, 1, "already shown today")
-        XCTAssertEqual(hidden, 1)
+        XCTAssertTrue(model.canPostponeMorning)
+        XCTAssertNil(model.data.settings.lastMorningKey)
+        XCTAssertNil(model.data.settings.lastPostponeKey)
+
+        model.postponeMorning(by: 600, now: now)
+        XCTAssertFalse(model.isShowingMorning)
+        XCTAssertEqual(model.data.settings.lastPostponeKey, DayKey.key(for: now))
+        XCTAssertFalse(model.canPostponeMorning)
+
+        model.checkMorning(now: now.addingTimeInterval(60))
+        XCTAssertEqual(shown, 1, "the ten minutes are still running")
+
+        model.checkMorning(now: now.addingTimeInterval(600))
+        XCTAssertEqual(shown, 2)
+        XCTAssertTrue(model.isShowingMorning)
+        XCTAssertFalse(model.canPostponeMorning, "only once per day")
+
+        // Spamming postpone is prevented: screen stays up
+        model.postponeMorning(by: 600, now: now.addingTimeInterval(600))
+        XCTAssertTrue(model.isShowingMorning, "cannot spam postpone")
+
+        // Next day allows postpone again
+        let tomorrow = now.addingTimeInterval(24 * 3600)
+        XCTAssertTrue(model.allowsMorningPostpone(now: tomorrow))
+    }
+
+    @MainActor func testOpenPlanPostponesLockInAndSelectsToday() throws {
+        let model = try makeModel(EngineHarness())
+        let now = Date()
+        model.showMorning(now: now)
+        XCTAssertTrue(model.isShowingMorning)
+
+        var mainWindowShown = false
+        model.onShowMainWindow = { mainWindowShown = true }
+
+        model.openPlan(now: now)
+        XCTAssertFalse(model.isShowingMorning)
+        XCTAssertEqual(model.selection, .today)
+        XCTAssertTrue(mainWindowShown)
+        XCTAssertEqual(model.data.settings.morningPostponeUntil, now.addingTimeInterval(600))
+        XCTAssertEqual(model.data.settings.lastPostponeKey, DayKey.key(for: now))
     }
 
     @MainActor func testStartTiesThePriorityToTheSetupAndLocksIn() async throws {
@@ -86,6 +143,48 @@ final class MorningTests: XCTestCase {
         XCTAssertEqual(model.todayPlan().priorities.first?.subjectID, subject.id)
         XCTAssertEqual(harness.engine.subject?.id, subject.id)
         XCTAssertEqual(harness.chrome.preparedSites, ["https://cs128.org"])
+    }
+
+    @MainActor func testStartDirectSubjectLocksInWithoutAPriority() async throws {
+        let harness = EngineHarness()
+        let model = try makeModel(harness)
+        let subject = Subject(name: "MATH241", sites: ["https://desmos.com"])
+        model.addSubject(subject)
+        model.showMorning()
+
+        await model.start(subjectID: subject.id, mode: .goal(minutes: 25))
+
+        XCTAssertFalse(model.isShowingMorning)
+        XCTAssertEqual(harness.engine.subject?.id, subject.id)
+        XCTAssertEqual(harness.chrome.preparedSites, ["https://desmos.com"])
+    }
+
+    @MainActor func testMorningViewRendersWithOtherSubjects() throws {
+        let harness = EngineHarness()
+        let model = try makeModel(harness)
+        let subject1 = Subject(name: "CS128", sites: ["https://cs128.org"])
+        let subject2 = Subject(name: "MATH241", sites: ["https://desmos.com"])
+        model.addSubject(subject1)
+        model.addSubject(subject2)
+        let priority = Priority(title: "Finish CS128 lab", subjectID: subject1.id)
+        model.updatePlan(day: DayKey.key(for: Date())) { $0.priorities = [priority] }
+
+        let view = MorningView(model: model)
+            .frame(width: 800, height: 600)
+        let renderer = ImageRenderer(content: view)
+        XCTAssertNotNil(renderer.nsImage)
+    }
+
+    @MainActor func testMorningViewRendersWithNoPrioritiesDirectSubjects() throws {
+        let harness = EngineHarness()
+        let model = try makeModel(harness)
+        let subject = Subject(name: "MATH241", sites: ["https://desmos.com"])
+        model.addSubject(subject)
+
+        let view = MorningView(model: model)
+            .frame(width: 800, height: 600)
+        let renderer = ImageRenderer(content: view)
+        XCTAssertNotNil(renderer.nsImage)
     }
 
     @MainActor func testStartAfterWrapUpUsesTomorrowsPriority() async throws {
@@ -127,5 +226,114 @@ final class MorningTests: XCTestCase {
         XCTAssertTrue(model.isWrappingUpDay)
         XCTAssertFalse(model.isShowingMorning)
         XCTAssertNil(model.data.settings.lastMorningKey)
+    }
+
+    func testAShortBlockBringsTheScreenStraightBack() {
+        let now = date(11, 10)
+        let session = Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
+                              start: date(11, 9, 58), end: now, outcome: .completed)
+        let prompt = DayPlanner.morningPrompt(
+            now: now, settings: AppSettings(dayEndMinutes: 22 * 60), isLocked: false, isBusy: false,
+            wrappedUp: false, sessions: [session], quiet: [], graceUntil: nil, graceHeld: false, calendar: calendar)
+        XCTAssertTrue(prompt.show)
+        XCTAssertTrue(prompt.postponeAllowed)
+        XCTAssertNil(prompt.waitUntil)
+    }
+
+    func testPostponeNotAllowedWhenAlreadyUsedToday() {
+        let now = date(11, 10)
+        let today = DayKey.key(for: now, calendar: calendar)
+        let session = Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
+                              start: date(11, 9, 58), end: now, outcome: .completed)
+        let prompt = DayPlanner.morningPrompt(
+            now: now, settings: AppSettings(dayEndMinutes: 22 * 60, lastPostponeKey: today), isLocked: false, isBusy: false,
+            wrappedUp: false, sessions: [session], quiet: [], graceUntil: nil, graceHeld: false, calendar: calendar)
+        XCTAssertTrue(prompt.show)
+        XCTAssertFalse(prompt.postponeAllowed)
+        XCTAssertNil(prompt.waitUntil)
+    }
+
+    func testARealBlockWaitsThroughGraceAndACalendarEvent() {
+        let blockEnd = date(11, 8, 30)
+        let session = Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
+                              start: date(11, 8), end: blockEnd, outcome: .completed)
+        let during = DayPlanner.morningPrompt(
+            now: date(11, 8, 40), settings: AppSettings(), isLocked: false, isBusy: false, wrappedUp: false,
+            sessions: [session], quiet: [], graceUntil: nil, graceHeld: false, calendar: calendar)
+        XCTAssertFalse(during.show)
+        XCTAssertEqual(during.waitUntil, blockEnd.addingTimeInterval(DayPlanner.betweenBlockGrace))
+
+        let event = DayPlanner.QuietInterval(start: date(11, 9), end: date(11, 11))
+        let inClass = DayPlanner.morningPrompt(
+            now: date(11, 10), settings: AppSettings(), isLocked: false, isBusy: false, wrappedUp: false,
+            sessions: [session], quiet: [event], graceUntil: during.graceUntil, graceHeld: false, calendar: calendar)
+        XCTAssertFalse(inClass.show)
+        XCTAssertEqual(inClass.waitUntil, date(11, 11).addingTimeInterval(DayPlanner.betweenBlockGrace))
+
+        let wrapped = DayPlanner.morningPrompt(
+            now: date(11, 12), settings: AppSettings(), isLocked: false, isBusy: false, wrappedUp: true,
+            sessions: [session], quiet: [], graceUntil: inClass.graceUntil, graceHeld: false, calendar: calendar)
+        XCTAssertFalse(wrapped.show)
+    }
+
+    @MainActor func testAShortBlockReturnsAndARealBlockGracePausesWhileAsleep() throws {
+        let model = try makeModel(EngineHarness())
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 11, hour: 15))!
+        model.updateSettings { $0.dayEndMinutes = 24 * 60 + 3 * 60 }
+        var shown = 0
+        model.onShowMorning = { shown += 1 }
+
+        model.upsertSession(Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
+                                    start: now.addingTimeInterval(-120), end: now, outcome: .completed))
+        model.checkMorning(now: now)
+        XCTAssertEqual(shown, 1)
+        XCTAssertTrue(model.allowsMorningPostpone(now: now))
+        model.dismissMorning()
+
+        let realEnd = now.addingTimeInterval(600)
+        model.upsertSession(Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
+                                    start: now, end: realEnd, outcome: .completed))
+        model.checkMorning(now: realEnd)
+        XCTAssertEqual(shown, 1, "the 20 minutes are still running")
+        XCTAssertEqual(model.data.settings.morningGraceUntil, realEnd.addingTimeInterval(DayPlanner.betweenBlockGrace))
+
+        model.holdMorningGrace(now: realEnd.addingTimeInterval(5 * 60))
+        let wake = realEnd.addingTimeInterval(3 * 3600)
+        model.checkMorning(now: wake)
+        XCTAssertEqual(shown, 1)
+        XCTAssertNil(model.data.settings.morningGraceHeld)
+        XCTAssertEqual(model.data.settings.morningGraceUntil, wake.addingTimeInterval(15 * 60))
+        model.checkMorning(now: wake.addingTimeInterval(15 * 60))
+        XCTAssertEqual(shown, 2)
+        XCTAssertTrue(model.allowsMorningPostpone(now: wake.addingTimeInterval(15 * 60)))
+
+        model.dismissMorning()
+        model.updatePlan(day: DayKey.key(for: wake)) { $0.wrappedUp = true }
+        model.checkMorning(now: wake.addingTimeInterval(16 * 60))
+        XCTAssertEqual(shown, 2, "wrap up ends the day")
+    }
+
+    @MainActor func testAWrappedDayAsksAgainAtTheNextMorning() throws {
+        let model = try makeModel(EngineHarness())
+        let evening = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 22, minute: 30))!
+        let morning = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 9))!
+        model.updateSettings { $0.dayEndMinutes = 24 * 60 + 3 * 60 }
+        model.updatePlan(day: DayKey.key(for: evening)) { $0.wrappedUp = true }
+        var shown = 0
+        model.onShowMorning = { shown += 1 }
+
+        model.checkMorning(now: evening)
+        XCTAssertEqual(shown, 0)
+        XCTAssertEqual(model.data.settings.morningGraceUntil, nil)
+
+        let prompt = DayPlanner.morningPrompt(
+            now: evening, settings: model.data.settings, isLocked: false, isBusy: false, wrappedUp: true,
+            sessions: [], quiet: [], graceUntil: nil, graceHeld: false)
+        XCTAssertEqual(prompt.waitUntil, DayKey.nextStart(after: evening))
+
+        model.checkMorning(now: morning)
+        XCTAssertEqual(shown, 1)
+        model.checkMorning(now: morning.addingTimeInterval(60))
+        XCTAssertEqual(shown, 2, "a wake that found the screen already flagged still brings it forward")
     }
 }

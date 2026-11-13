@@ -40,7 +40,9 @@ final class AppModelTests: XCTestCase {
     func testSelectionDefaultsToFirstSubject() throws {
         let store = try makeStore()
         let first = makeSubject("CS128")
-        let second = makeSubject("MATH241")
+        let second = Subject(name: "MATH241", preset: .split,
+                             sites: ["https://cs128.org", "https://prairielearn.org"],
+                             extraDomains: ["piazza.com"], createdAt: t0, colorHex: "F58518")
         try store.save(StoreData(subjects: [first, second]))
 
         let model = AppModel(store: store, engine: EngineHarness().engine)
@@ -118,6 +120,26 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(model.data.subjects.isEmpty)
     }
 
+    func testMoveSubjectsReordersAndKeepsTheSelection() throws {
+        let store = try makeStore()
+        let model = AppModel(store: store, engine: EngineHarness().engine)
+        let first = makeSubject("CS128")
+        let middle = makeSubject("MATH241")
+        let last = makeSubject("CS173")
+        model.addSubject(first)
+        model.addSubject(middle)
+        model.addSubject(last)
+        model.selection = .subject(last.id)
+
+        model.moveSubjects(from: IndexSet(integer: 2), to: 0)
+        XCTAssertEqual(model.data.subjects.map(\.name), ["CS173", "CS128", "MATH241"])
+        XCTAssertEqual(model.selection, .subject(last.id))
+
+        model.moveSubjects(from: IndexSet(integer: 1), to: 3)
+        XCTAssertEqual(model.data.subjects.map(\.name), ["CS173", "MATH241", "CS128"])
+        XCTAssertEqual(reloaded(store).subjects.map(\.id), [last.id, middle.id, first.id])
+    }
+
     // MARK: Sessions
 
     func testUpsertSessionInsertsThenUpdates() throws {
@@ -132,6 +154,45 @@ final class AppModelTests: XCTestCase {
 
         XCTAssertEqual(model.data.sessions, [session])
         XCTAssertEqual(reloaded(store).sessions, [session])
+    }
+
+    func testDeleteSessionRemovesAFinishedBlock() throws {
+        let store = try makeStore()
+        let model = AppModel(store: store, engine: EngineHarness().engine)
+        let session = endedSession(for: makeSubject())
+        model.upsertSession(session)
+
+        model.deleteSession(id: session.id)
+
+        XCTAssertTrue(model.data.sessions.isEmpty)
+        XCTAssertTrue(reloaded(store).sessions.isEmpty)
+    }
+
+    func testDropShortEndedSessionsRemovesFinishedBlocksUnderFiveMinutes() throws {
+        let store = try makeStore()
+        let model = AppModel(store: store, engine: EngineHarness().engine)
+        let short = Session(subjectID: UUID(), subjectName: "MATH241", mode: .open, start: t0,
+                            end: t0.addingTimeInterval(120), lastHeartbeat: t0.addingTimeInterval(120),
+                            outcome: .bailed)
+        let kept = endedSession(for: makeSubject())
+        model.upsertSession(short)
+        model.upsertSession(kept)
+
+        model.dropShortEndedSessions()
+
+        XCTAssertEqual(model.data.sessions.map(\.id), [kept.id])
+        XCTAssertEqual(reloaded(store).sessions.map(\.id), [kept.id])
+    }
+
+    func testDeleteSessionLeavesALiveBlockAlone() throws {
+        let store = try makeStore()
+        let model = AppModel(store: store, engine: EngineHarness().engine)
+        let live = Session(subjectID: UUID(), subjectName: "CS128", mode: .open, start: t0)
+        model.upsertSession(live)
+
+        model.deleteSession(id: live.id)
+
+        XCTAssertEqual(model.data.sessions.map(\.id), [live.id])
     }
 
     func testEngineSessionChangesArePersisted() async throws {
@@ -209,6 +270,7 @@ final class AppModelTests: XCTestCase {
         model.addSubject(subject)
         await model.lockIn(subjectID: subject.id, mode: .open)
         XCTAssertTrue(harness.engine.isLocked)
+        harness.clock.advance(600)
         await harness.engine.finish()
 
         XCTAssertFalse(harness.engine.isLocked)
@@ -487,17 +549,17 @@ final class AppModelTests: XCTestCase {
         model.addSubject(subject)
         await harness.engine.start(subject: subject, mode: .open, displayName: "Z")
         harness.engine.lookupApp = { name in
-            name == "Slack" ? AllowedApp(bundleID: "com.tinyspeck.slackmacgap", name: "Slack") : nil
+            name == "Calculator" ? AllowedApp(bundleID: "com.apple.calculator", name: "Calculator") : nil
         }
 
         harness.engine.rememberAllowedSite("https://stackoverflow.com/questions/1")
-        XCTAssertEqual(harness.engine.allowApp(named: "Slack"), "Allowed Slack for this work block.")
+        XCTAssertEqual(harness.engine.allowApp(named: "Calculator"), "Allowed Calculator for this work block.")
 
         let saved = model.subject(id: subject.id)
         XCTAssertEqual(saved?.extraDomains, ["piazza.com", "stackoverflow.com"])
-        XCTAssertEqual(saved?.allowedApps.map(\.name), ["Slack"])
+        XCTAssertEqual(saved?.allowedApps.map(\.name), ["Calculator"])
         let again = reloaded(store).subjects.first { $0.id == subject.id }
         XCTAssertEqual(again?.extraDomains, ["piazza.com", "stackoverflow.com"])
-        XCTAssertEqual(again?.allowedApps.map(\.bundleID), ["com.tinyspeck.slackmacgap"])
+        XCTAssertEqual(again?.allowedApps.map(\.bundleID), ["com.apple.calculator"])
     }
 }

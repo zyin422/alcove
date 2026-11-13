@@ -14,13 +14,112 @@ enum DayPlanner {
         return DayKey.minutesIntoDay(now, calendar: calendar) >= settings.dayEndMinutes
     }
 
-    /// True when the morning screen should show now: it is on, it was not shown yet today (`DayKey`, so a day
-    /// starts at 4 AM), nothing is running or on screen, and the end-of-day time has not come yet.
-    static func shouldShowMorning(now: Date, settings: AppSettings, isLocked: Bool, isBusy: Bool,
+    /// True when the current local time is past midnight but before the new day starts at 4 AM (00:00 - 03:59).
+    static func isPastMidnight(now: Date, calendar: Calendar = .current) -> Bool {
+        let hour = calendar.component(.hour, from: now)
+        return hour >= 0 && hour < DayKey.dayStartHour
+    }
+
+    /// True when the bedtime guard should lock the screen:
+    /// It is past midnight (00:00 - 03:59), bedtime guard is enabled, and no active work block is in progress.
+    static func shouldShowBedtime(now: Date, settings: AppSettings, isLocked: Bool, isBusy: Bool = false,
                                   calendar: Calendar = .current) -> Bool {
-        guard settings.morningScreenEnabled, !isLocked, !isBusy,
-              settings.lastMorningKey != DayKey.key(for: now, calendar: calendar) else { return false }
-        return DayKey.minutesIntoDay(now, calendar: calendar) < settings.dayEndMinutes
+        guard settings.bedtimeGuardEnabled, !isLocked, !isBusy else { return false }
+        return isPastMidnight(now: now, calendar: calendar)
+    }
+
+    /// A finished block shorter than this does not count. The screen comes straight back.
+    static let realBlockSeconds: TimeInterval = 5 * 60
+    /// Quiet time after a real block, so a walk to another room is not treated as wandering off.
+    static let betweenBlockGrace: TimeInterval = 20 * 60
+
+    /// A timed calendar event. All-day events are left out: one of those would hide the screen for the whole day.
+    struct QuietInterval: Equatable {
+        var start: Date
+        var end: Date
+    }
+
+    /// What the morning screen should do at `now`.
+    struct MorningPrompt: Equatable {
+        var show: Bool
+        /// Check again then. Nil when nothing is waiting.
+        var waitUntil: Date?
+        /// The one "Start in 10 minutes" is still available.
+        var postponeAllowed: Bool
+        /// Grace deadline to store. Nil when this check does not change it.
+        var graceUntil: Date?
+    }
+
+    static func quietIntervals(_ events: [GoogleEvent]) -> [QuietInterval] {
+        events.compactMap { event in
+            guard let start = event.start.parsed, let end = event.end.parsed, end > start else { return nil }
+            return QuietInterval(start: start, end: end)
+        }
+    }
+
+    /// The morning screen comes back until a real block is under way, and again after one ends, until the day
+    /// is wrapped up. A calendar event and the grace after a real block both keep it down.
+    static func morningPrompt(now: Date, settings: AppSettings, isLocked: Bool, isBusy: Bool, wrappedUp: Bool,
+                              sessions: [Session], quiet: [QuietInterval], graceUntil: Date?, graceHeld: Bool,
+                              calendar: Calendar = .current) -> MorningPrompt {
+        let down = MorningPrompt(show: false, waitUntil: nil, postponeAllowed: false, graceUntil: nil)
+        guard settings.morningScreenEnabled, !isLocked, !graceHeld else { return down }
+        if isBusy { return down }
+        if wrappedUp {
+            return MorningPrompt(show: false, waitUntil: DayKey.nextStart(after: now, calendar: calendar),
+                                 postponeAllowed: false, graceUntil: nil)
+        }
+        let today = DayKey.key(for: now, calendar: calendar)
+        let todays = sessions.filter {
+            !$0.isDemo && $0.end != nil && DayKey.key(for: $0.start, calendar: calendar) == today
+        }
+        let live = sessions.contains {
+            !$0.isDemo && $0.end == nil && DayKey.key(for: $0.start, calendar: calendar) == today
+        }
+        if live { return down }
+        let postponeAllowed = settings.lastPostponeKey != today
+        // If the user clicked "Not now", keep the screen down until the 10-minute delay expires.
+        if let postpone = settings.morningPostponeUntil, postpone > now {
+            return MorningPrompt(show: false, waitUntil: postpone, postponeAllowed: false, graceUntil: nil)
+        }
+        let covering = quiet.first { $0.start <= now && now < $0.end }
+        guard let latest = todays.max(by: { ($0.end ?? $0.start) < ($1.end ?? $1.start) }) else {
+            if let covering {
+                return MorningPrompt(show: false, waitUntil: covering.end, postponeAllowed: postponeAllowed,
+                                     graceUntil: nil)
+            }
+            guard DayKey.minutesIntoDay(now, calendar: calendar) < settings.dayEndMinutes else { return down }
+            return MorningPrompt(show: true, waitUntil: nil, postponeAllowed: postponeAllowed, graceUntil: nil)
+        }
+        if latest.duration < realBlockSeconds {
+            if let covering {
+                return MorningPrompt(show: false, waitUntil: covering.end, postponeAllowed: postponeAllowed, graceUntil: nil)
+            }
+            return MorningPrompt(show: true, waitUntil: nil, postponeAllowed: postponeAllowed, graceUntil: nil)
+        }
+        let end = latest.end ?? now
+        var deadline = graceUntil ?? end.addingTimeInterval(betweenBlockGrace)
+        if let covering {
+            deadline = max(deadline, covering.end.addingTimeInterval(betweenBlockGrace))
+        }
+        if now < deadline {
+            return MorningPrompt(show: false, waitUntil: deadline, postponeAllowed: postponeAllowed, graceUntil: deadline)
+        }
+        return MorningPrompt(show: true, waitUntil: nil, postponeAllowed: postponeAllowed, graceUntil: deadline)
+    }
+
+    /// True when the morning screen should show now: it is on, no work block is in progress, a "Start in 10
+    /// minutes" delay is not still running, and the end-of-day time has not come yet.
+    static func shouldShowMorning(now: Date, settings: AppSettings, isLocked: Bool, isBusy: Bool,
+                                  hasStartedBlock: Bool = false, postponeUntil: Date? = nil,
+                                  calendar: Calendar = .current) -> Bool {
+        var settings = settings
+        if let postponeUntil { settings.morningPostponeUntil = postponeUntil }
+        let sessions = hasStartedBlock
+            ? [Session(subjectID: UUID(), subjectName: "", mode: .open, start: now)]
+            : []
+        return morningPrompt(now: now, settings: settings, isLocked: isLocked, isBusy: isBusy, wrappedUp: false,
+                             sessions: sessions, quiet: [], graceUntil: nil, graceHeld: false, calendar: calendar).show
     }
 
     /// The day Today shows. This is the current day (a day runs from 4 AM). Wrapping up saves the next
@@ -155,7 +254,48 @@ enum DayPlanner {
 
     /// Local fallback for `PriorityExtractor`: split the words and match setups by name.
     static func localPriorities(from text: String, subjects: [Subject]) -> [Priority] {
-        splitSpokenList(text).map { Priority(title: $0, subjectID: matchSubject($0, subjects: subjects)) }
+        splitSpokenList(text).map { item in
+            let (clean, estimatedMinutes) = parseTimeEstimate(from: item)
+            return Priority(title: clean, subjectID: matchSubject(clean, subjects: subjects), estimatedMinutes: estimatedMinutes)
+        }
+    }
+
+    /// Extracts a time estimate from a priority string, returning the cleaned title and minutes.
+    /// Handles "45m", "30 min", "1h", "1.5 hours", "(25m)", "2 hr", etc.
+    static func parseTimeEstimate(from raw: String) -> (title: String, estimatedMinutes: Int?) {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return (title: raw, estimatedMinutes: nil) }
+
+        // Look for hours: e.g. "1.5h", "2 hours", "1 hr", "(1h)"
+        let hoursPattern = #"(?i)(?:\((?:(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?))\)|(?:^|\s)(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)(?:\s|$|[),.]))"#
+        if let regex = try? NSRegularExpression(pattern: hoursPattern) {
+            let nsString = text as NSString
+            if let match = regex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: nsString.length)) {
+                let captureRange = match.range(at: 1).location != NSNotFound ? match.range(at: 1) : match.range(at: 2)
+                if captureRange.location != NSNotFound, let hours = Double(nsString.substring(with: captureRange)) {
+                    let minutes = Int(round(hours * 60))
+                    let clean = regex.stringByReplacingMatches(in: text, options: [], range: NSRange(location: 0, length: nsString.length), withTemplate: " ")
+                    let trimmed = clean.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:,()")))
+                    return (title: trimmed.isEmpty ? raw : trimmed, estimatedMinutes: minutes)
+                }
+            }
+        }
+
+        // Look for minutes: e.g. "45m", "30 mins", "25 min", "(50m)"
+        let minsPattern = #"(?i)(?:\((?:(\d+)\s*(?:m|min|mins|minutes?))\)|(?:^|\s)(\d+)\s*(?:m|min|mins|minutes?)(?:\s|$|[),.]))"#
+        if let regex = try? NSRegularExpression(pattern: minsPattern) {
+            let nsString = text as NSString
+            if let match = regex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: nsString.length)) {
+                let captureRange = match.range(at: 1).location != NSNotFound ? match.range(at: 1) : match.range(at: 2)
+                if captureRange.location != NSNotFound, let minutes = Int(nsString.substring(with: captureRange)) {
+                    let clean = regex.stringByReplacingMatches(in: text, options: [], range: NSRange(location: 0, length: nsString.length), withTemplate: " ")
+                    let trimmed = clean.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:,()")))
+                    return (title: trimmed.isEmpty ? raw : trimmed, estimatedMinutes: minutes)
+                }
+            }
+        }
+
+        return (title: text, estimatedMinutes: nil)
     }
 }
 

@@ -25,6 +25,9 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: 2.10.0
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio
+    from: 0.18.3
 
 targets:
   Tofu:
@@ -34,6 +37,8 @@ targets:
       - path: Tofu
     dependencies:
       - package: Sparkle
+      - package: FluidAudio
+        product: FluidAudio
     # Sparkle reads these from Info.plist; Xcode merges this file with the generated Info.plist keys below.
     info:
       path: Tofu/Info.plist

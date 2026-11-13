@@ -1,5 +1,29 @@
 import AppKit
 
+/// One AppKit window, reduced to what the single-window rule needs.
+struct MainWindowCandidate: Equatable {
+    var id: String
+    var isPanel: Bool
+    var isBorderless: Bool
+    var canBecomeMain: Bool
+    var isSheet: Bool
+    var title: String
+
+    /// The SwiftUI document window. Panels, sheets, and the borderless morning screen are not it.
+    var isDocument: Bool { !isPanel && !isSheet && !isBorderless && canBecomeMain }
+}
+
+/// Tofu has one document window. A lock-in must not leave a second one beside it.
+enum MainWindowPolicy {
+    /// Document windows to close. `keeping` stays; a separate Settings window stays too.
+    /// With no known window, the first document window stays and the later ones close.
+    static func windowsToClose(_ windows: [MainWindowCandidate], keeping: String?) -> [String] {
+        let documents = windows.filter(\.isDocument)
+        guard let keep = keeping ?? documents.first?.id else { return [] }
+        return documents.filter { $0.id != keep && $0.title != "Settings" }.map(\.id)
+    }
+}
+
 /// Live WindowPresenting: moves the main window into the app zone (thirds / 70-30) or swaps it for the
 /// floating MiniTimerPanel (split / full), and puts everything back when the session ends.
 @MainActor final class MainWindowPresenter: WindowPresenting {
@@ -13,6 +37,8 @@ import AppKit
     private var spirit: SpiritPanel?
     /// True when the circle is standing in for the mini timer, so opening chat centers the window.
     private var spiritReplacesTimer = false
+    /// Bumped when the block ends so a late sweep does not close a window the user opened afterwards.
+    private var sweepGeneration = 0
 
     init(model: AppModel) {
         self.model = model
@@ -22,6 +48,7 @@ import AppKit
     func enterLocked(appFrame: CGRect?) {
         let window = Self.visibleMainWindow() ?? lockedWindow
         lockedWindow = window
+        if let window { reveal(window) }
         if savedFrame == nil {
             savedFrame = window?.frame
         }
@@ -33,10 +60,22 @@ import AppKit
             bringToFront(window)
             reapplyFrameAfterSwiftUIUpdate(appFrame, to: window)
         } else {
-            window?.orderOut(nil)
-            closePanel()
-            showSpirit(replacesTimer: true)
+            if let window { hideWithoutClosing(window) }
+            closeSpirit()
+            showPanel()
         }
+        sweepExtrasSoon()
+    }
+
+    /// The dock click brings the window we already have instead of letting SwiftUI open another.
+    func showExistingWindow() {
+        guard let window = lockedWindow ?? Self.visibleMainWindow() else { return }
+        if model.engine.isLocked {
+            showMainWindow()
+            return
+        }
+        reveal(window)
+        bringToFront(window)
     }
 
     /// Brings the locked-in main window (the chat screen) to the front. Does nothing unless a session is locked in,
@@ -52,8 +91,10 @@ import AppKit
         if (panel != nil || spiritReplacesTimer), let visible = ScreenGeometry.mainVisibleFrame() {
             window.setFrame(LockedLayout.centeredFrame(size: LockedLayout.windowSize, in: visible), display: true)
         }
+        reveal(window)
         bringToFront(window)
         window.orderFrontRegardless()
+        closeExtras()
     }
 
     /// Mini timer ✕: shows the main window, then asks LockedView to start the end flow
@@ -71,10 +112,12 @@ import AppKit
         let frame = savedFrame
         savedFrame = nil
         lockedWindow = nil
+        sweepGeneration += 1
         guard let window else {
             NSApp.activate()
             return
         }
+        reveal(window)
         if let frame {
             window.setFrame(frame, display: true, animate: window.isVisible)
         }
@@ -83,9 +126,60 @@ import AppKit
 
     // MARK: Helpers
 
-    /// The SwiftUI main window: a visible, non-panel, non-sheet window that can become main.
-    private static func visibleMainWindow() -> NSWindow? {
-        NSApp.windows.first(where: { !($0 is NSPanel) && $0.sheetParent == nil && $0.canBecomeMain })
+    /// The SwiftUI main window: not a panel, sheet, or the borderless morning screen.
+    static func visibleMainWindow() -> NSWindow? {
+        NSApp.windows.first(where: isDocumentWindow)
+    }
+
+    static func isDocumentWindow(_ window: NSWindow) -> Bool {
+        !(window is NSPanel) && window.sheetParent == nil && !window.styleMask.contains(.borderless) && window.canBecomeMain
+    }
+
+    /// Parks the window offscreen without ordering it out, so SwiftUI still counts it as open.
+    private func hideWithoutClosing(_ window: NSWindow) {
+        window.alphaValue = 0
+        window.ignoresMouseEvents = true
+        window.isExcludedFromWindowsMenu = true
+        window.setFrameOrigin(NSPoint(x: -window.frame.width - 2000, y: -window.frame.height - 2000))
+    }
+
+    private func reveal(_ window: NSWindow) {
+        window.alphaValue = 1
+        window.ignoresMouseEvents = false
+        window.isExcludedFromWindowsMenu = false
+    }
+
+    private func sweepExtrasSoon() {
+        sweepGeneration += 1
+        let generation = sweepGeneration
+        closeExtras()
+        for delay in [0.3, 1.0] {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                guard let self, self.sweepGeneration == generation, self.model.engine.isLocked else { return }
+                self.closeExtras()
+            }
+        }
+    }
+
+    /// Closes a Tofu window that appeared after the block started. Panels opened for the block stay.
+    private func closeExtras() {
+        let candidates = NSApp.windows.map { window in
+            MainWindowCandidate(id: Self.identity(window),
+                                isPanel: window is NSPanel,
+                                isBorderless: window.styleMask.contains(.borderless),
+                                canBecomeMain: window.canBecomeMain,
+                                isSheet: window.sheetParent != nil,
+                                title: window.title)
+        }
+        let closing = Set(MainWindowPolicy.windowsToClose(candidates, keeping: lockedWindow.map(Self.identity)))
+        for window in NSApp.windows where closing.contains(Self.identity(window)) {
+            window.close()
+        }
+    }
+
+    private static func identity(_ window: NSWindow) -> String {
+        String(UInt(bitPattern: ObjectIdentifier(window)))
     }
 
     private func bringToFront(_ window: NSWindow) {

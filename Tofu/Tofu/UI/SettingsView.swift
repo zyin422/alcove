@@ -22,10 +22,13 @@ struct SettingsView: View {
     var body: some View {
         Form {
             profileSection
+            voiceSection
+            focusSoundSection
             discordSection
             discordSetupSection
             googleSection
             accountabilitySection
+            breakSection
             companionSection
             endOfDaySection
             relevanceSection
@@ -51,6 +54,75 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var voiceSection: some View {
+        Section {
+            Button("Play sample") {
+                VoiceOutput.shared.speak("Hi. You're locked in. I'll check in if a site looks off topic.")
+            }
+        } header: {
+            Text("Voice")
+        } footer: {
+            Text("The voice used when Tofu talks. The first play downloads it, so that one can take a moment.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var focusSoundSection: some View {
+        Section {
+            Picker("Soundscape", selection: focusSoundBinding) {
+                ForEach(FocusSound.allCases) { sound in
+                    Text(sound.rawValue).tag(sound)
+                }
+            }
+            if model.data.settings.focusSound != .off {
+                HStack {
+                    Text("Volume")
+                    Slider(value: focusSoundVolumeBinding, in: 0.05...1.0)
+                    Text("\(Int(model.data.settings.focusSoundVolume * 100))%")
+                        .monospacedDigit()
+                        .frame(width: 40, alignment: .trailing)
+                }
+                Button(FocusAudioEngine.shared.isPlaying ? "Stop preview" : "Preview soundscape") {
+                    if FocusAudioEngine.shared.isPlaying {
+                        FocusAudioEngine.shared.stop()
+                    } else {
+                        FocusAudioEngine.shared.volume = Float(model.data.settings.focusSoundVolume)
+                        FocusAudioEngine.shared.play(model.data.settings.focusSound)
+                    }
+                }
+            }
+        } header: {
+            Text("Focus Soundscape")
+        } footer: {
+            Text("Continuous ambient background audio (Brown Noise, Pink Noise, Binaural Beats) synthesized live on your Mac to mask distractions during focus blocks.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var focusSoundBinding: Binding<FocusSound> {
+        Binding(
+            get: { model.data.settings.focusSound },
+            set: { newSound in
+                model.updateSettings { $0.focusSound = newSound }
+                if FocusAudioEngine.shared.isPlaying {
+                    FocusAudioEngine.shared.play(newSound)
+                }
+            }
+        )
+    }
+
+    private var focusSoundVolumeBinding: Binding<Double> {
+        Binding(
+            get: { model.data.settings.focusSoundVolume },
+            set: { newVol in
+                model.updateSettings { $0.focusSoundVolume = newVol }
+                FocusAudioEngine.shared.volume = Float(newVol)
+            }
+        )
     }
 
     private var discordSection: some View {
@@ -154,6 +226,18 @@ struct SettingsView: View {
         }
     }
 
+    private var breakSection: some View {
+        Section {
+            Toggle("Allow other sites and apps", isOn: allowOffTaskDuringBreak)
+        } header: {
+            Text("Breaks")
+        } footer: {
+            Text("Off by default. A break only pauses the timer, so Discord and other off-task pages stay blocked. Turn this on to look at them during the break; Tofu closes them again when the break ends.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var companionSection: some View {
         Section {
             Toggle("Show the study companion", isOn: companionEnabled)
@@ -181,13 +265,19 @@ struct SettingsView: View {
             Toggle("Show the morning screen", isOn: Binding(
                 get: { model.data.settings.morningScreenEnabled },
                 set: { value in model.updateSettings { $0.morningScreenEnabled = value } }))
+            Toggle("Lock screen after midnight (Bedtime guard)", isOn: Binding(
+                get: { model.data.settings.bedtimeGuardEnabled },
+                set: { value in model.updateSettings { $0.bedtimeGuardEnabled = value } }))
+            TextField("Planning Mode feed URL", text: Binding(
+                get: { model.data.settings.aiFeedURL },
+                set: { value in model.updateSettings { $0.aiFeedURL = value } }))
             Toggle("Ask me to wrap up the day", isOn: dayEndPromptEnabled)
             DatePicker("At", selection: dayEndTime, displayedComponents: .hourAndMinute)
                 .disabled(!model.data.settings.dayEndPromptEnabled)
         } header: {
             Text("End of day")
         } footer: {
-            Text("The morning screen shows the first time you use the Mac each day (after 4 AM): pick one of today's priorities and lock in on its setup. At the end-of-day time the app asks what you finished, posts it to the group chat, and has you say tomorrow's priorities. If you're locked in, it waits until the session ends. You can also use “Wrap up” on the Today page.")
+            Text("The morning screen shows each time you use the Mac (after 4 AM) until a work block of at least 5 minutes, and it stays in front on every display until you lock in. Start in 10 minutes hides it once. The shortest timer is 5 minutes. Ending sooner brings the screen straight back. After a real block you get 20 minutes, paused while the lid is closed and during a calendar event, then the screen stays until you lock in. Wrap up ends that. At the end-of-day time the app asks what you finished, posts it to the group chat, and has you say tomorrow's priorities. If you're locked in, it waits until the session ends. You can also use “Wrap up” on the Today page.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -271,6 +361,7 @@ struct SettingsView: View {
             }
             HStack {
                 Button("Show morning screen") { model.showMorning() }
+                Button("Show bedtime screen") { model.showBedtime() }
                 Button("Post day recap to Discord") { model.postDayRecap() }
             }
         } header: {
@@ -292,6 +383,11 @@ struct SettingsView: View {
     private var discordEnabled: Binding<Bool> {
         Binding(get: { model.data.settings.discordEnabled },
                 set: { newValue in model.updateSettings { $0.discordEnabled = newValue } })
+    }
+
+    private var allowOffTaskDuringBreak: Binding<Bool> {
+        Binding(get: { model.data.settings.allowOffTaskDuringBreak },
+                set: { newValue in model.updateSettings { $0.allowOffTaskDuringBreak = newValue } })
     }
 
     private var companionEnabled: Binding<Bool> {

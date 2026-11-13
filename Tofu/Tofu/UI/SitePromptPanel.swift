@@ -32,7 +32,7 @@ enum SitePromptLayout {
 
     let assistant: ChatAssistant
     let voiceIn = VoiceInput()
-    let voiceOut = VoiceOutput()
+    let voiceOut = VoiceOutput.shared
     /// Messages from this id on are shown in the popup (the question that opened it and what followed).
     private(set) var firstMessageID: UUID?
     /// True from releasing the mic until the transcript has been sent.

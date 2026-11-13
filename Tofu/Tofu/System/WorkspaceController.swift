@@ -34,12 +34,14 @@ extension RunningAppInfo {
         for app in NSWorkspace.shared.runningApplications where app.processIdentifier != ownPID {
             let info = RunningAppInfo(app)
             guard BlockPolicy.shouldBlock(info, allowed: allowed) else { continue }
+            // Hide immediately so its window is not left hanging during termination
+            _ = app.hide()
             let sentQuit = BlockPolicy.neverQuit.contains(info.bundleID) ? false : app.terminate()
             switch BlockPolicy.forcedClose(bundleID: info.bundleID, didSendQuit: sentQuit) {
             case .quit:
                 if !quit.contains(where: { $0.bundleID == info.bundleID }) { quit.append(info) }
             case .hide:
-                if !app.isHidden, app.hide(), !hidden.contains(info.bundleID) { hidden.append(info.bundleID) }
+                if !hidden.contains(info.bundleID) { hidden.append(info.bundleID) }
             }
         }
         return (quit, hidden)

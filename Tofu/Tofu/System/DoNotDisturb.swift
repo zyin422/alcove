@@ -44,8 +44,10 @@ enum DoNotDisturbPlan: Equatable {
     }
 
     /// Unsigned shortcut body. `enabled` true turns Do Not Disturb on until something turns it off.
+    /// `Operation` is required: without it Shortcuts imports the file with no action.
     static func workflow(name: String, enabled: Bool) -> [String: Any] {
         var parameters: [String: Any] = [
+            "Operation": "Turn",
             "Enabled": enabled,
             "FocusModes": [
                 "DisplayString": "Do Not Disturb",
@@ -139,14 +141,16 @@ enum DoNotDisturbShortcuts {
             for url in opened {
                 didOpen = NSWorkspace.shared.open(url) && didOpen
             }
+            NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.shortcuts")
+                .first?.activate(options: [.activateIgnoringOtherApps])
         }
         return didOpen
     }
 
     private static func sign(name: String, enabled: Bool, in directory: URL) -> URL? {
-        let slug = enabled ? "on" : "off"
-        let unsigned = directory.appendingPathComponent("\(slug).shortcut")
-        let signed = directory.appendingPathComponent("\(slug).signed.shortcut")
+        // The imported shortcut takes its name from this filename, not from WFWorkflowName.
+        let unsigned = directory.appendingPathComponent("\(enabled ? "on" : "off").unsigned.shortcut")
+        let signed = directory.appendingPathComponent("\(name).shortcut")
         guard let data = try? PropertyListSerialization.data(
             fromPropertyList: DoNotDisturbPlan.workflow(name: name, enabled: enabled),
             format: .binary, options: 0) else { return nil }

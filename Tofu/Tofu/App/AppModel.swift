@@ -62,6 +62,13 @@ enum TokenSource: Equatable {
     /// Puts the morning screen up / takes it down (AppDelegate connects the full-screen window).
     @ObservationIgnored var onShowMorning: (() -> Void)?
     @ObservationIgnored var onHideMorning: (() -> Void)?
+    /// True while the past-midnight bedtime screen is up.
+    var isShowingBedtime = false
+    /// Puts the bedtime screen up / takes it down (AppDelegate connects the full-screen window).
+    @ObservationIgnored var onShowBedtime: (() -> Void)?
+    @ObservationIgnored var onHideBedtime: (() -> Void)?
+    /// Brings the morning screen back when "Start in 10 minutes" ends.
+    @ObservationIgnored private var morningReturnTimer: Timer?
     /// Posts to the group chat (the same announcer the session engine uses).
     let announcer: Announcing
     /// Turns tomorrow's spoken priorities into a list.
@@ -184,14 +191,26 @@ enum TokenSource: Equatable {
         // The chat lives and dies with the lock-in, and can pull the chat screen forward.
         engine.onLockedIn = { [weak self] subject in
             self?.assistant.beginSession(subject: subject.name, details: subject.details)
+            BlockGuard.arm()
+            if let settings = self?.data.settings, settings.focusSound != .off {
+                FocusAudioEngine.shared.volume = Float(settings.focusSoundVolume)
+                FocusAudioEngine.shared.play(settings.focusSound)
+            }
         }
         engine.onSiteAllowed = { [weak self] host in self?.persistAllowedHost(host) }
         engine.onAppAllowed = { [weak self] app in self?.persistAllowedApp(app) }
         engine.lookupApp = { [weak self] name in self?.installedApp(named: name) }
+        engine.allowsOffTaskDuringBreak = { [weak self] in
+            self?.data.settings.allowOffTaskDuringBreak ?? false
+        }
         assistant.apps = engine
         engine.onEnded = { [weak self] in
+            BlockGuard.disarm()
+            FocusAudioEngine.shared.stop()
             self?.assistant.endSession()
             self?.onSessionEnded?()
+            self?.checkMorning()
+            self?.dropShortEndedSessions()
         }
         assistant.onNeedsAttention = { [weak self] in self?.onShowChat?() }
         // First launch with a token already available (team .env or Keychain): start posting to Discord.
@@ -220,6 +239,7 @@ enum TokenSource: Equatable {
             self?.googleSync?.stop()
         }
         if auth.isConnected { sync.start() }
+        assignChartColors()
     }
 
     /// Connects the assistant and Chrome both ways: the tab watch hands unsure sites to the assistant, and the
@@ -278,8 +298,28 @@ enum TokenSource: Equatable {
         googleStatus = ""
     }
 
-    /// The Mac woke from sleep: while locked in, the assistant welcomes the user back (which brings up the chat).
+    /// The display turned off. The work countdown waits until it is back.
+    func displayWillSleep() {
+        engine.macDisplaySleep()
+    }
+
+    /// The display is back. The countdown continues, and a new day can ask for a block.
+    func displayDidWake() {
+        engine.macDisplayWake()
+        checkMorning()
+    }
+
+    /// The Mac is closing: freeze the work timer and the post-block grace so neither keeps counting while asleep.
+    func systemWillSleep() {
+        engine.macWillSleep()
+        holdMorningGrace()
+    }
+
+    /// The Mac woke from sleep: the work timer and the post-block grace continue from where they stopped, and
+    /// while locked in the assistant welcomes the user back (which brings up the chat).
     func systemDidWake() {
+        engine.macDidWake()
+        resumeMorningGrace()
         guard engine.isLocked else { return }
         assistant.greetAfterWake()
     }
@@ -293,7 +333,21 @@ enum TokenSource: Equatable {
     // MARK: Subjects
 
     func subject(id: UUID) -> Subject? {
-        data.subjects.first { $0.id == id }
+        if id == Subject.planningID {
+            return Subject.planningSetup(feedURL: data.settings.aiFeedURL)
+        }
+        return data.subjects.first { $0.id == id }
+    }
+
+    /// Gives each class a palette color. A custom picker color snaps back; two classes never share a swatch.
+    private func assignChartColors() {
+        let next = SubjectColor.assigned(data.subjects.map { ($0.name, $0.colorHex) })
+        var changed = false
+        for index in data.subjects.indices where data.subjects[index].colorHex != next[index] {
+            data.subjects[index].colorHex = next[index]
+            changed = true
+        }
+        if changed { save() }
     }
 
     /// Appends the subject, selects it and saves.
@@ -305,7 +359,7 @@ enum TokenSource: Equatable {
 
     /// Saves a host the user or the assistant allowed during the current work block.
     private func persistAllowedHost(_ host: String) {
-        guard let id = engine.subject?.id, var subject = subject(id: id) else { return }
+        guard let id = engine.subject?.id, id != Subject.planningID, var subject = subject(id: id) else { return }
         guard let host = DomainMatcher.host(of: host),
               !subject.extraDomains.contains(where: { DomainMatcher.host(of: $0) == host }) else { return }
         subject.extraDomains.append(host)
@@ -314,7 +368,7 @@ enum TokenSource: Equatable {
 
     /// Saves an app the assistant unblocked during the current work block.
     private func persistAllowedApp(_ app: AllowedApp) {
-        guard let id = engine.subject?.id, var subject = subject(id: id) else { return }
+        guard let id = engine.subject?.id, id != Subject.planningID, var subject = subject(id: id) else { return }
         guard !subject.allowedApps.contains(where: { $0.bundleID == app.bundleID }),
               !subject.slotApps.contains(where: { $0.bundleID == app.bundleID }) else { return }
         subject.allowedApps.append(app)
@@ -338,6 +392,12 @@ enum TokenSource: Equatable {
         save()
     }
 
+    /// Reorders subjects in the sidebar and saves. The selection stays on the same subject.
+    func moveSubjects(from source: IndexSet, to destination: Int) {
+        data.subjects.move(fromOffsets: source, toOffset: destination)
+        save()
+    }
+
     /// Removes the subject but keeps its sessions (stats use their `subjectName` snapshot).
     func deleteSubject(id: UUID) {
         data.subjects.removeAll { $0.id == id }
@@ -348,6 +408,22 @@ enum TokenSource: Equatable {
     }
 
     // MARK: Sessions
+
+    /// Drops a finished block from the record, so its time leaves the stats. Saves immediately.
+    func deleteSession(id: UUID) {
+        guard data.sessions.contains(where: { $0.id == id && $0.end != nil }) else { return }
+        data.sessions.removeAll { $0.id == id }
+        save()
+    }
+
+    /// Drops finished blocks under five minutes. Called after the morning check, so a short abort
+    /// still brings the screen back, then leaves no row in stats.
+    func dropShortEndedSessions() {
+        let cleaned = Store.droppingShortBlocks(data)
+        guard cleaned.sessions.map(\.id) != data.sessions.map(\.id) else { return }
+        data.sessions = cleaned.sessions
+        save()
+    }
 
     /// Inserts a new session or replaces the one with the same id, then saves.
     func upsertSession(_ session: Session) {
@@ -464,6 +540,14 @@ enum TokenSource: Equatable {
         DayPlanner.priorityToConfirm(after: session, in: plan(for: DayKey.key(for: session.start)) ?? todayPlan(now: now))
     }
 
+    /// Total real focus time in seconds logged for this priority on `day` (matched via subjectID).
+    func focusDuration(for priority: Priority, day: String) -> TimeInterval {
+        guard let subjectID = priority.subjectID else { return 0 }
+        return data.sessions
+            .filter { DayKey.key(for: $0.start) == day && $0.subjectID == subjectID && !$0.isDemo }
+            .reduce(0) { $0 + $1.duration }
+    }
+
     /// Opens the wrap-up when its time has come (called every minute). Marks the day as prompted.
     func checkEndOfDay(now: Date = Date()) {
         guard !isWrappingUpDay, !isShowingMorning,
@@ -476,13 +560,112 @@ enum TokenSource: Equatable {
 
     // MARK: Morning
 
-    /// Shows the morning screen if this is the first use of the Mac today (launch, wake, unlock).
-    /// When yesterday still needs a wrap-up, that sheet opens instead, and the new day waits.
+    /// A block that was still open when the process was killed is put back in force.
+    func continueBlockIfNeeded() async {
+        guard let open = data.sessions.last(where: { $0.end == nil && !$0.isDemo }) else {
+            BlockGuard.disarm()
+            return
+        }
+        let subject = data.subjects.first { $0.id == open.subjectID }
+            ?? Subject(id: open.subjectID, name: open.subjectName)
+        await engine.resume(session: open, subject: subject, displayName: data.settings.displayName)
+    }
+
+    /// Shows the morning screen when a block should start: on launch, wake, and unlock, and again after a
+    /// block ends. When yesterday still needs a wrap-up, that sheet opens instead, and the new day waits.
     func checkMorning(now: Date = Date()) {
+        resumeMorningGrace(now: now)
+        syncGraceSession(now: now)
         if openPreviousWrapUpIfNeeded(now: now) { return }
-        guard DayPlanner.shouldShowMorning(now: now, settings: data.settings, isLocked: engine.isLocked,
-                                           isBusy: isShowingMorning || isWrappingUpDay) else { return }
+        let prompt = DayPlanner.morningPrompt(
+            now: now, settings: data.settings, isLocked: engine.isLocked,
+            isBusy: isWrappingUpDay,
+            wrappedUp: plan(for: DayKey.key(for: now))?.wrappedUp == true,
+            sessions: data.sessions, quiet: DayPlanner.quietIntervals(googleSync?.todayEvents ?? []),
+            graceUntil: data.settings.morningGraceUntil, graceHeld: data.settings.morningGraceHeld != nil)
+        if let deadline = prompt.graceUntil, deadline != data.settings.morningGraceUntil {
+            updateSettings { $0.morningGraceUntil = deadline }
+        }
+        scheduleMorningReturn(at: prompt.waitUntil, now: now)
+        guard prompt.show else { return }
         showMorning(now: now)
+    }
+
+    /// Stores the grace for a new real block. A later check pushes it past a calendar event.
+    private func syncGraceSession(now: Date) {
+        guard data.settings.morningGraceHeld == nil else { return }
+        let today = DayKey.key(for: now)
+        let todays = data.sessions.filter {
+            !$0.isDemo && $0.end != nil && DayKey.key(for: $0.start) == today
+        }
+        guard let latest = todays.max(by: { ($0.end ?? $0.start) < ($1.end ?? $1.start) }),
+              latest.duration >= DayPlanner.realBlockSeconds, let end = latest.end,
+              data.settings.morningGraceSessionID != latest.id else { return }
+        var deadline = end.addingTimeInterval(DayPlanner.betweenBlockGrace)
+        if let event = DayPlanner.quietIntervals(googleSync?.todayEvents ?? []).first(where: { $0.start <= end && end < $0.end }) {
+            deadline = event.end.addingTimeInterval(DayPlanner.betweenBlockGrace)
+        }
+        updateSettings {
+            $0.morningGraceSessionID = latest.id
+            $0.morningGraceUntil = deadline
+        }
+    }
+
+    /// Freezes whatever grace is left. Closing the lid does not spend the walk.
+    func holdMorningGrace(now: Date = Date()) {
+        guard data.settings.morningGraceHeld == nil else { return }
+        let today = DayKey.key(for: now)
+        let real = data.sessions.contains {
+            !$0.isDemo && $0.end != nil && DayKey.key(for: $0.start) == today && $0.duration >= DayPlanner.realBlockSeconds
+        }
+        guard real else { return }
+        let quiet = DayPlanner.quietIntervals(googleSync?.todayEvents ?? [])
+        let remaining: TimeInterval
+        if quiet.contains(where: { $0.start <= now && now < $0.end }) {
+            remaining = DayPlanner.betweenBlockGrace
+        } else if let until = data.settings.morningGraceUntil, until > now {
+            remaining = until.timeIntervalSince(now)
+        } else {
+            return
+        }
+        updateSettings { $0.morningGraceHeld = remaining }
+    }
+
+    /// Starts the frozen grace from `now`. An event still in progress keeps its own end time.
+    func resumeMorningGrace(now: Date = Date()) {
+        guard let held = data.settings.morningGraceHeld else { return }
+        let quiet = DayPlanner.quietIntervals(googleSync?.todayEvents ?? [])
+        let duringEvent = quiet.contains { $0.start <= now && now < $0.end }
+        updateSettings {
+            $0.morningGraceHeld = nil
+            if !duringEvent {
+                $0.morningGraceUntil = now.addingTimeInterval(held)
+            }
+        }
+    }
+
+    /// Arms the timer that brings the morning screen back. A deadline already past is left for `checkMorning`.
+    private func scheduleMorningReturn(at until: Date?, now: Date) {
+        morningReturnTimer?.invalidate()
+        morningReturnTimer = nil
+        guard let until, until > now else { return }
+        let timer = Timer(timeInterval: until.timeIntervalSince(now), repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.morningReturnTimer = nil
+                self?.checkMorning()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        morningReturnTimer = timer
+    }
+
+    /// A block is under way, so the return timer stays quiet until it ends.
+    private func settleMorning(now: Date) {
+        morningReturnTimer?.invalidate()
+        morningReturnTimer = nil
+        let key = DayKey.key(for: now)
+        guard data.settings.lastMorningKey != key else { return }
+        updateSettings { $0.lastMorningKey = key }
     }
 
     /// Opens the morning screen for the current day. If yesterday was not wrapped up, opens that wrap-up.
@@ -500,10 +683,9 @@ enum TokenSource: Equatable {
         return true
     }
 
-    /// Shows the morning screen now (also from "Start my day"); it then counts as shown today.
+    /// Shows the morning screen now (also from "Start my day"). The day counts as done only once a block starts.
     func showMorning(now: Date = Date()) {
         guard !engine.isLocked else { return }
-        updateSettings { $0.lastMorningKey = DayKey.key(for: now) }
         isShowingMorning = true
         onShowMorning?()
     }
@@ -512,6 +694,97 @@ enum TokenSource: Equatable {
         guard isShowingMorning else { return }
         isShowingMorning = false
         onHideMorning?()
+    }
+
+    /// Postponing is available once per day when the user doesn't want to lock in right now.
+    func allowsMorningPostpone(now: Date = Date()) -> Bool {
+        let key = DayKey.key(for: now)
+        return data.settings.lastPostponeKey != key
+    }
+
+    var canPostponeMorning: Bool {
+        allowsMorningPostpone()
+    }
+
+    /// Hides the morning or bedtime screen for ten minutes. Available once per day.
+    func postponeMorning(by seconds: TimeInterval = 10 * 60, now: Date = Date()) {
+        guard allowsMorningPostpone(now: now) else { return }
+        let deadline = now.addingTimeInterval(seconds)
+        let key = DayKey.key(for: now)
+        updateSettings {
+            $0.lastPostponeKey = key
+            $0.morningPostponeUntil = deadline
+            $0.morningGraceUntil = deadline
+        }
+        dismissMorning()
+        dismissBedtime()
+        scheduleMorningReturn(at: deadline, now: now)
+        onShowMainWindow?()
+    }
+
+    /// Opens the Plan in the main window, postponing the full-screen lock for 10 minutes (once per day).
+    func openPlan(now: Date = Date()) {
+        guard allowsMorningPostpone(now: now) else { return }
+        postponeMorning(by: 10 * 60, now: now)
+        selection = .today
+        onShowMainWindow?()
+    }
+
+    /// Starts a session directly on a subject from the morning screen without tying to a priority.
+    func start(subjectID: UUID, mode: SessionMode, now: Date = Date()) async {
+        dismissMorning()
+        await lockIn(subjectID: subjectID, mode: mode)
+        if engine.isLocked {
+            settleMorning(now: now)
+        } else {
+            checkMorning(now: now)
+        }
+    }
+
+    // MARK: - Bedtime & Planning Mode
+
+    /// Checks if the current time is past midnight (00:00 - 04:00 AM) and locks the computer unless a block is running.
+    func checkBedtime(now: Date = Date()) {
+        guard DayPlanner.shouldShowBedtime(now: now, settings: data.settings, isLocked: engine.isLocked, isBusy: isWrappingUpDay) else {
+            if isShowingBedtime && !DayPlanner.isPastMidnight(now: now) {
+                dismissBedtime()
+            }
+            return
+        }
+        showBedtime(now: now)
+    }
+
+    func showBedtime(now: Date = Date()) {
+        guard !engine.isLocked, !isShowingBedtime else { return }
+        if isShowingMorning { dismissMorning() }
+        isShowingBedtime = true
+        onShowBedtime?()
+    }
+
+    func dismissBedtime() {
+        guard isShowingBedtime else { return }
+        isShowingBedtime = false
+        onHideBedtime?()
+    }
+
+    /// Whether the 15-minute planning mode is available tonight (capped at once per night past midnight).
+    func canPlanTonight(now: Date = Date()) -> Bool {
+        let key = DayKey.key(for: now)
+        return data.settings.lastMidnightPlanningKey != key
+    }
+
+    /// Starts a dedicated 15-minute planning session on the system planning setup.
+    func startPlanningMode(now: Date = Date()) async {
+        dismissMorning()
+        dismissBedtime()
+        await lockIn(subjectID: Subject.planningID, mode: .goal(minutes: 15))
+    }
+
+    /// Starts planning mode from the past-midnight bedtime screen, recording tonight's quota.
+    func startPlanningFromBedtime(now: Date = Date()) async {
+        let key = DayKey.key(for: now)
+        updateSettings { $0.lastMidnightPlanningKey = key }
+        await startPlanningMode(now: now)
     }
 
     /// From the morning screen: ties the priority to `subjectID` (when it had another or none), closes the
@@ -528,8 +801,7 @@ enum TokenSource: Equatable {
                 plan.priorities[index].subjectID = subjectID
             }
         }
-        dismissMorning()
-        await lockIn(subjectID: subjectID, mode: mode)
+        await start(subjectID: subjectID, mode: mode, now: now)
     }
 
     /// Ends the day: stores today's ticks, saves tomorrow's priorities, and posts the recap to the group chat.
@@ -563,6 +835,7 @@ enum TokenSource: Equatable {
             tomorrow: kept.map(\.title),
             summary: summary))
         isWrappingUpDay = false
+        checkMorning(now: now)
     }
 
     /// Posts the same Discord recap as wrapping up, using today's ticks and tomorrow's saved priorities.

@@ -429,4 +429,45 @@ final class DayPlanModelTests: XCTestCase {
                                                                    priorities: today)),
         ])
     }
+
+    // MARK: Time estimates & duration
+
+    func testParseTimeEstimateFromSpokenOrTypedText() {
+        let lab = DayPlanner.parseTimeEstimate(from: "Finish CS128 lab 45m")
+        XCTAssertEqual(lab.title, "Finish CS128 lab")
+        XCTAssertEqual(lab.estimatedMinutes, 45)
+
+        let bio = DayPlanner.parseTimeEstimate(from: "Study biology (1h)")
+        XCTAssertEqual(bio.title, "Study biology")
+        XCTAssertEqual(bio.estimatedMinutes, 60)
+
+        let paper = DayPlanner.parseTimeEstimate(from: "Read paper (30 min)")
+        XCTAssertEqual(paper.title, "Read paper")
+        XCTAssertEqual(paper.estimatedMinutes, 30)
+
+        let prep = DayPlanner.parseTimeEstimate(from: "Exam prep 1.5 hours")
+        XCTAssertEqual(prep.title, "Exam prep")
+        XCTAssertEqual(prep.estimatedMinutes, 90)
+
+        let thesis = DayPlanner.parseTimeEstimate(from: "Write thesis chapters")
+        XCTAssertEqual(thesis.title, "Write thesis chapters")
+        XCTAssertNil(thesis.estimatedMinutes)
+    }
+
+    func testPriorityEstimatedMinutesCodableBackwardsCompatibility() throws {
+        // Legacy JSON without estimatedMinutes
+        let legacyJSON = """
+        {"id":"E621E1F8-C36C-495A-93FC-0C247A3E6E5F","title":"Old task","isDone":false}
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(Priority.self, from: legacyJSON)
+        XCTAssertEqual(decoded.title, "Old task")
+        XCTAssertNil(decoded.estimatedMinutes)
+
+        // New JSON with estimatedMinutes
+        let newPriority = Priority(title: "Task with time", estimatedMinutes: 45)
+        let encoded = try JSONEncoder().encode(newPriority)
+        let roundtrip = try JSONDecoder().decode(Priority.self, from: encoded)
+        XCTAssertEqual(roundtrip.title, "Task with time")
+        XCTAssertEqual(roundtrip.estimatedMinutes, 45)
+    }
 }

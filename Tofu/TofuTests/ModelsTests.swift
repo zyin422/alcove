@@ -72,6 +72,7 @@ final class ModelsTests: XCTestCase {
         XCTAssertFalse(settings.discordEnabled)
         XCTAssertEqual(settings.giveUpTemplate, "I give up on {subject}")
         XCTAssertEqual(settings.channelCache, [:])
+        XCTAssertFalse(settings.allowOffTaskDuringBreak)
     }
 
     func testEmptyStoreData() {
@@ -85,6 +86,15 @@ final class ModelsTests: XCTestCase {
         let subject = Subject(name: "CS128")
         XCTAssertEqual(subject.details, "")
         XCTAssertEqual(subject.preset, .split)
+        XCTAssertEqual(subject.colorHex, SubjectColor.hex(for: "CS128"))
+        XCTAssertTrue(SubjectColor.palette.contains(subject.colorHex))
+        XCTAssertEqual(SubjectColor.canonical("FFFFFF", name: "CS128"), SubjectColor.hex(for: "CS128"))
+        XCTAssertEqual(SubjectColor.canonical("e45756", name: "CS128"), "E45756")
+        let assigned = SubjectColor.assigned([
+            ("CS128", SubjectColor.palette[0]),
+            ("MATH241", SubjectColor.palette[0]),
+        ])
+        XCTAssertEqual(assigned, [SubjectColor.palette[0], SubjectColor.palette[1]])
         XCTAssertEqual(subject.sites, [])
         XCTAssertEqual(subject.allowedApps, [])
         XCTAssertEqual(subject.extraDomains, [])

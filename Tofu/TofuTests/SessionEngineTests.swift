@@ -38,6 +38,23 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertFalse(h.engine.needsGiveUpPhrase)
     }
 
+    func testResumeLeavesOutTheTimeTheAppWasDead() async {
+        let h = EngineHarness()
+        let start = h.clock.now
+        let saved = Session(subjectID: UUID(), subjectName: "CS128", mode: .goal(minutes: 25),
+                            start: start, lastHeartbeat: start.addingTimeInterval(30))
+        h.clock.advance(30 + 3600)
+        await h.engine.resume(session: saved, subject: makeSubject(), displayName: "Alex")
+
+        XCTAssertTrue(h.engine.isLocked)
+        XCTAssertEqual(h.engine.elapsed, 30, accuracy: 0.001)
+        XCTAssertEqual(h.engine.session?.excluded, 3600)
+        XCTAssertEqual(h.engine.session?.id, saved.id)
+        XCTAssertNotNil(h.blocker.startedWith)
+        XCTAssertTrue(h.announcer.messages.isEmpty)
+        XCTAssertEqual(h.toaster.messages, ["Still locked in on CS128."])
+    }
+
     func testStartReportsNewSession() async {
         let h = EngineHarness()
         var changes: [Session] = []
@@ -589,7 +606,9 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertFalse(h.engine.canTakeBreak)
         XCTAssertTrue(h.workspace.unhideCalls.isEmpty)
         XCTAssertTrue(h.workspace.relaunchCalls.isEmpty)
-        XCTAssertEqual(h.chrome.closeUnrelatedCount, 1)
+        XCTAssertEqual(h.blocker.stopCount, 0, "a break keeps blocking unless the setting allows off-task pages")
+        XCTAssertEqual(h.chrome.stopWatchCount, 0)
+        XCTAssertEqual(h.chrome.closeUnrelatedCount, 0)
         XCTAssertEqual(h.toaster.messages, ["A break opens after 25 minutes of work."])
 
         h.clock.advance(SessionEngine.breakCooldown - 1)
@@ -599,6 +618,132 @@ final class SessionEngineTests: XCTestCase {
         h.engine.tick()
         XCTAssertTrue(h.engine.canTakeBreak)
         XCTAssertEqual(h.toaster.messages, ["A break opens after 25 minutes of work."])
+    }
+
+    func testClosingTheMacPausesTheCountdownUntilItWakes() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 25), displayName: "Alex")
+        h.clock.advance(60)
+        h.engine.tick()
+        let worked = h.engine.elapsed
+        let stops = h.blocker.stopCount
+        let dndEnds = h.doNotDisturb.endCount
+
+        h.engine.macWillSleep()
+        h.clock.advance(3600)
+        h.engine.macDidWake()
+        h.engine.tick()
+
+        XCTAssertEqual(h.engine.elapsed, worked, accuracy: 0.001)
+        XCTAssertEqual(h.engine.remaining ?? 0, 25 * 60 - worked, accuracy: 0.001)
+        XCTAssertTrue(h.engine.isLocked)
+        XCTAssertFalse(h.engine.goalReached)
+        XCTAssertEqual(h.blocker.stopCount, stops, "sleep does not lift the app block")
+        XCTAssertEqual(h.doNotDisturb.endCount, dndEnds, "sleep does not turn Do Not Disturb off")
+
+        h.clock.advance(10)
+        h.engine.tick()
+        XCTAssertEqual(h.engine.elapsed, worked + 10, accuracy: 0.001)
+    }
+
+    func testSleepingPastTheGoalDoesNotFinishTheBlock() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 1), displayName: "Alex")
+        h.clock.advance(20)
+        h.engine.tick()
+        h.engine.macWillSleep()
+        h.clock.advance(3600)
+        h.engine.tick()
+        h.engine.macDidWake()
+
+        XCTAssertTrue(h.engine.isLocked)
+        XCTAssertEqual(h.engine.remaining ?? 0, 40, accuracy: 0.001)
+
+        h.clock.advance(40)
+        h.engine.tick()
+        await settle()
+        XCTAssertEqual(h.engine.lastEnded?.outcome, .completed)
+        XCTAssertEqual(h.engine.lastEnded?.duration ?? -1, 60, accuracy: 0.001)
+    }
+
+    func testAClosedMacDoesNotBurnABreak() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 50), displayName: "Alex")
+        h.clock.advance(25 * 60)
+        XCTAssertTrue(h.engine.beginBreak(minutes: 5))
+        let worked = h.engine.elapsed
+        let left = h.engine.breakRemaining ?? 0
+
+        h.engine.macWillSleep()
+        h.clock.advance(3600)
+        h.engine.macDidWake()
+        h.engine.tick()
+
+        XCTAssertTrue(h.engine.isOnBreak)
+        XCTAssertEqual(h.engine.elapsed, worked, accuracy: 0.001)
+        XCTAssertEqual(h.engine.breakRemaining ?? 0, left, accuracy: 0.001)
+        XCTAssertFalse(h.engine.goalReached)
+    }
+
+    func testWakingWithoutASleepNoticeStillLeavesTheClosedTimeOut() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        h.clock.advance(30)
+        h.engine.tick()
+        h.clock.advance(3600)
+        h.engine.macDidWake()
+        XCTAssertEqual(h.engine.elapsed, 30, accuracy: 0.001)
+    }
+
+    func testACancelledCloseKeepsTheTimerRunning() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        h.clock.advance(10)
+        h.engine.tick()
+        h.engine.macWillSleep()
+        h.clock.advance(1)
+        h.engine.macDidWake()
+        XCTAssertEqual(h.engine.elapsed, 11, accuracy: 0.001)
+        h.clock.advance(5)
+        h.engine.tick()
+        XCTAssertEqual(h.engine.elapsed, 16, accuracy: 0.001)
+    }
+
+    func testATickWhileTheLidIsClosingDoesNotForgetTheSleep() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        h.clock.advance(30)
+        h.engine.tick()
+
+        h.engine.macWillSleep()
+        h.clock.advance(1)
+        h.engine.tick()
+        h.clock.advance(3600)
+        h.engine.tick()
+
+        XCTAssertEqual(h.engine.elapsed, 30, accuracy: 0.001)
+        XCTAssertTrue(h.engine.isLocked)
+    }
+
+    func testTheCountdownStaysPutWhileTheDisplayIsOff() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 25), displayName: "Alex")
+        h.clock.advance(30)
+        h.engine.tick()
+
+        h.engine.macDisplaySleep()
+        h.clock.advance(600)
+        h.engine.tick()
+        h.engine.macDidWake()
+        h.engine.tick()
+
+        XCTAssertEqual(h.engine.elapsed, 30, accuracy: 0.001)
+        XCTAssertEqual(h.engine.remaining ?? 0, 25 * 60 - 30, accuracy: 0.001)
+
+        h.engine.macDisplayWake()
+        h.clock.advance(10)
+        h.engine.tick()
+        XCTAssertEqual(h.engine.elapsed, 40, accuracy: 0.001)
     }
 
     func testASecondStartDoesNotTurnDoNotDisturbOnAgain() async {
@@ -671,16 +816,42 @@ final class SessionEngineTests: XCTestCase {
         var saved: [String] = []
         h.engine.onAppAllowed = { saved.append($0.name) }
         h.engine.lookupApp = { name in
-            name.compare("slack", options: .caseInsensitive) == .orderedSame
-                ? AllowedApp(bundleID: "com.tinyspeck.slackmacgap", name: "Slack") : nil
+            name.compare("calculator", options: .caseInsensitive) == .orderedSame
+                ? AllowedApp(bundleID: "com.apple.calculator", name: "Calculator") : nil
         }
 
-        XCTAssertEqual(h.engine.allowApp(named: "slack"), "Allowed Slack for this work block.")
-        XCTAssertEqual(h.blocker.allowedBundles, ["com.tinyspeck.slackmacgap"])
-        XCTAssertEqual(h.workspace.unhideCalls.last, ["com.tinyspeck.slackmacgap"])
-        XCTAssertEqual(saved, ["Slack"])
+        XCTAssertEqual(h.engine.allowApp(named: "calculator"), "Allowed Calculator for this work block.")
+        XCTAssertEqual(h.blocker.allowedBundles, ["com.apple.calculator"])
+        XCTAssertEqual(h.workspace.unhideCalls.last, ["com.apple.calculator"])
+        XCTAssertEqual(saved, ["Calculator"])
         XCTAssertEqual(h.engine.allowApp(named: "no such app"), "No app named no such app.")
         XCTAssertEqual(h.engine.blockedAppsSummary, [])
+    }
+
+    func testAllowAppRefusesDistractionAppsOutsidePlanningMode() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        h.engine.lookupApp = { name in
+            name.compare("discord", options: .caseInsensitive) == .orderedSame
+                ? AllowedApp(bundleID: "com.hnc.Discord", name: "Discord") : nil
+        }
+
+        let result = h.engine.allowApp(named: "discord")
+        XCTAssertTrue(result.contains("high-distraction app"))
+        XCTAssertEqual(h.blocker.allowedBundles, [])
+    }
+
+    func testParkedThoughtsManagement() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        XCTAssertEqual(h.engine.parkedThoughts, [])
+
+        h.engine.addParkedThought("Check lab report deadline")
+        h.engine.addParkedThought("Email advisor")
+        XCTAssertEqual(h.engine.parkedThoughts, ["Check lab report deadline", "Email advisor"])
+
+        h.engine.removeParkedThought(at: 0)
+        XCTAssertEqual(h.engine.parkedThoughts, ["Email advisor"])
     }
 
     func testRememberedSiteJoinsTheTabWatchAllowList() async {

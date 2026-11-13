@@ -152,6 +152,8 @@ struct TodayView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
                 } else {
+                    Button("15m Planning") { Task { await model.startPlanningMode() } }
+                        .buttonStyle(SecondaryButtonStyle())
                     Button("Start my day") { model.startMyDay() }
                         .buttonStyle(SecondaryButtonStyle())
                     Button(wrapUpButtonTitle) { model.isWrappingUpDay = true }
@@ -199,8 +201,11 @@ struct TodayView: View {
                 Text(priority.title)
                     .strikethrough(priority.isDone)
                     .foregroundStyle(priority.isDone ? .secondary : .primary)
-                if let subject = priority.subjectID.flatMap(model.subject(id:)) {
-                    Text(subject.name).font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: Theme.Space.xs) {
+                    if let subject = priority.subjectID.flatMap(model.subject(id:)) {
+                        Text(subject.name).font(.caption).foregroundStyle(.secondary)
+                    }
+                    durationBadge(for: priority)
                 }
             }
             Spacer()
@@ -223,9 +228,29 @@ struct TodayView: View {
         .padding(.vertical, Theme.Space.s)
     }
 
+    @ViewBuilder private func durationBadge(for priority: Priority) -> some View {
+        let actualSeconds = model.focusDuration(for: priority, day: plan.day)
+        let actualMinutes = Int(actualSeconds / 60)
+        if let estimated = priority.estimatedMinutes {
+            HStack(spacing: 4) {
+                if priority.subjectID != nil { Text("·").font(.caption).foregroundStyle(.secondary) }
+                Text("\(actualMinutes)m / \(estimated)m")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(actualMinutes >= estimated ? Color.primary : Color.secondary)
+            }
+        } else if actualMinutes > 0 {
+            HStack(spacing: 4) {
+                if priority.subjectID != nil { Text("·").font(.caption).foregroundStyle(.secondary) }
+                Text("\(actualMinutes)m focused")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private var addRow: some View {
         HStack(spacing: Theme.Space.s) {
-            TextField("Add a priority", text: $newTitle)
+            TextField("Add a priority (e.g. Finish lab 45m)", text: $newTitle)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(add)
             SetupPicker(subjects: model.data.subjects, selection: $newSubjectID)
@@ -236,10 +261,13 @@ struct TodayView: View {
     }
 
     private func add() {
-        let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return }
+        let raw = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return }
+        let (title, estimatedMinutes) = DayPlanner.parseTimeEstimate(from: raw)
         let subjectID = newSubjectID ?? DayPlanner.matchSubject(title, subjects: model.data.subjects)
-        model.updatePlan(day: plan.day) { $0.priorities.append(Priority(title: title, subjectID: subjectID)) }
+        model.updatePlan(day: plan.day) {
+            $0.priorities.append(Priority(title: title, subjectID: subjectID, estimatedMinutes: estimatedMinutes))
+        }
         newTitle = ""
         newSubjectID = nil
     }

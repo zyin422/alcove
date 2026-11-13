@@ -179,6 +179,13 @@ final class DecisionsClientTests: XCTestCase {
         XCTAssertTrue(text.contains("unrelated"))
     }
 
+    func testInstructionsDoNotTreatAKeywordAsTheWork() {
+        let text = DecisionsClient.instructions(subject: "CS128", details: "Intro CS in C++")
+        XCTAssertTrue(text.contains("A mention of the subject, a course code, or a word from the description is not enough."))
+        XCTAssertTrue(text.contains("even when the title, URL, or description names the work"))
+        XCTAssertFalse(text.contains("plausibly"))
+    }
+
     func testInstructionsWithoutDetailsHaveNoDescription() {
         XCTAssertEqual(DecisionsClient.instructions(subject: "CS128", details: "  \n "),
                        DecisionsClient.instructions(subject: "CS128"))

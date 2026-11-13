@@ -34,6 +34,7 @@ final class StatsEngineTests: XCTestCase {
 
     func testRangeTitles() {
         XCTAssertEqual(StatsRange.allCases.map(\.title), ["Day", "Week", "Month"])
+        XCTAssertEqual(StatsSpan.allCases.map(\.title), ["Day", "Week", "Month", "Year"])
     }
 
     // MARK: - Buckets
@@ -122,7 +123,8 @@ final class StatsEngineTests: XCTestCase {
         let summary = engine.summary(sessions)
         XCTAssertEqual(summary.sessionCount, 1)
         XCTAssertEqual(summary.today, 600)
-        XCTAssertEqual(engine.shares(sessions), [SubjectShare(name: "CS128", seconds: 600, fraction: 1)])
+        XCTAssertEqual(engine.shares(sessions), [SubjectShare(name: "CS128", seconds: 600, fraction: 1,
+                                                              sessionCount: 1, average: 600, longest: 600)])
     }
 
     func testSubjectsOutsideTopNAreMergedIntoOther() {
@@ -244,7 +246,7 @@ final class StatsEngineTests: XCTestCase {
     }
 
     func testEmptySummaryIsAllZero() {
-        let expected = StatsSummary(today: 0, thisWeek: 0, currentStreak: 0, longestStreak: 0, sessionCount: 0,
+        let expected = StatsSummary(today: 0, thisWeek: 0, total: 0, currentStreak: 0, longestStreak: 0, sessionCount: 0,
                                     average: 0, longest: 0, blockedAttempts: 0, closedTabs: 0, bails: 0)
         XCTAssertEqual(engine.summary([]), expected)
     }
@@ -261,6 +263,47 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertEqual(summary.bails, 2)
         XCTAssertEqual(summary.blockedAttempts, 6)
         XCTAssertEqual(summary.closedTabs, 7)
+    }
+
+    func testFocusScoreAndDeepWorkCalculation() {
+        let sessions = [
+            session("CS128", date(2026, 10, 10, 9), minutes: 50, outcome: .completed, attempts: 1, tabs: 0),
+            session("MATH241", date(2026, 10, 10, 11), minutes: 10, outcome: .completed, attempts: 0, tabs: 0),
+        ]
+        let summary = engine.summary(sessions)
+        // Total = 60m (3600s). Distraction = 1 * 180s. Ratio = 1 - (180/3600) = 0.95 -> 95%
+        XCTAssertEqual(summary.focusScore, 95)
+        // Deep work (>= 25m): only the 50m session qualifies
+        XCTAssertEqual(summary.deepWorkSeconds, 50 * 60)
+    }
+
+    func testSummaryAndSharesFollowTheChartRange() {
+        let sessions = [
+            session("CS128", date(2026, 10, 10, 9), minutes: 30),
+            session("MATH241", date(2026, 9, 27, 8), minutes: 20),      // first day of the 14
+            session("CS128", date(2026, 9, 26, 23), minutes: 50, outcome: .bailed, attempts: 4, tabs: 2),
+            session("MATH241", date(2026, 7, 18, 10), minutes: 99),     // before the oldest week
+        ]
+
+        let day = engine.summary(sessions, range: .day)
+        XCTAssertEqual(day.sessionCount, 2)
+        XCTAssertEqual(day.total, 50 * 60)
+        XCTAssertEqual(day.today, 30 * 60)
+        XCTAssertEqual(day.bails, 0)
+        XCTAssertEqual(day.blockedAttempts, 0)
+        XCTAssertEqual(day.closedTabs, 0)
+        let dayShares = engine.shares(sessions, range: .day)
+        XCTAssertEqual(dayShares.map(\.name), ["CS128", "MATH241"])
+        XCTAssertEqual(dayShares.map(\.seconds), [30 * 60, 20 * 60] as [TimeInterval])
+
+        let week = engine.summary(sessions, range: .week)
+        XCTAssertEqual(week.sessionCount, 3)
+        XCTAssertEqual(week.total, 100 * 60)
+        XCTAssertEqual(week.bails, 1)
+        XCTAssertEqual(week.blockedAttempts, 4)
+
+        XCTAssertEqual(engine.summary(sessions, range: .month).sessionCount, 4)
+        XCTAssertEqual(engine.summary(sessions).sessionCount, 4)
     }
 
     func testInterruptedSessionCountsUpToItsLastHeartbeat() {
@@ -306,5 +349,94 @@ final class StatsEngineTests: XCTestCase {
 
         XCTAssertEqual(engine.shares(sessions).map(\.name), ["Alpha", "Zeta"])
         XCTAssertEqual(engine.shares([]), [])
+    }
+
+    // MARK: - Subject hours
+
+    func testRollingWindowKeepsTheLastSevenDaysAndWeeklyResets() {
+        let otherID = UUID()
+        let kept = session("CS128", date(2026, 10, 10, 9), minutes: 30)
+        var sameSubjectLastWeek = session("CS128", date(2026, 10, 3, 23), minutes: 90)
+        sameSubjectLastWeek.subjectID = subjectID
+        var otherSubject = session("MATH241", date(2026, 10, 10, 11), minutes: 15)
+        otherSubject.subjectID = otherID
+        let justInside = session("CS128", date(2026, 10, 3, 15), minutes: 10)
+        let justOutside = session("CS128", date(2026, 10, 3, 14), minutes: 40)
+        let sunday = session("CS128", date(2026, 10, 4, 0, 30), minutes: 20)
+        let sessions = [kept, sameSubjectLastWeek, otherSubject, justInside, justOutside, sunday]
+
+        XCTAssertEqual(SubjectHoursWindow.rolling.caption, "Last 7 days")
+        XCTAssertEqual(SubjectHoursWindow.week.caption, "This week")
+        XCTAssertEqual(engine.seconds(for: subjectID, in: sessions, window: .rolling), (30 + 90 + 10 + 20) * 60)
+        XCTAssertEqual(engine.seconds(for: subjectID, in: sessions, window: .week), (30 + 20) * 60)
+        XCTAssertEqual(engine.seconds(for: otherID, in: sessions, window: .week), 15 * 60)
+        XCTAssertEqual(engine.matching(sessions, window: .rolling).map(\.start),
+                       [date(2026, 10, 10, 9), date(2026, 10, 3, 23), date(2026, 10, 10, 11),
+                        date(2026, 10, 3, 15), date(2026, 10, 4, 0, 30)])
+        XCTAssertEqual(engine.shares(engine.matching(sessions, window: .week)).map(\.name), ["CS128", "MATH241"])
+        XCTAssertEqual(engine.shares(engine.matching(sessions, window: .week)).map(\.seconds), [50 * 60, 15 * 60] as [TimeInterval])
+    }
+
+    func testAPeriodShowsOnlyThatDayWeekMonthOrYear() {
+        let sessions = [
+            session("CS128", date(2026, 10, 10, 9), minutes: 30),
+            session("MATH241", date(2026, 10, 9, 18), minutes: 20),
+            session("CS128", date(2026, 10, 3, 10), minutes: 40),      // previous week
+            session("MATH241", date(2026, 9, 30, 9), minutes: 15),     // previous month
+            session("CS128", date(2026, 1, 15, 9), minutes: 25),
+            session("MATH241", date(2025, 11, 1, 9), minutes: 99),     // previous year
+        ]
+
+        XCTAssertEqual(engine.heading(.day, containing: now), "Saturday, Oct 10")
+        XCTAssertEqual(engine.monthDay(now), "10/10")
+        XCTAssertEqual(engine.chipTitle(.day, containing: now), "Oct 10")
+        XCTAssertEqual(engine.heading(.week, containing: now), "Oct 4 – Oct 10")
+        XCTAssertEqual(engine.heading(.month, containing: now), "October 2026")
+        XCTAssertEqual(engine.heading(.year, containing: now), "2026")
+        XCTAssertEqual(engine.shift(now, span: .day, by: -1), date(2026, 10, 9, 0))
+        XCTAssertEqual(engine.shift(now, span: .week, by: -1), date(2026, 9, 27, 0))
+
+        let day = engine.summary(engine.matching(sessions, span: .day, containing: now))
+        XCTAssertEqual(day.sessionCount, 1)
+        XCTAssertEqual(day.total, 30 * 60)
+        XCTAssertEqual(engine.shares(engine.matching(sessions, span: .day, containing: now)).map(\.name), ["CS128"])
+
+        let week = engine.matching(sessions, span: .week, containing: now)
+        XCTAssertEqual(week.map(\.start), [date(2026, 10, 10, 9), date(2026, 10, 9, 18)])
+        let weekBars = engine.periodBuckets(sessions, span: .week, containing: now)
+        XCTAssertEqual(weekBars.count, 7)
+        XCTAssertEqual(weekBars.first?.start, date(2026, 10, 4, 0))
+        XCTAssertEqual(weekBars.first?.label, "Oct 4")
+        XCTAssertEqual(weekBars.last?.minutesBySubject, ["CS128": 30])
+        XCTAssertEqual(weekBars[5].minutesBySubject, ["MATH241": 20])
+
+        let monthBars = engine.periodBuckets(sessions, span: .month, containing: now)
+        XCTAssertEqual(monthBars.count, 31)
+        XCTAssertEqual(monthBars.first?.label, "1")
+        XCTAssertEqual(monthBars.last?.label, "31")
+        XCTAssertEqual(monthBars.map(\.totalMinutes).reduce(0, +), 30 + 20 + 40)
+        XCTAssertEqual(engine.matching(sessions, span: .month, containing: date(2026, 9, 15, 0)).map(\.start),
+                       [date(2026, 9, 30, 9)])
+
+        let yearBars = engine.periodBuckets(sessions, span: .year, containing: now)
+        XCTAssertEqual(yearBars.count, 12)
+        XCTAssertEqual(yearBars.map(\.label), ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
+        XCTAssertEqual(yearBars[0].minutesBySubject, ["CS128": 25])
+        XCTAssertEqual(yearBars[8].minutesBySubject, ["MATH241": 15])
+        XCTAssertEqual(yearBars[9].minutesBySubject, ["CS128": 70, "MATH241": 20])
+        XCTAssertEqual(engine.summary(engine.matching(sessions, span: .year, containing: now)).total, (30 + 20 + 40 + 15 + 25) * 60)
+
+        let marks = engine.timeline(sessions, span: .month)
+        XCTAssertEqual(marks.first, date(2025, 11, 1, 0))
+        XCTAssertEqual(marks.last, date(2026, 10, 1, 0))
+        XCTAssertTrue(marks.contains(date(2025, 11, 1, 0)))
+        XCTAssertFalse(marks.contains(date(2026, 11, 1, 0)))
+    }
+
+    func testAnActiveSessionDoesNotCountTowardSubjectHours() {
+        let active = Session(subjectID: subjectID, subjectName: "CS128", mode: .open,
+                             start: date(2026, 10, 10, 13), lastHeartbeat: date(2026, 10, 10, 14))
+        XCTAssertEqual(engine.seconds(for: subjectID, in: [active], window: .rolling), 0)
+        XCTAssertEqual(engine.seconds(for: subjectID, in: [active], window: .week), 0)
     }
 }

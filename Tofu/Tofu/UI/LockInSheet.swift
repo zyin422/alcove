@@ -4,8 +4,11 @@ import SwiftUI
 enum LockInOption: Hashable, CaseIterable, Identifiable {
     case openEnded, minutes25, minutes50, minutes90, custom
 
-    /// Allowed range for `custom`, in minutes.
-    static let customRange = 1...240
+    /// Allowed range for `custom`, in minutes. The floor is a real block, so a finished timer always counts.
+    static var customRange: ClosedRange<Int> {
+        let floor = max(1, Int(DayPlanner.realBlockSeconds / 60))
+        return floor...240
+    }
 
     /// `minutes` limited to `customRange`.
     static func clampedMinutes(_ minutes: Int) -> Int {
@@ -77,6 +80,7 @@ struct LockInSheet: View {
                      ? "Your Discord servers will see that you locked in."
                      : "Discord announcements are off (turn them on in Settings).")
                 note("Ending the session opens the Mirror first. It asks whether you are stuck or choosing to stop.")
+                note("Quitting Tofu is off until the block ends. Force Quit brings the block back.")
             }
 
             HStack(spacing: Theme.Space.m) {
@@ -127,7 +131,8 @@ struct CustomMinutesField: View {
                 .monospacedDigit()
                 .frame(width: 64)
                 .accessibilityLabel("Minutes")
-            Text("min").foregroundStyle(.secondary)
+            Text("min, at least \(LockInOption.customRange.lowerBound)")
+                .foregroundStyle(.secondary)
         }
     }
 

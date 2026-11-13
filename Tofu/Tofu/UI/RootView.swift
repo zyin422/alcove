@@ -18,7 +18,8 @@ struct RootView: View {
                 }
             }
         }
-        .frame(minWidth: 820, minHeight: 560)
+        .frame(minWidth: model.engine.isLocked ? LockedLayout.chatMinWidth : 820,
+               minHeight: model.engine.isLocked ? 400 : 560)
         .onChange(of: model.engine.lastEnded?.id) { _, _ in
             if let ended = model.engine.lastEnded, SessionSummaryText.shouldPresent(ended) {
                 summary = ended

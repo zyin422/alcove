@@ -47,6 +47,10 @@ import Foundation
     func start(allowed: Set<String>) { startedWith = allowed }
     func stop() { stopCount += 1 }
     func allow(_ bundleID: String) { allowedBundles.append(bundleID) }
+    func revoke(_ bundleID: String) {
+        allowedBundles.removeAll { $0 == bundleID }
+        startedWith?.remove(bundleID)
+    }
     func simulateBlocked(_ bundleID: String, name: String = "App") {
         onBlocked?(RunningAppInfo(bundleID: bundleID, name: name, isRegular: true))
     }
@@ -68,6 +72,7 @@ import Foundation
     var restoreCount = 0
     var pendingRestore: ClosedBrowserState?
     private(set) var reopenedURLs: [String] = []
+    private(set) var closedHosts: [String] = []
     var onHostAllowed: ((String) -> Void)?
     /// Runs inside `prepare`, e.g. to end the session while Chrome is being prepared.
     var onPrepare: (() -> Void)?
@@ -95,6 +100,7 @@ import Foundation
         return state
     }
     func reopen(urls: [String]) { reopenedURLs.append(contentsOf: urls) }
+    func closeHost(_ host: String) { closedHosts.append(host) }
     func simulateTabClosed(_ host: String) { onTabClosed?(host) }
 }
 
