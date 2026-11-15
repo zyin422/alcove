@@ -349,4 +349,16 @@ final class TabTriageTests: XCTestCase {
         let triage = makeTriage()
         XCTAssertFalse(triage.shouldCloseImmediately(tab("https://mail.google.com/", id: 1)))
     }
+
+    func testNonVideoDistractionCannotBeMarkedAsNeeded() {
+        var triage = blockingTriage()
+        triage.allowHost("discord.com")
+        triage.allowHost("reddit.com")
+        let discordTab = tab("https://discord.com/channels/123", id: 10)
+        let redditTab = tab("https://reddit.com/r/all", id: 11)
+        XCTAssertTrue(triage.shouldCloseImmediately(discordTab))
+        XCTAssertTrue(triage.shouldCloseImmediately(redditTab))
+        XCTAssertFalse(triage.isRelated(discordTab))
+        XCTAssertFalse(triage.isRelated(redditTab))
+    }
 }

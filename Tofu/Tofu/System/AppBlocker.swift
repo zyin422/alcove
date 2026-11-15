@@ -60,6 +60,7 @@ import AppKit
 
     func allow(_ bundleID: String) {
         guard !bundleID.isEmpty else { return }
+        guard !DistractionApps.isDistraction(bundleID) else { return }
         allowed.insert(bundleID)
     }
 

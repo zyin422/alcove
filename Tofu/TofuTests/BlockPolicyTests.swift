@@ -129,4 +129,24 @@ final class BlockPolicyTests: XCTestCase {
         XCTAssertFalse(debouncer.shouldCount("com.hnc.Discord", at: t0.addingTimeInterval(9)))
         XCTAssertTrue(debouncer.shouldCount("com.hnc.Discord", at: t0.addingTimeInterval(10)))
     }
+
+    func testAllowedSetRejectsDistractionAppsAndUnmonitoredBrowsers() {
+        let safari = AllowedApp(bundleID: "com.apple.Safari", name: "Safari")
+        let discord = AllowedApp(bundleID: "com.hnc.Discord", name: "Discord")
+        let steam = AllowedApp(bundleID: "com.valvesoftware.steam", name: "Steam")
+        let xcode = AllowedApp(bundleID: "com.apple.dt.Xcode", name: "Xcode")
+
+        let testSubject = Subject(name: "Test", allowedApps: [safari, discord, steam, xcode])
+        let allowed = BlockPolicy.allowedSet(for: testSubject, ownBundleID: ownID)
+
+        XCTAssertTrue(allowed.contains("com.apple.dt.Xcode"))
+        XCTAssertFalse(allowed.contains("com.apple.Safari"))
+        XCTAssertFalse(allowed.contains("com.hnc.Discord"))
+        XCTAssertFalse(allowed.contains("com.valvesoftware.steam"))
+
+        XCTAssertTrue(BlockPolicy.shouldBlock(app("com.apple.Safari"), allowed: allowed))
+        XCTAssertTrue(BlockPolicy.shouldBlock(app("com.hnc.Discord"), allowed: allowed))
+        XCTAssertTrue(BlockPolicy.shouldBlock(app("com.valvesoftware.steam"), allowed: allowed))
+        XCTAssertFalse(BlockPolicy.shouldBlock(app("com.apple.dt.Xcode"), allowed: allowed))
+    }
 }

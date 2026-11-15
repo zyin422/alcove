@@ -924,4 +924,27 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(h.engine.session?.closedTabs, 2)
         XCTAssertEqual(h.engine.session?.closedTabHistory, ["reddit.com", "twitter.com"])
     }
+
+    func testDistractionSlotAppIsNotLaunched() async {
+        let h = EngineHarness()
+        let safari = SetupSlot.app(AllowedApp(bundleID: "com.apple.Safari", name: "Safari"))
+        let xcode = SetupSlot.app(AllowedApp(bundleID: "com.apple.dt.Xcode", name: "Xcode"))
+        let subject = Subject(name: "Dev", slots: [safari, xcode])
+        await h.engine.start(subject: subject, mode: .open, displayName: "Alex")
+
+        XCTAssertFalse(h.launcher.opened.contains(where: { $0.bundleID == "com.apple.Safari" }))
+        XCTAssertTrue(h.launcher.opened.contains(where: { $0.bundleID == "com.apple.dt.Xcode" }))
+        XCTAssertTrue(h.toaster.messages.contains("Safari is a blocked distraction app and cannot be launched during a focus session."))
+    }
+
+    func testEndingBreakBringsMainWindowForward() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 50), displayName: "Alex")
+        h.clock.advance(25 * 60)
+        XCTAssertTrue(h.engine.beginBreak(minutes: 5))
+        XCTAssertEqual(h.presenter.showMainWindowCount, 0)
+
+        h.engine.endBreak()
+        XCTAssertEqual(h.presenter.showMainWindowCount, 1)
+    }
 }

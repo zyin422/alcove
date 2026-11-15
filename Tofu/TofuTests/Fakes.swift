@@ -185,8 +185,10 @@ import Foundation
 @MainActor final class FakePresenter: WindowPresenting {
     var entered: [CGRect?] = []
     var exitCount = 0
+    var showMainWindowCount = 0
     func enterLocked(appFrame: CGRect?) { entered.append(appFrame) }
     func exitLocked() { exitCount += 1 }
+    func showMainWindow() { showMainWindowCount += 1 }
 }
 
 final class TestClock {

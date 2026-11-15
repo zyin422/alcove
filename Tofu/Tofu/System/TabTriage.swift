@@ -89,6 +89,11 @@ struct TabTriage {
         let host = DomainMatcher.normalize(host)
         guard !host.isEmpty else { return }
         if needed {
+            if !alwaysBlocked.isEmpty && DistractionList.matches(host, any: alwaysBlocked) {
+                if let cat = DistractionList.category(of: host), cat != .video {
+                    return
+                }
+            }
             neededHosts.insert(host)
             closedHosts.remove(host)
         } else {

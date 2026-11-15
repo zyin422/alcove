@@ -28,6 +28,12 @@ enum CompanionViolation: Equatable {
     func enterLocked(appFrame: CGRect?)
     /// Close mini timer, restore main window frame, bring app to front.
     func exitLocked()
+    /// Brings the locked main window to the front.
+    func showMainWindow()
+}
+
+extension WindowPresenting {
+    func showMainWindow() {}
 }
 
 /// The lock-in state machine (spec §6): idle -> locked -> idle.
@@ -262,6 +268,10 @@ enum CompanionViolation: Equatable {
         }
         for (slot, bounds) in appSlots {
             guard let app = slot.app, let launcher else { break }
+            guard !DistractionApps.isDistraction(app.bundleID) else {
+                toaster.show("\(app.name) is a blocked distraction app and cannot be launched during a focus session.")
+                continue
+            }
             let problem = await launcher.open(app, folder: slot.folder, bounds: bounds)
             guard session?.id == sessionID else { return }
             if let problem { toaster.show(problem) }
@@ -543,6 +553,7 @@ enum CompanionViolation: Equatable {
         breakTotal = nil
         nextBreakElapsed = elapsed + Self.breakCooldown
         VoiceOutput.shared.speak("Break is over. Time to lock back in.")
+        presenter?.showMainWindow()
         let opened = breakOpenedTheLock
         breakOpenedTheLock = false
         guard opened, session != nil else { return }

@@ -14,8 +14,14 @@ enum SubjectValidator {
             errors.append("Add \(preset.siteCount) site\(preset.siteCount == 1 ? "" : "s") for this layout")
         }
         for (index, site) in sites.enumerated()
-        where !site.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && DomainMatcher.normalizedURL(site) == nil {
-            errors.append("Site \(index + 1) is not a valid URL")
+        where !site.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if DomainMatcher.normalizedURL(site) == nil {
+                errors.append("Site \(index + 1) is not a valid URL")
+            } else if let host = DomainMatcher.host(of: site),
+                      let cat = DistractionList.category(of: host),
+                      cat != .video {
+                errors.append("Site \(index + 1) cannot be a distraction site (\(host))")
+            }
         }
         return errors
     }
@@ -81,11 +87,25 @@ enum SubjectValidator {
                 let urls = slot.urls.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 if urls.first(where: { !$0.isEmpty }) == nil {
                     errors.append("\(label) needs a website")
-                } else if urls.contains(where: { !$0.isEmpty && DomainMatcher.normalizedURL($0) == nil }) {
-                    errors.append("\(label) has a website that is not a valid URL")
+                } else {
+                    for url in urls where !url.isEmpty {
+                        if DomainMatcher.normalizedURL(url) == nil {
+                            errors.append("\(label) has a website that is not a valid URL")
+                        } else if let host = DomainMatcher.host(of: url),
+                                  let cat = DistractionList.category(of: host),
+                                  cat != .video {
+                            errors.append("\(label) website cannot be a distraction site (\(host))")
+                        }
+                    }
                 }
             case .app:
-                if slot.app == nil { errors.append("\(label) needs an app") }
+                if let app = slot.app {
+                    if DistractionApps.isDistraction(app.bundleID) {
+                        errors.append("\(label) cannot use \(app.name): prohibited distraction app or unmonitored browser")
+                    }
+                } else {
+                    errors.append("\(label) needs an app")
+                }
             }
         }
         return errors
@@ -129,6 +149,7 @@ enum SubjectValidator {
         var result: [String] = []
         for token in text.components(separatedBy: separators) where !token.isEmpty {
             guard let host = DomainMatcher.host(of: token), seen.insert(host).inserted else { continue }
+            if let cat = DistractionList.category(of: host), cat != .video { continue }
             result.append(host)
         }
         return result

@@ -69,4 +69,38 @@ final class SubjectValidatorTests: XCTestCase {
         XCTAssertEqual(SubjectValidator.parseDomains(""), [])
         XCTAssertEqual(SubjectValidator.parseDomains(" ,  %%% "), [])
     }
+
+    func testParseDomainsFiltersOutDistractionDomains() {
+        let input = "piazza.com, discord.com, reddit.com, stackoverflow.com, https://youtube.com/watch"
+        let parsed = SubjectValidator.parseDomains(input)
+        XCTAssertTrue(parsed.contains("piazza.com"))
+        XCTAssertTrue(parsed.contains("stackoverflow.com"))
+        XCTAssertTrue(parsed.contains("youtube.com"), "video allowed in extra domains for lecture clips")
+        XCTAssertFalse(parsed.contains("discord.com"))
+        XCTAssertFalse(parsed.contains("reddit.com"))
+    }
+
+    func testDistractionSitesAreReportedInErrors() {
+        let errors = SubjectValidator.errors(name: "Test", sites: ["https://reddit.com"], preset: .full)
+        XCTAssertEqual(errors, ["Site 1 cannot be a distraction site (reddit.com)"])
+
+        let discordErrors = SubjectValidator.errors(name: "Test", sites: ["discord.com"], preset: .full)
+        XCTAssertEqual(discordErrors, ["Site 1 cannot be a distraction site (discord.com)"])
+    }
+
+    func testWindowSlotsRejectsDistractionAppsAndBrowsers() {
+        let safari = SetupSlot.app(AllowedApp(bundleID: "com.apple.Safari", name: "Safari"))
+        let errors = SubjectValidator.errors(name: "Test", slots: [safari], customLayout: false)
+        XCTAssertTrue(errors.contains("Window 1 cannot use Safari: prohibited distraction app or unmonitored browser"))
+
+        let discord = SetupSlot.app(AllowedApp(bundleID: "com.hnc.Discord", name: "Discord"))
+        let discordErrors = SubjectValidator.errors(name: "Test", slots: [discord], customLayout: false)
+        XCTAssertTrue(discordErrors.contains("Window 1 cannot use Discord: prohibited distraction app or unmonitored browser"))
+    }
+
+    func testWindowSlotsRejectsDistractionWebsites() {
+        let redditSlot = SetupSlot.website(["https://reddit.com/r/all"])
+        let errors = SubjectValidator.errors(name: "Test", slots: [redditSlot], customLayout: false)
+        XCTAssertTrue(errors.contains("Window 1 website cannot be a distraction site (reddit.com)"))
+    }
 }

@@ -40,4 +40,24 @@ final class DistractionAppsTests: XCTestCase {
             XCTAssertFalse(DistractionApps.apps[category]?.isEmpty ?? true, category.rawValue)
         }
     }
+
+    func testAllUnmonitoredBrowsersAreDistractions() {
+        let browsers = ["com.apple.Safari", "org.mozilla.firefox", "com.operasoftware.Opera",
+                        "com.microsoft.edgemac", "com.brave.Browser", "com.vivaldi.Vivaldi",
+                        "org.torproject.torbrowser"]
+        for id in browsers {
+            XCTAssertEqual(DistractionApps.category(of: id), .browsers, "\(id) must be categorized as unmonitored browser")
+            XCTAssertTrue(DistractionApps.isDistraction(id))
+        }
+    }
+
+    func testGamingAppsAreDistractions() {
+        let games = ["com.valvesoftware.steam", "com.epicgames.EpicGamesLauncher", "net.battle.app",
+                     "com.riotgames.LeagueofLegends.LeagueClientUx", "com.mojang.minecraftlauncher",
+                     "com.Roblox.RobloxPlayer", "com.apple.Chess", "com.supercell.clashroyale"]
+        for id in games {
+            XCTAssertEqual(DistractionApps.category(of: id), .gaming, "\(id) must be categorized as gaming")
+            XCTAssertTrue(DistractionApps.isDistraction(id))
+        }
+    }
 }

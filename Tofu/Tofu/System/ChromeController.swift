@@ -525,6 +525,9 @@ struct BrowserWindowPlan: Equatable {
     func allowHost(_ host: String) {
         let host = DomainMatcher.normalize(host)
         guard acceptsSiteDecisions, !host.isEmpty else { return }
+        if let cat = DistractionList.category(of: host), cat != .video {
+            return
+        }
         sessionAnswers[host] = true
         triage.allowHost(host)
         onHostAllowed?(host)
