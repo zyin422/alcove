@@ -10,15 +10,38 @@ struct Priority: Codable, Identifiable, Hashable {
     var googleTaskID: String?
     /// Estimated time in minutes (e.g. 25, 45, 60), optional.
     var estimatedMinutes: Int?
+    /// Scheduled start time in minutes from midnight (e.g. 9 * 60 = 540 for 9:00 AM), optional.
+    var scheduledMinutesFromMidnight: Int?
 
     init(id: UUID = UUID(), title: String, subjectID: UUID? = nil, isDone: Bool = false,
-         googleTaskID: String? = nil, estimatedMinutes: Int? = nil) {
+         googleTaskID: String? = nil, estimatedMinutes: Int? = nil,
+         scheduledMinutesFromMidnight: Int? = nil) {
         self.id = id
         self.title = title
         self.subjectID = subjectID
         self.isDone = isDone
         self.googleTaskID = googleTaskID
         self.estimatedMinutes = estimatedMinutes
+        self.scheduledMinutesFromMidnight = scheduledMinutesFromMidnight
+    }
+
+    /// Formatted time label (e.g. "9:00 AM", or "9:00 AM – 10:30 AM" if duration is known).
+    var scheduledTimeLabel: String? {
+        guard let startMinutes = scheduledMinutesFromMidnight else { return nil }
+        let startH = (startMinutes / 60) % 24
+        let startM = startMinutes % 60
+        let startPeriod = startH >= 12 ? "PM" : "AM"
+        let displayH = startH == 0 ? 12 : (startH > 12 ? startH - 12 : startH)
+        let startStr = startM == 0 ? "\(displayH) \(startPeriod)" : String(format: "%d:%02d %@", displayH, startM, startPeriod)
+
+        guard let est = estimatedMinutes, est > 0 else { return startStr }
+        let endMinutes = startMinutes + est
+        let endH = (endMinutes / 60) % 24
+        let endM = endMinutes % 60
+        let endPeriod = endH >= 12 ? "PM" : "AM"
+        let displayEndH = endH == 0 ? 12 : (endH > 12 ? endH - 12 : endH)
+        let endStr = endM == 0 ? "\(displayEndH) \(endPeriod)" : String(format: "%d:%02d %@", displayEndH, endM, endPeriod)
+        return "\(startStr) – \(endStr)"
     }
 }
 

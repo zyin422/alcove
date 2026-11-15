@@ -282,6 +282,152 @@ final class DayPlannerTests: XCTestCase {
         XCTAssertTrue(data.settings.dayEndPromptEnabled)
         XCTAssertEqual(data.settings.dayEndMinutes, 22 * 60)
     }
+
+    // MARK: - Time Slot Parsing & Schedule Layout Tests
+
+    func testParseScheduledTime12HourAmPm() {
+        let (t1, m1) = DayPlanner.parseScheduledTime(from: "8am CS128 lab")
+        XCTAssertEqual(m1, 8 * 60)
+        XCTAssertEqual(t1, "CS128 lab")
+
+        let (t2, m2) = DayPlanner.parseScheduledTime(from: "9:30 AM SST Research")
+        XCTAssertEqual(m2, 9 * 60 + 30)
+        XCTAssertEqual(t2, "SST Research")
+
+        let (t3, m3) = DayPlanner.parseScheduledTime(from: "at 2pm Discrete HW")
+        XCTAssertEqual(m3, 14 * 60)
+        XCTAssertEqual(t3, "Discrete HW")
+
+        let (t4, m4) = DayPlanner.parseScheduledTime(from: "Deep work at 11:45 PM")
+        XCTAssertEqual(m4, 23 * 60 + 45)
+        XCTAssertEqual(t4, "Deep work")
+
+        let (t5, m5) = DayPlanner.parseScheduledTime(from: "12pm Lunch")
+        XCTAssertEqual(m5, 12 * 60)
+        XCTAssertEqual(t5, "Lunch")
+
+        let (t6, m6) = DayPlanner.parseScheduledTime(from: "12am Midnight Review")
+        XCTAssertEqual(m6, 0)
+        XCTAssertEqual(t6, "Midnight Review")
+    }
+
+    func testParseScheduledTime24Hour() {
+        let (t1, m1) = DayPlanner.parseScheduledTime(from: "14:30 Meeting")
+        XCTAssertEqual(m1, 14 * 60 + 30)
+        XCTAssertEqual(t1, "Meeting")
+
+        let (t2, m2) = DayPlanner.parseScheduledTime(from: "at 09:15 Lab")
+        XCTAssertEqual(m2, 9 * 60 + 15)
+        XCTAssertEqual(t2, "Lab")
+    }
+
+    func testParsePriorityDetailsCombined() {
+        let (t1, est1, sched1) = DayPlanner.parsePriorityDetails(from: "8am CS128 lab 45m")
+        XCTAssertEqual(t1, "CS128 lab")
+        XCTAssertEqual(est1, 45)
+        XCTAssertEqual(sched1, 8 * 60)
+
+        let (t2, est2, sched2) = DayPlanner.parsePriorityDetails(from: "SST Research 2h at 9:30 AM")
+        XCTAssertEqual(t2, "SST Research")
+        XCTAssertEqual(est2, 120)
+        XCTAssertEqual(sched2, 9 * 60 + 30)
+
+        let (t3, est3, sched3) = DayPlanner.parsePriorityDetails(from: "Discrete HW 1.5 hours")
+        XCTAssertEqual(t3, "Discrete HW")
+        XCTAssertEqual(est3, 90)
+        XCTAssertNil(sched3)
+    }
+
+    func testPriorityScheduledTimeLabel() {
+        let p1 = Priority(title: "Lab", estimatedMinutes: 45, scheduledMinutesFromMidnight: 9 * 60)
+        XCTAssertEqual(p1.scheduledTimeLabel, "9 AM – 9:45 AM")
+
+        let p2 = Priority(title: "Research", estimatedMinutes: 90, scheduledMinutesFromMidnight: 13 * 60 + 30)
+        XCTAssertEqual(p2.scheduledTimeLabel, "1:30 PM – 3 PM")
+
+        let p3 = Priority(title: "Ad hoc", scheduledMinutesFromMidnight: 10 * 60)
+        XCTAssertEqual(p3.scheduledTimeLabel, "10 AM")
+
+        let p4 = Priority(title: "Unscheduled", estimatedMinutes: 60)
+        XCTAssertNil(p4.scheduledTimeLabel)
+    }
+
+    func testPriorityScheduledMinutesCodableBackwardsCompatibility() throws {
+        let legacyJSON = """
+        {"id":"E621E1F8-C36C-495A-93FC-0C247A3E6E5F","title":"Old task","isDone":false,"estimatedMinutes":45}
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(Priority.self, from: legacyJSON)
+        XCTAssertEqual(decoded.title, "Old task")
+        XCTAssertEqual(decoded.estimatedMinutes, 45)
+        XCTAssertNil(decoded.scheduledMinutesFromMidnight)
+
+        let newPriority = Priority(title: "Task with schedule", estimatedMinutes: 60, scheduledMinutesFromMidnight: 600)
+        let encoded = try JSONEncoder().encode(newPriority)
+        let roundtrip = try JSONDecoder().decode(Priority.self, from: encoded)
+        XCTAssertEqual(roundtrip.title, "Task with schedule")
+        XCTAssertEqual(roundtrip.estimatedMinutes, 60)
+        XCTAssertEqual(roundtrip.scheduledMinutesFromMidnight, 600)
+    }
+
+    func testComputeScheduleLayoutWithCalendarAndPriorities() {
+        let eventStart = date(15, 10, 0)
+        let eventEnd = date(15, 11, 0)
+        let event = GoogleEvent(
+            id: "ev1",
+            summary: "Lecture",
+            start: GoogleEventTime(dateTime: ISO8601DateFormatter().string(from: eventStart), date: nil),
+            end: GoogleEventTime(dateTime: ISO8601DateFormatter().string(from: eventEnd), date: nil)
+        )
+
+        let p1 = Priority(title: "Morning Study", estimatedMinutes: 60, scheduledMinutesFromMidnight: 8 * 60)
+        let p2 = Priority(title: "Research", estimatedMinutes: 90)
+
+        let layout = DayPlanner.computeScheduleLayout(
+            day: "2026-10-15",
+            calendarEvents: [event],
+            priorities: [p1, p2],
+            sessions: [],
+            calendar: calendar,
+            now: date(15, 8, 0)
+        )
+
+        XCTAssertEqual(layout.calendarBlocks.count, 1)
+        XCTAssertEqual(layout.calendarBlocks.first?.startMinutes, 10 * 60)
+        XCTAssertEqual(layout.calendarBlocks.first?.endMinutes, 11 * 60)
+
+        XCTAssertEqual(layout.plannedBlocks.count, 2)
+        XCTAssertEqual(layout.plannedBlocks[0].startMinutes, 8 * 60)
+        XCTAssertEqual(layout.plannedBlocks[0].endMinutes, 9 * 60)
+
+        let p2Block = layout.plannedBlocks[1]
+        let overlapsLecture = max(p2Block.startMinutes, 10 * 60) < min(p2Block.endMinutes, 11 * 60)
+        XCTAssertFalse(overlapsLecture, "Planned priority must not overlap calendar event")
+
+        XCTAssertFalse(layout.chronologicalAgenda.isEmpty)
+        XCTAssertEqual(layout.chronologicalAgenda.count, 3)
+    }
+
+    func testDynamicBoundsExpandForEarlyAndLateBlocks() {
+        let earlyStart = date(15, 5, 30)
+        let earlyEnd = date(15, 6, 30)
+        let earlyEvent = GoogleEvent(
+            id: "ev_early",
+            summary: "Dawn Workout",
+            start: GoogleEventTime(dateTime: ISO8601DateFormatter().string(from: earlyStart), date: nil),
+            end: GoogleEventTime(dateTime: ISO8601DateFormatter().string(from: earlyEnd), date: nil)
+        )
+
+        let layout = DayPlanner.computeScheduleLayout(
+            day: "2026-10-15",
+            calendarEvents: [earlyEvent],
+            priorities: [],
+            sessions: [],
+            calendar: calendar,
+            now: date(15, 8, 0)
+        )
+
+        XCTAssertLessThanOrEqual(layout.dayStartHour, 5.0, "Day start must expand for early morning event")
+    }
 }
 
 @MainActor

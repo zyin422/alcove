@@ -523,6 +523,7 @@ enum CompanionViolation: Equatable {
         }
         breakEndsAt = now.addingTimeInterval(TimeInterval(clamped * 60))
         breakTotal = TimeInterval(clamped * 60)
+        VoiceOutput.shared.speak("Break started. Step away from the screen.")
         return true
     }
 
@@ -541,6 +542,7 @@ enum CompanionViolation: Equatable {
         breakEndsAt = nil
         breakTotal = nil
         nextBreakElapsed = elapsed + Self.breakCooldown
+        VoiceOutput.shared.speak("Break is over. Time to lock back in.")
         let opened = breakOpenedTheLock
         breakOpenedTheLock = false
         guard opened, session != nil else { return }
@@ -593,6 +595,9 @@ enum CompanionViolation: Equatable {
         guard let final = endSession(outcome) else { return }
         presenter?.exitLocked()
         toaster.show("Saved: \(TimeFormat.short(final.duration)) on \(final.subjectName)")
+        if outcome == .completed {
+            VoiceOutput.shared.speak("Focus session completed. Great work on \(final.subjectName).")
+        }
         if outcome == .bailed, let goalMinutes = final.mode.goalMinutes {
             announcer.announce(DiscordMessages.bailed(name: displayName, subject: final.subjectName,
                                                       duration: final.duration, goalMinutes: goalMinutes,

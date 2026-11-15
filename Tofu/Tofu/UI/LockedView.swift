@@ -115,13 +115,23 @@ struct LockedView: View {
         VStack(spacing: 0) {
             Picker("", selection: $sessionTab) {
                 ForEach(SessionTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
+                    Text(tabTitle(tab)).tag(tab)
                 }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, Theme.Space.m)
             .padding(.top, Theme.Space.s)
             .padding(.bottom, Theme.Space.xs)
+
+            // Hidden shortcut buttons for ⌘1...⌘4
+            HStack(spacing: 0) {
+                Button("") { sessionTab = .assistant }.keyboardShortcut("1", modifiers: .command)
+                Button("") { sessionTab = .plan }.keyboardShortcut("2", modifiers: .command)
+                Button("") { sessionTab = .thoughts }.keyboardShortcut("3", modifiers: .command)
+                Button("") { sessionTab = .closedTabs }.keyboardShortcut("4", modifiers: .command)
+            }
+            .frame(width: 0, height: 0)
+            .opacity(0)
 
             if sessionTab == .plan {
                 PlanningPriorityView(model: model)
@@ -138,6 +148,21 @@ struct LockedView: View {
             if model.engine.isPlanningMode {
                 sessionTab = .plan
             }
+        }
+    }
+
+    private func tabTitle(_ tab: SessionTab) -> String {
+        switch tab {
+        case .assistant:
+            return "Assistant (⌘1)"
+        case .plan:
+            return "Plan (⌘2)"
+        case .thoughts:
+            let count = model.engine.parkedThoughts.count
+            return count > 0 ? "Thoughts (\(count)) ⌘3" : "Thoughts (⌘3)"
+        case .closedTabs:
+            let count = model.engine.session?.closedTabHistory.count ?? 0
+            return count > 0 ? "Closed Tabs (\(count)) ⌘4" : "Closed Tabs (⌘4)"
         }
     }
 

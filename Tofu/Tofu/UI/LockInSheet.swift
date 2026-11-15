@@ -113,8 +113,10 @@ struct LockInSheet: View {
     private func lockIn() {
         let mode = option.mode(customMinutes: customMinutes)
         let subjectID = subject.id
+        let subjectName = subject.name
         let model = model
         dismiss()
+        VoiceOutput.shared.speak("Locked in with \(subjectName). Stay focused.")
         Task { await model.lockIn(subjectID: subjectID, mode: mode) }
     }
 }

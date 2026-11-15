@@ -52,8 +52,10 @@ struct TodayView: View {
             let events = (plan.day == todayKey && model.data.settings.googleShowEventsEnabled)
                 ? (model.googleSync?.todayEvents ?? []) : []
 
-            if !events.isEmpty || !todaySessions.isEmpty {
-                TodayScheduleView(events: events, sessions: todaySessions, model: model)
+            if !events.isEmpty || !todaySessions.isEmpty || !plan.priorities.isEmpty {
+                TodayScheduleView(events: events, sessions: todaySessions, priorities: plan.priorities, day: shownDay, model: model, onLockIn: { subject in
+                    lockInSubject = subject
+                })
             }
 
             if plan.priorities.isEmpty {
@@ -194,6 +196,12 @@ struct TodayView: View {
                     if let subject = priority.subjectID.flatMap(model.subject(id:)) {
                         Text(subject.name).font(.caption).foregroundStyle(.secondary)
                     }
+                    if let scheduled = priority.scheduledTimeLabel {
+                        if priority.subjectID != nil { Text("·").font(.caption).foregroundStyle(.secondary) }
+                        Text(scheduled)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(Color.accentColor)
+                    }
                     durationBadge(for: priority)
                 }
             }
@@ -239,7 +247,7 @@ struct TodayView: View {
 
     private var addRow: some View {
         HStack(spacing: Theme.Space.s) {
-            TextField("Add a priority (e.g. Finish lab 45m)", text: $newTitle)
+            TextField("Add a priority (e.g. 8am CS128 lab 45m)", text: $newTitle)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(add)
             SetupPicker(subjects: model.data.subjects, selection: $newSubjectID)
@@ -252,10 +260,15 @@ struct TodayView: View {
     private func add() {
         let raw = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !raw.isEmpty else { return }
-        let (title, estimatedMinutes) = DayPlanner.parseTimeEstimate(from: raw)
+        let (title, estimatedMinutes, scheduledMinutes) = DayPlanner.parsePriorityDetails(from: raw)
         let subjectID = newSubjectID ?? DayPlanner.matchSubject(title, subjects: model.data.subjects)
         model.updatePlan(day: plan.day) {
-            $0.priorities.append(Priority(title: title, subjectID: subjectID, estimatedMinutes: estimatedMinutes))
+            $0.priorities.append(Priority(
+                title: title,
+                subjectID: subjectID,
+                estimatedMinutes: estimatedMinutes,
+                scheduledMinutesFromMidnight: scheduledMinutes
+            ))
         }
         newTitle = ""
         newSubjectID = nil
@@ -364,15 +377,25 @@ private struct MonthCalendar: View {
     }
 }
 
-/// Visual daily rhythm timeline combining calendar events and completed focus sessions.
+/// Visual daily rhythm timeline combining calendar events, planned priorities, and completed focus sessions.
 private struct TodayScheduleView: View {
     let events: [GoogleEvent]
     let sessions: [Session]
+    let priorities: [Priority]
+    let day: String
     let model: AppModel
+    var onLockIn: ((Subject) -> Void)? = nil
 
-    private let dayStartHour = 8.0   // 8:00 AM
-    private let dayEndHour = 22.0    // 10:00 PM
-    private var totalSpanHours: Double { dayEndHour - dayStartHour }
+    @State private var hoveredBlockID: String?
+
+    private var layout: DayScheduleLayout {
+        DayPlanner.computeScheduleLayout(
+            day: day,
+            calendarEvents: events,
+            priorities: priorities,
+            sessions: sessions
+        )
+    }
 
     private var totalMeetingSeconds: TimeInterval {
         events.reduce(0) { total, event in
@@ -381,127 +404,223 @@ private struct TodayScheduleView: View {
         }
     }
 
+    private var totalPlannedMinutes: Int {
+        priorities.reduce(0) { $0 + ($1.estimatedMinutes ?? 45) }
+    }
+
     private var totalFocusSeconds: TimeInterval {
         sessions.reduce(0) { $0 + $1.duration }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Space.s) {
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            // Header stats
             HStack {
                 Text("Today's Schedule")
                     .font(.headline)
                 Spacer()
-                Text("\(events.count) events (\(TimeFormat.short(totalMeetingSeconds))) · \(TimeFormat.short(totalFocusSeconds)) focused")
+                Text("\(events.count) events (\(TimeFormat.short(totalMeetingSeconds))) · \(totalPlannedMinutes)m planned · \(TimeFormat.short(totalFocusSeconds)) focused")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
 
-            // Visual 8 AM - 10 PM Schedule Bar
+            // Legend
+            HStack(spacing: Theme.Space.m) {
+                legendItem(title: "Calendar", color: Color.primary.opacity(0.3))
+                legendItem(title: "Planned Focus", color: Color.accentColor.opacity(0.6))
+                legendItem(title: "Completed", color: Color.accentColor)
+                Spacer()
+            }
+
+            // Multi-Track Timeline Bar
             GeometryReader { geo in
                 let width = geo.size.width
-                ZStack(alignment: .leading) {
-                    // Track background
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.primary.opacity(0.06))
+                VStack(spacing: 3) {
+                    // Track 1: Calendar Events
+                    trackRow(blocks: layout.calendarBlocks, width: width, height: 14) { block in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.primary.opacity(0.25))
+                            .help("\(block.title) (\(block.timeRangeLabel))")
+                    }
 
-                    // Calendar events
-                    ForEach(events) { event in
-                        if let s = event.start.parsed, let e = event.end.parsed {
-                            let (startFraction, durationFraction) = fractions(start: s, end: e)
-                            if durationFraction > 0 {
+                    // Track 2: Planned Priorities
+                    trackRow(blocks: layout.plannedBlocks, width: width, height: 16) { block in
+                        let color = subjectColor(id: block.subjectID, name: block.title)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(color.opacity(block.isDone ? 0.35 : 0.65))
+                            .overlay(
                                 RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.primary.opacity(0.2))
-                                    .frame(width: max(4, width * durationFraction), height: 18)
-                                    .offset(x: width * startFraction)
-                                    .help("\(event.summary ?? "Event") (\(GoogleEventFormat.timeLabel(event)))")
+                                    .stroke(color, lineWidth: hoveredBlockID == block.id ? 2 : 1)
+                            )
+                            .help("\(block.title) (\(block.timeRangeLabel))")
+                            .onHover { isHovered in
+                                hoveredBlockID = isHovered ? block.id : nil
                             }
-                        }
                     }
 
-                    // Completed focus sessions
-                    ForEach(sessions) { session in
-                        let end = session.end ?? session.lastHeartbeat
-                        let (startFraction, durationFraction) = fractions(start: session.start, end: end)
-                        if durationFraction > 0 {
-                            let color = subjectColor(id: session.subjectID, name: session.subjectName)
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(color)
-                                .frame(width: max(4, width * durationFraction), height: 18)
-                                .offset(x: width * startFraction)
-                                .help("\(session.subjectName) (\(TimeFormat.short(session.duration)))")
-                        }
-                    }
-
-                    // Current time indicator line
-                    let nowFraction = currentFraction()
-                    if nowFraction >= 0 && nowFraction <= 1.0 {
-                        Rectangle()
-                            .fill(Color.accentColor)
-                            .frame(width: 2, height: 22)
-                            .offset(x: width * nowFraction)
+                    // Track 3: Completed Focus Sessions
+                    trackRow(blocks: layout.sessionBlocks, width: width, height: 14) { block in
+                        let color = subjectColor(id: block.subjectID, name: block.title)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(color)
+                            .help("\(block.title) (\(block.timeRangeLabel))")
                     }
                 }
+                .overlay(
+                    // Current time red/accent vertical line across all 3 tracks
+                    currentTimeLine(width: width)
+                )
             }
-            .frame(height: 22)
+            .frame(height: 52)
 
-            // Hour markers: 8 AM, 12 PM, 4 PM, 8 PM, 10 PM
-            HStack {
-                Text("8 AM").font(.system(size: 10)).foregroundStyle(.secondary)
-                Spacer()
-                Text("12 PM").font(.system(size: 10)).foregroundStyle(.secondary)
-                Spacer()
-                Text("4 PM").font(.system(size: 10)).foregroundStyle(.secondary)
-                Spacer()
-                Text("8 PM").font(.system(size: 10)).foregroundStyle(.secondary)
-                Spacer()
-                Text("10 PM").font(.system(size: 10)).foregroundStyle(.secondary)
-            }
+            // Dynamic Hour Markers
+            hourRuler
 
-            // Compact event list if events are present
-            if !events.isEmpty {
-                VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                    ForEach(events) { event in
-                        HStack(spacing: Theme.Space.s) {
-                            Text(GoogleEventFormat.timeLabel(event))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .frame(width: 130, alignment: .leading)
-                            Text(event.summary ?? "(untitled)")
-                                .font(.system(size: 12))
-                                .lineLimit(1)
-                        }
-                    }
-                }
-                .padding(.top, 4)
+            // Unified Chronological Agenda
+            if !layout.chronologicalAgenda.isEmpty {
+                agendaList
             }
         }
         .padding(Theme.Space.m)
         .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Color.primary.opacity(0.04)))
     }
 
-    private func fractions(start: Date, end: Date) -> (start: CGFloat, duration: CGFloat) {
-        let cal = Calendar.current
-        let startH = Double(cal.component(.hour, from: start)) + Double(cal.component(.minute, from: start)) / 60.0
-        let endH = Double(cal.component(.hour, from: end)) + Double(cal.component(.minute, from: end)) / 60.0
-
-        let clampedStart = max(dayStartHour, min(dayEndHour, startH))
-        let clampedEnd = max(dayStartHour, min(dayEndHour, endH))
-
-        let startF = CGFloat((clampedStart - dayStartHour) / totalSpanHours)
-        let durationF = CGFloat(max(0, clampedEnd - clampedStart) / totalSpanHours)
-        return (startF, durationF)
+    private func legendItem(title: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(color)
+                .frame(width: 10, height: 10)
+            Text(title)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
     }
 
-    private func currentFraction() -> CGFloat {
-        let cal = Calendar.current
-        let now = Date()
-        let nowH = Double(cal.component(.hour, from: now)) + Double(cal.component(.minute, from: now)) / 60.0
-        guard nowH >= dayStartHour && nowH <= dayEndHour else { return -1 }
-        return CGFloat((nowH - dayStartHour) / totalSpanHours)
+    @ViewBuilder
+    private func trackRow<Content: View>(
+        blocks: [ScheduleBlock],
+        width: CGFloat,
+        height: CGFloat,
+        @ViewBuilder content: @escaping (ScheduleBlock) -> Content
+    ) -> some View {
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.primary.opacity(0.04))
+                .frame(height: height)
+
+            ForEach(blocks) { block in
+                let (startF, durF) = layout.fractions(startMinutes: block.startMinutes, endMinutes: block.endMinutes)
+                content(block)
+                    .frame(width: max(4, width * durF), height: height)
+                    .offset(x: width * startF)
+            }
+        }
+        .frame(height: height)
     }
 
-    private func subjectColor(id: UUID, name: String) -> Color {
-        if let subject = model.data.subjects.first(where: { $0.id == id }) {
+    @ViewBuilder
+    private func currentTimeLine(width: CGFloat) -> some View {
+        let nowF = layout.currentFraction()
+        if nowF >= 0 && nowF <= 1.0 {
+            Rectangle()
+                .fill(Color.red.opacity(0.85))
+                .frame(width: 2, height: 52)
+                .offset(x: width * nowF)
+        }
+    }
+
+    private var hourRuler: some View {
+        let startH = Int(layout.dayStartHour)
+        let endH = Int(layout.dayEndHour)
+        let step = max(2, (endH - startH) / 6)
+        let markers = stride(from: startH, through: endH, by: step).map { $0 }
+
+        return HStack {
+            ForEach(markers, id: \.self) { h in
+                Text(formatHour(h))
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                if h != markers.last { Spacer() }
+            }
+        }
+    }
+
+    private func formatHour(_ h: Int) -> String {
+        let normalized = (h % 24)
+        let period = normalized >= 12 ? "PM" : "AM"
+        let display = normalized == 0 ? 12 : (normalized > 12 ? normalized - 12 : normalized)
+        return "\(display) \(period)"
+    }
+
+    private var agendaList: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            Text("Day Agenda")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.top, 2)
+
+            ForEach(layout.chronologicalAgenda.prefix(6)) { block in
+                HStack(spacing: Theme.Space.s) {
+                    Text(block.timeRangeLabel)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 135, alignment: .leading)
+
+                    switch block.kind {
+                    case .calendarEvent:
+                        Image(systemName: "calendar")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text(block.title)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                    case .plannedPriority(_, let title, let subjectID, let isDone):
+                        Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(isDone ? Color.accentColor : Color.secondary)
+                        Text(title)
+                            .font(.system(size: 12, weight: .medium))
+                            .strikethrough(isDone)
+                            .lineLimit(1)
+                        if let subjectID, let subject = model.subject(id: subjectID) {
+                            Text(subject.name)
+                                .font(.system(size: 10))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(RoundedRectangle(cornerRadius: 3).fill(Theme.subjectColor(subject.colorHex).opacity(0.18)))
+                        }
+                    case .completedSession(_, _, let subjectID, _):
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.accentColor)
+                        Text(block.title)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                        Text("(\(block.durationMinutes)m)")
+                            .font(.system(size: 10).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    // Quick lock in for planned priority
+                    if case .plannedPriority(_, _, let subjectID, let isDone) = block.kind,
+                       !isDone, let subjectID, let subject = model.subject(id: subjectID) {
+                        Button("Lock in") {
+                            onLockIn?(subject)
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .controlSize(.small)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func subjectColor(id: UUID?, name: String) -> Color {
+        if let id, let subject = model.data.subjects.first(where: { $0.id == id }) {
             return Theme.subjectColor(subject.colorHex)
         }
         return Theme.subjectColor(SubjectColor.hex(for: name))

@@ -380,26 +380,55 @@ private struct TimeBlockList: View {
     let blocks: [TimeBlock]
     let onDelete: (UUID) -> Void
 
+    private var maxSeconds: TimeInterval {
+        max(60, blocks.map(\.seconds).max() ?? 60)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s) {
-            Text("Time blocks").font(Theme.captionFont).foregroundStyle(.secondary)
+            HStack {
+                Text("Time blocks").font(Theme.captionFont).foregroundStyle(.secondary)
+                Spacer()
+                if !blocks.isEmpty {
+                    Text("\(blocks.count) blocks · \(TimeFormat.short(blocks.reduce(0) { $0 + $1.seconds })) total")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
             if blocks.isEmpty {
                 Text("No time blocks in this period")
                     .foregroundStyle(.secondary)
                     .padding(.vertical, Theme.Space.s)
             } else {
-                ForEach(blocks) { block in
-                    HStack(spacing: Theme.Space.m) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(block.subjectName).lineLimit(1)
-                            Text(block.start.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                VStack(spacing: 2) {
+                    ForEach(blocks) { block in
+                        let color = Theme.subjectColor(SubjectColor.hex(for: block.subjectName))
+                        let barFraction = min(1.0, max(0.08, block.seconds / maxSeconds))
+                        HStack(spacing: Theme.Space.m) {
+                            Circle()
+                                .fill(color)
+                                .frame(width: 8, height: 8)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(block.subjectName).lineLimit(1).font(.body.weight(.medium))
+                                Text(block.start.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: Theme.Space.s)
+
+                            // Visual duration bar
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(color.opacity(0.35))
+                                .frame(width: 80 * barFraction, height: 6)
+
+                            Text(TimeFormat.short(block.seconds))
+                                .font(.body.monospacedDigit())
+                            SessionRemoveButton { onDelete(block.id) }
                         }
-                        Spacer(minLength: Theme.Space.s)
-                        Text(TimeFormat.short(block.seconds))
-                            .monospacedDigit()
-                        SessionRemoveButton { onDelete(block.id) }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, Theme.Space.s)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.02)))
                     }
                 }
             }

@@ -255,9 +255,72 @@ enum DayPlanner {
     /// Local fallback for `PriorityExtractor`: split the words and match setups by name.
     static func localPriorities(from text: String, subjects: [Subject]) -> [Priority] {
         splitSpokenList(text).map { item in
-            let (clean, estimatedMinutes) = parseTimeEstimate(from: item)
-            return Priority(title: clean, subjectID: matchSubject(clean, subjects: subjects), estimatedMinutes: estimatedMinutes)
+            let (clean, estimatedMinutes, scheduledMinutes) = parsePriorityDetails(from: item)
+            return Priority(title: clean,
+                            subjectID: matchSubject(clean, subjects: subjects),
+                            estimatedMinutes: estimatedMinutes,
+                            scheduledMinutesFromMidnight: scheduledMinutes)
         }
+    }
+
+    /// Extracts both scheduled time and estimated duration from a priority string.
+    /// Handles e.g. "8am CS128 lab 45m", "9:30 AM SST Research 2h", "at 2pm Discrete HW 1h".
+    static func parsePriorityDetails(from raw: String) -> (title: String, estimatedMinutes: Int?, scheduledMinutes: Int?) {
+        let (afterEstTitle, estimatedMinutes) = parseTimeEstimate(from: raw)
+        let (finalTitle, scheduledMinutes) = parseScheduledTime(from: afterEstTitle)
+        return (finalTitle, estimatedMinutes, scheduledMinutes)
+    }
+
+    /// Extracts scheduled start time from a title string, returning cleaned title and minutes from midnight (0..1439).
+    /// Handles e.g. "8am", "8:30am", "9:00 AM", "at 2pm", "14:30", "11:45 PM".
+    static func parseScheduledTime(from raw: String) -> (title: String, scheduledMinutes: Int?) {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return (title: raw, scheduledMinutes: nil) }
+
+        // Pattern 1: 12-hour format with AM/PM (e.g. "8am", "8:30am", "9:00 AM", "at 2pm", "(10pm)")
+        let amPmPattern = #"(?i)(?:\b|at\s+)?(?:\(?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\)?)(?:\s|$|[),.]|\b)"#
+        if let regex = try? NSRegularExpression(pattern: amPmPattern) {
+            let nsString = text as NSString
+            if let match = regex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: nsString.length)) {
+                let hourRange = match.range(at: 1)
+                let minRange = match.range(at: 2)
+                let amPmRange = match.range(at: 3)
+                if hourRange.location != NSNotFound, amPmRange.location != NSNotFound,
+                   var hour = Int(nsString.substring(with: hourRange)) {
+                    let min = (minRange.location != NSNotFound) ? (Int(nsString.substring(with: minRange)) ?? 0) : 0
+                    let amPm = nsString.substring(with: amPmRange).lowercased()
+                    if amPm == "pm" && hour < 12 { hour += 12 }
+                    if amPm == "am" && hour == 12 { hour = 0 }
+                    let totalMinutes = hour * 60 + min
+                    let clean = regex.stringByReplacingMatches(in: text, options: [], range: match.range, withTemplate: " ")
+                    let trimmed = clean.replacingOccurrences(of: #"(?i)\bat\s*$"#, with: "", options: .regularExpression)
+                        .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:,()")))
+                    return (title: trimmed.isEmpty ? raw : trimmed, scheduledMinutes: totalMinutes)
+                }
+            }
+        }
+
+        // Pattern 2: 24-hour format (e.g. "14:30", "09:00", "at 16:45")
+        let h24Pattern = #"(?i)(?:^|\s|at\s+)(\d{1,2}):(\d{2})(?:\s|$|[),.]|\b)"#
+        if let regex = try? NSRegularExpression(pattern: h24Pattern) {
+            let nsString = text as NSString
+            if let match = regex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: nsString.length)) {
+                let hourRange = match.range(at: 1)
+                let minRange = match.range(at: 2)
+                if hourRange.location != NSNotFound, minRange.location != NSNotFound,
+                   let hour = Int(nsString.substring(with: hourRange)),
+                   let min = Int(nsString.substring(with: minRange)),
+                   hour >= 0 && hour < 24 && min >= 0 && min < 60 {
+                    let totalMinutes = hour * 60 + min
+                    let clean = regex.stringByReplacingMatches(in: text, options: [], range: match.range, withTemplate: " ")
+                    let trimmed = clean.replacingOccurrences(of: #"(?i)\bat\s*$"#, with: "", options: .regularExpression)
+                        .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "-:,()")))
+                    return (title: trimmed.isEmpty ? raw : trimmed, scheduledMinutes: totalMinutes)
+                }
+            }
+        }
+
+        return (title: text, scheduledMinutes: nil)
     }
 
     /// Extracts a time estimate from a priority string, returning the cleaned title and minutes.
@@ -296,6 +359,210 @@ enum DayPlanner {
         }
 
         return (title: text, estimatedMinutes: nil)
+    }
+
+    // MARK: - Unified Day Schedule
+
+    /// Computes the unified daily schedule layout combining Google Calendar events, planned priority blocks,
+    /// and completed focus sessions. Unscheduled priorities are slotted into open calendar gaps.
+    static func computeScheduleLayout(
+        day: String,
+        calendarEvents: [GoogleEvent],
+        priorities: [Priority],
+        sessions: [Session],
+        calendar: Calendar = .current,
+        now: Date = Date()
+    ) -> DayScheduleLayout {
+        var calBlocks: [ScheduleBlock] = []
+        for event in calendarEvents {
+            guard let s = event.start.parsed, let e = event.end.parsed, e > s else { continue }
+            let sH = calendar.component(.hour, from: s)
+            let sM = calendar.component(.minute, from: s)
+            let eH = calendar.component(.hour, from: e)
+            let eM = calendar.component(.minute, from: e)
+            let startMin = sH * 60 + sM
+            let endMin = max(startMin + 5, eH * 60 + eM)
+            calBlocks.append(ScheduleBlock(
+                id: "cal-\(event.id)",
+                kind: .calendarEvent(summary: event.summary ?? "Calendar event"),
+                startMinutes: startMin,
+                endMinutes: endMin,
+                title: event.summary ?? "Calendar event",
+                subjectID: nil,
+                isDone: true
+            ))
+        }
+
+        var sessBlocks: [ScheduleBlock] = []
+        for session in sessions {
+            guard !session.isDemo && session.duration > 0 else { continue }
+            let sH = calendar.component(.hour, from: session.start)
+            let sM = calendar.component(.minute, from: session.start)
+            let startMin = sH * 60 + sM
+            let durMin = max(1, Int(session.duration / 60))
+            let endMin = startMin + durMin
+            sessBlocks.append(ScheduleBlock(
+                id: "sess-\(session.id.uuidString)",
+                kind: .completedSession(sessionID: session.id, subjectName: session.subjectName, subjectID: session.subjectID, duration: session.duration),
+                startMinutes: startMin,
+                endMinutes: endMin,
+                title: session.subjectName,
+                subjectID: session.subjectID,
+                isDone: true
+            ))
+        }
+
+        var minHour = 7.0
+        var maxHour = 23.0
+        let allMinutes = (calBlocks + sessBlocks).flatMap { [$0.startMinutes, $0.endMinutes] }
+        if let earliest = allMinutes.min(), Double(earliest) / 60.0 < minHour {
+            minHour = max(4.0, floor(Double(earliest) / 60.0))
+        }
+        if let latest = allMinutes.max(), Double(latest) / 60.0 > maxHour {
+            maxHour = min(28.0, ceil(Double(latest) / 60.0))
+        }
+
+        var plannedBlocks: [ScheduleBlock] = []
+        let busySpans = calBlocks.map { ($0.startMinutes, $0.endMinutes) }.sorted { $0.0 < $1.0 }
+
+        let nowParts = calendar.dateComponents([.hour, .minute], from: now)
+        let nowMinutes = (nowParts.hour ?? Int(minHour)) * 60 + (nowParts.minute ?? 0)
+        var cursor = max(Int(minHour * 60), min(nowMinutes, Int((maxHour - 2) * 60)))
+
+        for priority in priorities {
+            let dur = priority.estimatedMinutes ?? 45
+            if let explicitStart = priority.scheduledMinutesFromMidnight {
+                plannedBlocks.append(ScheduleBlock(
+                    id: "plan-\(priority.id.uuidString)",
+                    kind: .plannedPriority(priorityID: priority.id, title: priority.title, subjectID: priority.subjectID, isDone: priority.isDone),
+                    startMinutes: explicitStart,
+                    endMinutes: explicitStart + dur,
+                    title: priority.title,
+                    subjectID: priority.subjectID,
+                    isDone: priority.isDone
+                ))
+            } else {
+                var candidate = cursor
+                var placed = false
+                while candidate + dur <= Int(maxHour * 60) {
+                    let candidateEnd = candidate + dur
+                    let collision = busySpans.first { span in
+                        max(candidate, span.0) < min(candidateEnd, span.1)
+                    }
+                    if let collision {
+                        candidate = collision.1 + 10
+                    } else {
+                        plannedBlocks.append(ScheduleBlock(
+                            id: "plan-\(priority.id.uuidString)",
+                            kind: .plannedPriority(priorityID: priority.id, title: priority.title, subjectID: priority.subjectID, isDone: priority.isDone),
+                            startMinutes: candidate,
+                            endMinutes: candidateEnd,
+                            title: priority.title,
+                            subjectID: priority.subjectID,
+                            isDone: priority.isDone
+                        ))
+                        cursor = candidateEnd + 15
+                        placed = true
+                        break
+                    }
+                }
+                if !placed {
+                    plannedBlocks.append(ScheduleBlock(
+                        id: "plan-\(priority.id.uuidString)",
+                        kind: .plannedPriority(priorityID: priority.id, title: priority.title, subjectID: priority.subjectID, isDone: priority.isDone),
+                        startMinutes: cursor,
+                        endMinutes: cursor + dur,
+                        title: priority.title,
+                        subjectID: priority.subjectID,
+                        isDone: priority.isDone
+                    ))
+                    cursor += dur + 15
+                }
+            }
+        }
+
+        let all = (calBlocks + plannedBlocks + sessBlocks).sorted {
+            if $0.startMinutes != $1.startMinutes { return $0.startMinutes < $1.startMinutes }
+            return $0.endMinutes < $1.endMinutes
+        }
+
+        return DayScheduleLayout(
+            day: day,
+            dayStartHour: minHour,
+            dayEndHour: maxHour,
+            calendarBlocks: calBlocks.sorted { $0.startMinutes < $1.startMinutes },
+            plannedBlocks: plannedBlocks.sorted { $0.startMinutes < $1.startMinutes },
+            sessionBlocks: sessBlocks.sorted { $0.startMinutes < $1.startMinutes },
+            chronologicalAgenda: all
+        )
+    }
+}
+
+// MARK: - Schedule Types
+
+enum ScheduleBlockKind: Equatable {
+    case calendarEvent(summary: String)
+    case plannedPriority(priorityID: UUID, title: String, subjectID: UUID?, isDone: Bool)
+    case completedSession(sessionID: UUID, subjectName: String, subjectID: UUID, duration: TimeInterval)
+}
+
+struct ScheduleBlock: Identifiable, Equatable {
+    var id: String
+    var kind: ScheduleBlockKind
+    var startMinutes: Int
+    var endMinutes: Int
+    var title: String
+    var subjectID: UUID?
+    var isDone: Bool
+
+    var durationMinutes: Int {
+        max(1, endMinutes - startMinutes)
+    }
+
+    var timeRangeLabel: String {
+        let sH = (startMinutes / 60) % 24
+        let sM = startMinutes % 60
+        let sP = sH >= 12 ? "PM" : "AM"
+        let sDH = sH == 0 ? 12 : (sH > 12 ? sH - 12 : sH)
+        let sStr = sM == 0 ? "\(sDH) \(sP)" : String(format: "%d:%02d %@", sDH, sM, sP)
+
+        let eH = (endMinutes / 60) % 24
+        let eM = endMinutes % 60
+        let eP = eH >= 12 ? "PM" : "AM"
+        let eDH = eH == 0 ? 12 : (eH > 12 ? eH - 12 : eH)
+        let eStr = eM == 0 ? "\(eDH) \(eP)" : String(format: "%d:%02d %@", eDH, eM, eP)
+        return "\(sStr) – \(eStr)"
+    }
+}
+
+struct DayScheduleLayout: Equatable {
+    var day: String
+    var dayStartHour: Double
+    var dayEndHour: Double
+    var calendarBlocks: [ScheduleBlock]
+    var plannedBlocks: [ScheduleBlock]
+    var sessionBlocks: [ScheduleBlock]
+    var chronologicalAgenda: [ScheduleBlock]
+
+    var totalSpanHours: Double {
+        max(1.0, dayEndHour - dayStartHour)
+    }
+
+    func fractions(startMinutes: Int, endMinutes: Int) -> (start: CGFloat, duration: CGFloat) {
+        let startH = Double(startMinutes) / 60.0
+        let endH = Double(endMinutes) / 60.0
+        let clampedStart = max(dayStartHour, min(dayEndHour, startH))
+        let clampedEnd = max(dayStartHour, min(dayEndHour, endH))
+        let startF = CGFloat((clampedStart - dayStartHour) / totalSpanHours)
+        let durationF = CGFloat(max(0.005, (clampedEnd - clampedStart) / totalSpanHours))
+        return (startF, durationF)
+    }
+
+    func currentFraction(now: Date = Date(), calendar: Calendar = .current) -> CGFloat {
+        let parts = calendar.dateComponents([.hour, .minute], from: now)
+        let nowH = Double(parts.hour ?? 0) + Double(parts.minute ?? 0) / 60.0
+        guard nowH >= dayStartHour && nowH <= dayEndHour else { return -1 }
+        return CGFloat((nowH - dayStartHour) / totalSpanHours)
     }
 }
 

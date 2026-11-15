@@ -185,7 +185,18 @@ struct MorningView: View {
         VStack(spacing: Theme.Space.xl) {
             Spacer()
             VStack(spacing: Theme.Space.s) {
-                BotAvatar(size: 64)
+                HStack(spacing: Theme.Space.m) {
+                    BotAvatar(size: 64)
+                    Button {
+                        VoiceOutput.shared.speak("\(DayPlanner.greeting(at: Date())), \(firstName). What are you starting with today?")
+                    } label: {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Repeat spoken greeting")
+                }
                 Text("\(DayPlanner.greeting(at: Date())), \(firstName)")
                     .font(.system(size: 48, weight: .semibold))
                 Text((DayKey.date(for: plan.day) ?? Date()).formatted(.dateTime.weekday(.wide).month(.wide).day()))
@@ -239,6 +250,10 @@ struct MorningView: View {
         }
         .padding(Theme.Space.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            let greeting = "\(DayPlanner.greeting(at: Date())), \(firstName). What are you starting with today?"
+            VoiceOutput.shared.speak(greeting)
+        }
     }
 
     private var firstName: String {
