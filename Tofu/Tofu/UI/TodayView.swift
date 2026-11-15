@@ -387,6 +387,7 @@ private struct TodayScheduleView: View {
     var onLockIn: ((Subject) -> Void)? = nil
 
     @State private var hoveredBlockID: String?
+    @State private var showingAllAgenda = false
 
     private var layout: DayScheduleLayout {
         DayPlanner.computeScheduleLayout(
@@ -559,7 +560,8 @@ private struct TodayScheduleView: View {
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
 
-            ForEach(layout.chronologicalAgenda.prefix(6)) { block in
+            let visibleCount = showingAllAgenda ? layout.chronologicalAgenda.count : 6
+            ForEach(layout.chronologicalAgenda.prefix(visibleCount)) { block in
                 HStack(spacing: Theme.Space.s) {
                     Text(block.timeRangeLabel)
                         .font(.caption.monospacedDigit())
@@ -574,10 +576,15 @@ private struct TodayScheduleView: View {
                         Text(block.title)
                             .font(.system(size: 12))
                             .lineLimit(1)
-                    case .plannedPriority(_, let title, let subjectID, let isDone):
-                        Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 11))
-                            .foregroundStyle(isDone ? Color.accentColor : Color.secondary)
+                    case .plannedPriority(let priorityID, let title, let subjectID, let isDone):
+                        Button {
+                            model.setPriority(priorityID, done: !isDone, day: day)
+                        } label: {
+                            Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 12))
+                                .foregroundStyle(isDone ? Color.accentColor : Color.secondary)
+                        }
+                        .buttonStyle(.plain)
                         Text(title)
                             .font(.system(size: 12, weight: .medium))
                             .strikethrough(isDone)
@@ -589,7 +596,7 @@ private struct TodayScheduleView: View {
                                 .padding(.vertical, 1)
                                 .background(RoundedRectangle(cornerRadius: 3).fill(Theme.subjectColor(subject.colorHex).opacity(0.18)))
                         }
-                    case .completedSession(_, _, let subjectID, _):
+                    case .completedSession(_, _, _, _):
                         Image(systemName: "flame.fill")
                             .font(.system(size: 11))
                             .foregroundStyle(Color.accentColor)
@@ -604,16 +611,32 @@ private struct TodayScheduleView: View {
                     Spacer()
 
                     // Quick lock in for planned priority
-                    if case .plannedPriority(_, _, let subjectID, let isDone) = block.kind,
-                       !isDone, let subjectID, let subject = model.subject(id: subjectID) {
-                        Button("Lock in") {
-                            onLockIn?(subject)
+                    if case .plannedPriority(_, let title, let subjectID, let isDone) = block.kind, !isDone {
+                        let targetSubject = subjectID.flatMap(model.subject(id:))
+                            ?? DayPlanner.matchSubject(title, subjects: model.data.subjects).flatMap(model.subject(id:))
+                            ?? model.data.subjects.first
+                        if let targetSubject {
+                            Button("Lock in") {
+                                onLockIn?(targetSubject)
+                            }
+                            .buttonStyle(SecondaryButtonStyle())
+                            .controlSize(.small)
                         }
-                        .buttonStyle(SecondaryButtonStyle())
-                        .controlSize(.small)
                     }
                 }
                 .padding(.vertical, 2)
+            }
+
+            if layout.chronologicalAgenda.count > 6 {
+                Button(showingAllAgenda ? "Show fewer items" : "Show \(layout.chronologicalAgenda.count - 6) more items") {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        showingAllAgenda.toggle()
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(Color.accentColor)
+                .padding(.top, 2)
             }
         }
         .padding(.top, 4)
