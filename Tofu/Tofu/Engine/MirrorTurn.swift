@@ -275,12 +275,21 @@ struct MirrorContext: Equatable {
 
     /// The first user message: the facts, plus the opening instruction when nobody has spoken yet.
     func userMessage(isOpening: Bool) -> String {
+        let m = elapsedSeconds / 60
+        let s = elapsedSeconds % 60
+        let timeStr = m > 0 ? (s > 0 ? "\(m)m \(s)s" : "\(m)m") : "\(s)s"
+        let timeFact: String
+        if goalMinutes > 0 {
+            let rem = max(0, goalMinutes * 60 - elapsedSeconds) / 60
+            timeFact = "Time spent: \(timeStr) (\(elapsedSeconds) seconds) of a \(goalMinutes) minute goal (abandoning \(rem)m of committed focus)."
+        } else {
+            timeFact = "Time spent: \(timeStr) (\(elapsedSeconds) seconds) of an open-ended session."
+        }
+
         var lines = [
             "Active priority: \(priority)",
             "Setup: \(setup)",
-            goalMinutes > 0
-                ? "Time spent: \(elapsedSeconds) seconds of a \(goalMinutes) minute goal."
-                : "Time spent: \(elapsedSeconds) seconds of an open-ended session.",
+            timeFact,
             "What just happened: \(reason)",
         ]
         if blockedAttempts > 0 {

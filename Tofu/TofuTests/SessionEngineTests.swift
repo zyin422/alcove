@@ -841,6 +841,30 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(h.blocker.allowedBundles, [])
     }
 
+    func testAllowAppRefusesAlternativeWebBrowsers() async {
+        let h = EngineHarness()
+        var subject = makeSubject()
+        subject.browser = .chrome
+        await h.engine.start(subject: subject, mode: .open, displayName: "Alex")
+        h.engine.lookupApp = { name in
+            if name.lowercased() == "safari" {
+                return AllowedApp(bundleID: "com.apple.Safari", name: "Safari")
+            }
+            if name.lowercased() == "firefox" {
+                return AllowedApp(bundleID: "org.mozilla.firefox", name: "Firefox")
+            }
+            return nil
+        }
+
+        let safariResult = h.engine.allowApp(named: "safari")
+        XCTAssertTrue(safariResult.contains("high-distraction app") || safariResult.contains("Alternative web browsers"))
+        XCTAssertEqual(h.blocker.allowedBundles, [])
+
+        let firefoxResult = h.engine.allowApp(named: "firefox")
+        XCTAssertTrue(firefoxResult.contains("high-distraction app") || firefoxResult.contains("Alternative web browsers"))
+        XCTAssertEqual(h.blocker.allowedBundles, [])
+    }
+
     func testParkedThoughtsManagement() async {
         let h = EngineHarness()
         await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")

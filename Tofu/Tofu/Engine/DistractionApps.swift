@@ -10,6 +10,7 @@ enum DistractionApps {
         case gaming = "gaming"
         case streaming = "streaming & video"
         case entertainment = "entertainment"
+        case browsers = "unmonitored browsers"
     }
 
     static let apps: [Category: [String]] = [
@@ -43,6 +44,8 @@ enum DistractionApps {
             "com.Roblox.RobloxPlayer",
             "com.ea.mac.origin",
             "com.gog.galaxy",
+            "com.apple.Chess",
+            "com.supercell.clashroyale",
         ],
         .streaming: [
             "com.netflix.Netflix",
@@ -50,9 +53,23 @@ enum DistractionApps {
             "com.apple.podcasts",
             "com.apple.TV",
             "tv.plex.desktop",
+            "com.google.ios.youtubemusic",
         ],
         .entertainment: [
             "com.apple.GameCenter",
+            "com.apple.News",
+            "com.apple.stocks",
+            "com.apple.Music",
+            "com.apple.FaceTime",
+        ],
+        .browsers: [
+            "com.apple.Safari",
+            "org.mozilla.firefox",
+            "com.operasoftware.Opera",
+            "com.microsoft.edgemac",
+            "com.brave.Browser",
+            "com.vivaldi.Vivaldi",
+            "org.torproject.torbrowser",
         ],
     ]
 

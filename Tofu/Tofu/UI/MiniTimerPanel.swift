@@ -171,6 +171,24 @@ struct MiniTimerView: View {
         engine.isOnBreak ? "Break" : (engine.session?.subjectName ?? "")
     }
 
+    private var progress: Double {
+        if let breakRem = engine.breakRemaining, let breakTotal = engine.breakTotal, breakTotal > 0 {
+            return min(1.0, max(0.0, 1.0 - (breakRem / breakTotal)))
+        }
+        if let goal = engine.session?.mode.goalSeconds, goal > 0 {
+            return min(1.0, max(0.0, engine.elapsed / goal))
+        }
+        let cycle: TimeInterval = 25 * 60
+        return (engine.elapsed.truncatingRemainder(dividingBy: cycle)) / cycle
+    }
+
+    private var subjectColor: Color {
+        if let name = engine.session?.subjectName {
+            return Theme.subjectColor(SubjectColor.hex(for: name))
+        }
+        return Color.accentColor
+    }
+
     var body: some View {
         Group {
             if chrome.isTucked {
@@ -181,10 +199,15 @@ struct MiniTimerView: View {
             } else {
                 HStack(spacing: Theme.Space.s) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(caption)
-                            .font(Theme.captionFont)
-                            .lineLimit(1)
-                            .opacity(0.7)
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(subjectColor)
+                                .frame(width: 6, height: 6)
+                            Text(caption)
+                                .font(Theme.captionFont)
+                                .lineLimit(1)
+                                .opacity(0.85)
+                        }
                         Text(clock)
                             .font(Theme.timerFont(size: 28))
                             .lineLimit(1)
@@ -201,6 +224,17 @@ struct MiniTimerView: View {
         .foregroundStyle(Color.lockBackground)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: chrome.isTucked ? 8 : Theme.radius).fill(Color.primary))
+        .overlay(alignment: .bottom) {
+            if !chrome.isTucked {
+                GeometryReader { geo in
+                    Rectangle()
+                        .fill(subjectColor)
+                        .frame(width: geo.size.width * CGFloat(progress), height: 3)
+                }
+                .frame(height: 3)
+                .clipShape(RoundedRectangle(cornerRadius: 1.5))
+            }
+        }
     }
 }
 

@@ -530,9 +530,20 @@ private struct ClosedTabsRecoveryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                Text("CLOSED OFF-TASK TABS (\(closed.count))")
-                    .font(Theme.captionFont)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("CLOSED OFF-TASK TABS (\(closed.count))")
+                        .font(Theme.captionFont)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if !closed.isEmpty {
+                        Button("Copy All") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(closed.joined(separator: "\n"), forType: .string)
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .controlSize(.small)
+                    }
+                }
                 Text("These tabs were set aside so you could focus. Nothing was permanently lost.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -562,6 +573,17 @@ private struct ClosedTabsRecoveryView: View {
                                     .font(.system(size: 13, design: .monospaced))
                                     .lineLimit(1)
                                 Spacer()
+                                Button {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(host, forType: .string)
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Copy URL")
+
                                 Text("#\(index + 1)")
                                     .font(.caption2.monospacedDigit())
                                     .foregroundStyle(.secondary)

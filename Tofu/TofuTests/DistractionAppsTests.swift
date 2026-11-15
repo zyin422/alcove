@@ -11,7 +11,12 @@ final class DistractionAppsTests: XCTestCase {
         XCTAssertEqual(DistractionApps.category(of: "com.valvesoftware.steam"), .gaming)
         XCTAssertEqual(DistractionApps.category(of: "com.epicgames.EpicGamesLauncher"), .gaming)
         XCTAssertEqual(DistractionApps.category(of: "com.spotify.client"), .streaming)
+        XCTAssertEqual(DistractionApps.category(of: "com.google.ios.youtubemusic"), .streaming)
         XCTAssertEqual(DistractionApps.category(of: "com.apple.GameCenter"), .entertainment)
+        XCTAssertEqual(DistractionApps.category(of: "com.apple.Safari"), .browsers)
+        XCTAssertEqual(DistractionApps.category(of: "org.mozilla.firefox"), .browsers)
+        XCTAssertEqual(DistractionApps.category(of: "com.supercell.clashroyale"), .gaming)
+        XCTAssertEqual(DistractionApps.category(of: "com.apple.Chess"), .gaming)
     }
 
     func testProductivityAppsAndLookalikesAreNotDistractions() {

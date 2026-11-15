@@ -132,7 +132,7 @@ import AppKit
 
     private func startWatchdog() {
         watchdogTimer?.invalidate()
-        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 0.35, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.watchdogTick() }
         }
         RunLoop.main.add(timer, forMode: .common)

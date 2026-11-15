@@ -698,6 +698,12 @@ enum CompanionViolation: Equatable {
                 return "Cannot allow \(app.name): It is classified as a high-distraction app (\(category.rawValue)). Prohibited during focus sessions. Wait for your scheduled break or use Planning Mode."
             }
         }
+        if let currentBrowser = subject?.browser, app.bundleID != currentBrowser.bundleID {
+            let knownBrowsers = [Browser.chrome.bundleID, Browser.arc.bundleID, "com.apple.Safari", "org.mozilla.firefox", "com.operasoftware.Opera", "com.microsoft.edgemac", "com.brave.Browser"]
+            if knownBrowsers.contains(app.bundleID) {
+                return "Cannot allow \(app.name): Alternative web browsers cannot be enabled mid-session. All web work must stay inside your designated work browser (\(currentBrowser.title))."
+            }
+        }
         sessionAllowed.insert(app.bundleID)
         blocker.allow(app.bundleID)
         workspace.unhide([app.bundleID])
