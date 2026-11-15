@@ -219,6 +219,9 @@ struct BedtimeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            VoiceOutput.shared.speak("It is past midnight. The day is complete. Time to sleep and protect your energy.")
+        }
     }
 
     private func sleepDisplay() {

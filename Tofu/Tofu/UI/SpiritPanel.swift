@@ -150,6 +150,12 @@ struct SpiritView: View {
         engine.elapsed >= 25 * 60
     }
 
+    private var glowColor: Color {
+        if engine.isOnBreak { return Color.orange }
+        if isDeepWork { return Color.accentColor }
+        return Color.clear
+    }
+
     var body: some View {
         HStack(spacing: Theme.Space.s) {
             if chrome.expanded { circle }
@@ -171,9 +177,9 @@ struct SpiritView: View {
                         .monospacedDigit()
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
-                    if isDeepWork {
+                    if isDeepWork || engine.isOnBreak {
                         Circle()
-                            .fill(Color.lockBackground.opacity(0.85))
+                            .fill(engine.isOnBreak ? Color.orange : Color.lockBackground.opacity(0.85))
                             .frame(width: 3, height: 3)
                     }
                 }
@@ -190,15 +196,15 @@ struct SpiritView: View {
                         .stroke(Color.primary.opacity(0.18), lineWidth: 2.5)
                     Circle()
                         .trim(from: 0, to: CGFloat(progress))
-                        .stroke(isDeepWork ? Color.accentColor : Color.primary,
+                        .stroke(engine.isOnBreak ? Color.orange : (isDeepWork ? Color.accentColor : Color.primary),
                                 style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                 }
                 .padding(2)
             }
         }
-        .shadow(color: !chrome.expanded && isDeepWork ? Color.accentColor.opacity(0.35) : .clear,
-                radius: 6, x: 0, y: 0)
+        .shadow(color: !chrome.expanded ? glowColor.opacity(0.4) : .clear,
+                radius: 8, x: 0, y: 0)
         .overlay(alignment: .topTrailing) {
             if chrome.expanded {
                 Text("×")
