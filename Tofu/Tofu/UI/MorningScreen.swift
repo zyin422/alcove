@@ -284,11 +284,12 @@ struct MorningView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(Theme.indigo)
+                .foregroundStyle(Theme.amber)
             }
             .padding(.horizontal, Theme.Space.m)
             .padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: 12).fill(Theme.amber.opacity(0.12)))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.amber.opacity(0.3), lineWidth: 1))
         }
     }
 

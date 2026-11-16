@@ -199,7 +199,7 @@ struct BedtimeView: View {
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(NocturnalPrimaryButtonStyle())
                     .frame(width: 320)
                     .disabled(!canPlan)
                     .opacity(canPlan ? 1.0 : 0.4)
@@ -227,7 +227,7 @@ struct BedtimeView: View {
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(SecondaryButtonStyle())
+                    .buttonStyle(NocturnalSecondaryButtonStyle())
                     .frame(width: 320)
 
                     HStack(spacing: Theme.Space.l) {

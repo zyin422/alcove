@@ -4,6 +4,8 @@ import SwiftUI
 extension Notification.Name {
     /// Posted by the mini timer's ✕: LockedView answers by starting the end flow (give-up sheet or confirmation).
     static let tofuRequestEnd = Notification.Name("tofu.requestEnd")
+    /// Posted when user wants to park a thought from the mini timer.
+    static let tofuShowThoughts = Notification.Name("tofu.showThoughts")
 }
 
 /// Pure geometry for the floating mini timer (unit-tested).
@@ -40,6 +42,28 @@ enum MiniTimerLayout {
     /// True when `point` (view coordinates) lands on the ✕ rather than the body.
     static func isCloseHit(_ point: CGPoint, in size: CGSize) -> Bool {
         closeHitRect(in: size).contains(point)
+    }
+
+    /// Clickable area of the thought parking button immediately to the left of the ✕.
+    static func thoughtHitRect(in size: CGSize) -> CGRect {
+        let side = closeButtonSize + 2 * closeHitSlop
+        let closeRect = closeHitRect(in: size)
+        return CGRect(x: closeRect.minX - side, y: closeRect.minY, width: side, height: side)
+    }
+
+    /// True when `point` (view coordinates) lands on the thought parking button.
+    static func isThoughtHit(_ point: CGPoint, in size: CGSize) -> Bool {
+        thoughtHitRect(in: size).contains(point)
+    }
+
+    /// Clickable area of the trailing Lock In button shown between blocks.
+    static func lockInHitRect(in size: CGSize) -> CGRect {
+        CGRect(x: size.width - 100, y: 0, width: 100, height: size.height)
+    }
+
+    /// True when `point` (view coordinates) lands on the trailing Lock In button.
+    static func isLockInHit(_ point: CGPoint, in size: CGSize) -> Bool {
+        lockInHitRect(in: size).contains(point)
     }
 
     /// True once the pointer is at least `dragThreshold` points away from where the press began.
@@ -167,15 +191,13 @@ enum MiniTimerRelease: Equatable {
     var noticeText: String?
 }
 
-/// Rounded black/white (inverted in dark mode) pill: subject, timer and a small ✕ (End).
-/// Tucked, it is only the time. Clicks and drags are handled by the panel's overlay view.
+/// Rounded floating HUD pill: subject, timer, parked thought launcher, and a small ✕ (End).
+/// Tucked, it is only the time with a luminous glowing status pip. Clicks and drags are handled by the panel's overlay view.
 struct MiniTimerView: View {
     let engine: SessionEngine
     let chrome: MiniTimerChrome
     var model: AppModel? = nil
     var onLockIn: (() -> Void)? = nil
-    @State private var showingQuickThought = false
-    @State private var quickThoughtText = ""
 
     private var isBetweenBlocks: Bool {
         !engine.isLocked && model?.nextForceBlockDeadline != nil
@@ -231,7 +253,7 @@ struct MiniTimerView: View {
                         .shadow(color: subjectColor.opacity(0.8), radius: 2)
                     Text(clock)
                         .font(Theme.timerFont(size: 12))
-                        .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.lockBackground)
+                        .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.primary)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -242,7 +264,7 @@ struct MiniTimerView: View {
                         .foregroundStyle(Theme.rose)
                     Text(notice)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.lockBackground)
+                        .foregroundStyle(Color.primary)
                         .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -257,81 +279,55 @@ struct MiniTimerView: View {
                             Text(caption)
                                 .font(Theme.captionFont)
                                 .lineLimit(1)
-                                .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.lockBackground.opacity(0.85))
+                                .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.secondary)
                         }
                         Text(clock)
                             .font(Theme.timerFont(size: 28))
-                            .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.lockBackground)
+                            .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.primary)
                             .lineLimit(1)
                     }
                     Spacer(minLength: Theme.Space.s)
                     if isBetweenBlocks {
-                        Button {
-                            onLockIn?()
-                        } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "lock.shield.fill")
+                                .font(.system(size: 10, weight: .bold))
                             Text("LOCK IN")
                                 .font(.system(size: 10, weight: .bold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 5)
-                                .background(RoundedRectangle(cornerRadius: 6).fill(Theme.amber))
-                                .foregroundStyle(Color.black)
                         }
-                        .buttonStyle(.plain)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.amber))
+                        .foregroundStyle(Color(red: 0.1, green: 0.07, blue: 0.01))
+                        .help("Lock in now")
                     } else {
-                        HStack(spacing: 6) {
-                            Button {
-                                showingQuickThought.toggle()
-                            } label: {
-                                Image(systemName: "lightbulb.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(Color.lockBackground.opacity(0.85))
-                                    .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
-                                    .background(Circle().fill(Color.lockBackground.opacity(0.12)))
-                            }
-                            .buttonStyle(.plain)
-                            .help("Park stray thought")
-                            .popover(isPresented: $showingQuickThought, arrowEdge: .bottom) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Park Stray Thought")
-                                        .font(.caption.weight(.bold))
-                                    TextField("Idea, reminder, or task…", text: $quickThoughtText)
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 220)
-                                        .onSubmit {
-                                            saveQuickThought()
-                                        }
-                                    HStack {
-                                        Spacer()
-                                        Button("Park") {
-                                            saveQuickThought()
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        .font(.caption.weight(.semibold))
-                                        .disabled(quickThoughtText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                                    }
-                                }
-                                .padding(10)
-                            }
+                        HStack(spacing: 8) {
+                            Image(systemName: "lightbulb.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color.secondary)
+                                .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
+                                .background(Circle().fill(Color.primary.opacity(0.08)))
+                                .help("Park stray thought (⌘3)")
 
                             Image(systemName: "xmark")
                                 .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color.primary.opacity(0.75))
                                 .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
-                                .overlay(Circle().stroke(Color.lockBackground.opacity(0.5), lineWidth: 1))
+                                .overlay(Circle().stroke(Color.primary.opacity(0.3), lineWidth: 1))
+                                .help("End session")
                         }
                     }
                 }
                 .padding(.horizontal, MiniTimerLayout.horizontalPadding)
             }
         }
-        .foregroundStyle(Color.lockBackground)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: chrome.isTucked ? 8 : Theme.radius)
-                .fill(Color.primary)
+                .fill(Color(nsColor: .windowBackgroundColor))
         )
         .overlay(
             RoundedRectangle(cornerRadius: chrome.isTucked ? 8 : Theme.radius)
-                .stroke(subjectColor.opacity(chrome.isTucked ? 0.35 : 0.6), lineWidth: 1)
+                .stroke(subjectColor.opacity(chrome.isTucked ? 0.35 : 0.5), lineWidth: 1)
         )
         .overlay(alignment: .bottom) {
             if !chrome.isTucked && chrome.noticeText == nil {
@@ -342,21 +338,6 @@ struct MiniTimerView: View {
                 }
                 .frame(height: 3)
                 .clipShape(RoundedRectangle(cornerRadius: 1.5))
-            }
-        }
-    }
-
-    private func saveQuickThought() {
-        let trimmed = quickThoughtText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        engine.addParkedThought(trimmed)
-        quickThoughtText = ""
-        showingQuickThought = false
-        chrome.noticeText = "Parked: \(trimmed)"
-        Task {
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            if chrome.noticeText?.hasPrefix("Parked:") == true {
-                chrome.noticeText = nil
             }
         }
     }
@@ -409,6 +390,10 @@ struct MiniTimerView: View {
     private let chrome = MiniTimerChrome()
     private let onOpen: () -> Void
     private let onEnd: () -> Void
+    private let onLockIn: (() -> Void)?
+    private let onParkThought: (() -> Void)?
+    private let engine: SessionEngine
+    private let model: AppModel?
     /// True when the press began on the tucked tab. A drag that starts open can cross the top without this.
     private var pressWasTucked = false
     private var pressOrigin: CGPoint = .zero
@@ -422,9 +407,13 @@ struct MiniTimerView: View {
     private var tuckAfterRelease = false
     private var hideTimer: Timer?
 
-    init(engine: SessionEngine, model: AppModel? = nil, onOpen: @escaping () -> Void, onEnd: @escaping () -> Void, onLockIn: (() -> Void)? = nil) {
+    init(engine: SessionEngine, model: AppModel? = nil, onOpen: @escaping () -> Void, onEnd: @escaping () -> Void, onLockIn: (() -> Void)? = nil, onParkThought: (() -> Void)? = nil) {
+        self.engine = engine
+        self.model = model
         self.onOpen = onOpen
         self.onEnd = onEnd
+        self.onLockIn = onLockIn
+        self.onParkThought = onParkThought
         let size = MiniTimerLayout.panelSize
         super.init(contentRect: NSRect(origin: .zero, size: size),
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -556,16 +545,36 @@ struct MiniTimerView: View {
                                               visible: visible)
         switch action {
         case .leave:
-            if MiniTimerLayout.isAwayFromTop(frame: frame, visible: visible) { keepOpen() }
+            if pressWasTucked && !dragging {
+                toggleTuck()
+            } else if MiniTimerLayout.isAwayFromTop(frame: frame, visible: visible) {
+                keepOpen()
+            }
         case .tuck(let frame):
             settle(tucked: true, frame: frame)
         case .reveal(let frame):
             keepOpen()
             settle(tucked: false, frame: frame)
         case .open:
-            onOpen()
+            if !engine.isLocked && model?.nextForceBlockDeadline != nil {
+                if MiniTimerLayout.isLockInHit(point, in: frame.size) {
+                    onLockIn?()
+                } else {
+                    onOpen()
+                }
+            } else {
+                if MiniTimerLayout.isThoughtHit(point, in: frame.size) {
+                    onParkThought?()
+                } else {
+                    onOpen()
+                }
+            }
         case .end:
-            onEnd()
+            if !engine.isLocked && model?.nextForceBlockDeadline != nil {
+                onLockIn?()
+            } else {
+                onEnd()
+            }
         }
         finishRelease()
     }
@@ -587,8 +596,25 @@ struct MiniTimerView: View {
 
     /// A click that could not find a screen. The tucked tab still opens; the pill still ends or opens the chat.
     private func click(at point: CGPoint) {
-        if chrome.isTucked { return }
-        if MiniTimerLayout.isCloseHit(point, in: frame.size) { onEnd() } else { onOpen() }
+        if chrome.isTucked {
+            toggleTuck()
+            return
+        }
+        if !engine.isLocked && model?.nextForceBlockDeadline != nil {
+            if MiniTimerLayout.isLockInHit(point, in: frame.size) || MiniTimerLayout.isCloseHit(point, in: frame.size) {
+                onLockIn?()
+            } else {
+                onOpen()
+            }
+        } else {
+            if MiniTimerLayout.isCloseHit(point, in: frame.size) {
+                onEnd()
+            } else if MiniTimerLayout.isThoughtHit(point, in: frame.size) {
+                onParkThought?()
+            } else {
+                onOpen()
+            }
+        }
     }
 
     /// Toggles the floating mini timer between tucked tab and revealed pill.

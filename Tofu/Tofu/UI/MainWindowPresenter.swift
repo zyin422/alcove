@@ -191,7 +191,11 @@ enum MainWindowPolicy {
         closePanel()
         let panel = MiniTimerPanel(engine: model.engine, model: model,
                                    onOpen: { [weak self] in self?.showMainWindow() },
-                                   onEnd: { [weak self] in self?.requestEnd() })
+                                   onEnd: { [weak self] in self?.requestEnd() },
+                                   onParkThought: { [weak self] in
+                                       self?.showMainWindow()
+                                       NotificationCenter.default.post(name: .tofuShowThoughts, object: nil)
+                                   })
         panel.show()
         self.panel = panel
     }

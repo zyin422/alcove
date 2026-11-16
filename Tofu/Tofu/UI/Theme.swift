@@ -75,6 +75,40 @@ struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
+/// Nocturnal primary action button: luminous high-contrast fill with dark ink, immune to macOS system appearance flips.
+struct NocturnalPrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 15, weight: .semibold))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .foregroundStyle(Color(red: 0.08, green: 0.05, blue: 0.01))
+            .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Theme.amber))
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .contentShape(Rectangle())
+    }
+}
+
+/// Nocturnal secondary action button: translucent frosted border with white text on dark nocturnal canvases.
+struct NocturnalSecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .padding(.horizontal, Theme.Space.m)
+            .frame(maxWidth: .infinity, minHeight: 38)
+            .foregroundStyle(Color.white)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.radius)
+                    .fill(Color.white.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.radius)
+                    .stroke(Color.white.opacity(0.32), lineWidth: 1)
+            )
+            .opacity(configuration.isPressed ? 0.65 : 1)
+            .contentShape(Rectangle())
+    }
+}
+
 /// Small-caps title over a large number, in a hairline-bordered box with optional icon and semantic accent.
 struct StatCard: View {
     let title: String
@@ -101,11 +135,11 @@ struct StatCard: View {
         .padding(Theme.Space.m)
         .background(
             RoundedRectangle(cornerRadius: Theme.radius)
-                .fill(tint?.opacity(0.04) ?? Color.clear)
+                .fill(tint != nil ? tint!.opacity(0.06) : Color.primary.opacity(0.03))
         )
         .overlay(
             RoundedRectangle(cornerRadius: Theme.radius)
-                .stroke(tint?.opacity(0.35) ?? Color.primary.opacity(0.15), lineWidth: 1)
+                .stroke(tint?.opacity(0.28) ?? Color.primary.opacity(0.12), lineWidth: 1)
         )
     }
 }

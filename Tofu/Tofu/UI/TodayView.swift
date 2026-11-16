@@ -139,7 +139,7 @@ struct TodayView: View {
                         .padding(.horizontal, Theme.Space.m)
                         .padding(.vertical, 8)
                         .background(RoundedRectangle(cornerRadius: 8).fill(Theme.amber))
-                        .foregroundStyle(Color.black)
+                        .foregroundStyle(Color(red: 0.1, green: 0.07, blue: 0.01))
                     }
                     .buttonStyle(.plain)
                 }
@@ -569,14 +569,14 @@ private struct TodayScheduleView: View {
                             .help("\(block.title) (\(block.timeRangeLabel))")
                     }
                 }
-                .overlay(
+                .overlay(alignment: .leading) {
                     // Current time red/accent vertical line across all 3 tracks
                     currentTimeLine(width: width)
-                )
-                .overlay(
+                }
+                .overlay(alignment: .leading) {
                     // Next force block amber vertical line across all 3 tracks
                     nextForceBlockLine(width: width)
-                )
+                }
             }
             .frame(height: 52)
 

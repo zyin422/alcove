@@ -195,4 +195,22 @@ final class MiniTimerLayoutTests: XCTestCase {
         // Point outside all screens
         XCTAssertEqual(MiniTimerLayout.targetScreenVisible(point: CGPoint(x: -500, y: -500), screens: screens, visibleFrames: visFrames, fallback: fallback), fallback)
     }
+
+    func testThoughtAndLockInHitRects() {
+        let panelSize = CGSize(width: 240, height: 64)
+        // Close hit is near x: 213 (width - 16 - 11)
+        XCTAssertTrue(MiniTimerLayout.isCloseHit(CGPoint(x: 213, y: 32), in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isThoughtHit(CGPoint(x: 213, y: 32), in: panelSize))
+
+        // Thought button sits immediately to the left of close hit
+        let thoughtRect = MiniTimerLayout.thoughtHitRect(in: panelSize)
+        let thoughtPoint = CGPoint(x: thoughtRect.midX, y: thoughtRect.midY)
+        XCTAssertTrue(MiniTimerLayout.isThoughtHit(thoughtPoint, in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isCloseHit(thoughtPoint, in: panelSize))
+
+        // Lock in button occupies trailing region
+        XCTAssertTrue(MiniTimerLayout.isLockInHit(CGPoint(x: 200, y: 32), in: panelSize))
+        XCTAssertTrue(MiniTimerLayout.isLockInHit(CGPoint(x: 160, y: 20), in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isLockInHit(CGPoint(x: 100, y: 32), in: panelSize))
+    }
 }

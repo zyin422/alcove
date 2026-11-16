@@ -108,6 +108,9 @@ struct LockedView: View {
         .onReceive(NotificationCenter.default.publisher(for: .tofuRequestEnd)) { _ in
             endTapped()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .tofuShowThoughts)) { _ in
+            sessionTab = .thoughts
+        }
     }
 
     @ViewBuilder
@@ -119,6 +122,7 @@ struct LockedView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .padding(.horizontal, Theme.Space.m)
             .padding(.top, Theme.Space.s)
             .padding(.bottom, Theme.Space.xs)
@@ -379,13 +383,16 @@ struct LockedView: View {
             HStack(spacing: 5) {
                 Image(systemName: FocusAudioEngine.shared.isPlaying ? "waveform" : "waveform.slash")
                     .font(.system(size: 11))
+                    .foregroundStyle(FocusAudioEngine.shared.isPlaying ? Theme.indigo : Color.secondary)
                 Text(FocusAudioEngine.shared.activeSound == .off ? "Sound: Off" : FocusAudioEngine.shared.activeSound.rawValue)
                     .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(FocusAudioEngine.shared.isPlaying ? Color.primary : Color.secondary)
                     .lineLimit(1)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(FocusAudioEngine.shared.isPlaying ? 0.12 : 0.05)))
+            .background(RoundedRectangle(cornerRadius: 6).fill(FocusAudioEngine.shared.isPlaying ? Theme.indigo.opacity(0.12) : Color.primary.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(FocusAudioEngine.shared.isPlaying ? Theme.indigo.opacity(0.3) : Color.clear, lineWidth: 1))
         }
         .menuStyle(.borderlessButton)
         .help("Ambient focus sound")
