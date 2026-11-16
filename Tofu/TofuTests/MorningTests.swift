@@ -355,4 +355,17 @@ final class MorningTests: XCTestCase {
         XCTAssertNil(model.nextForceBlockDeadline)
         XCTAssertNil(model.secondsUntilNextForceBlock)
     }
+
+    @MainActor func testMorningAutoLockSelectionDefaults() throws {
+        let model = try makeModel(EngineHarness())
+        let p1 = Priority(title: "CS225 Lab", estimatedMinutes: 50)
+        let p2 = Priority(title: "Read Paper", estimatedMinutes: 30)
+        model.updatePlan(day: DayKey.key(for: Date())) {
+            $0.priorities = [p1, p2]
+        }
+
+        let plan = model.todayPlan()
+        XCTAssertEqual(plan.priorities.first?.title, "CS225 Lab")
+        XCTAssertFalse(plan.priorities.first?.isDone == true)
+    }
 }

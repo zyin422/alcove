@@ -145,6 +145,9 @@ struct MorningView: View {
     @State private var option: LockInOption = .minutes50
     @State private var customMinutes = 45
     @State private var newTitle = ""
+    @State private var autoLockSecondsRemaining: Int = 300
+    @State private var autoLockPaused = false
+    @State private var autoLockTimer: Timer?
 
     private var plan: DayPlan { model.todayPlan() }
     private var open: [Priority] { plan.priorities.filter { !$0.isDone } }
@@ -202,6 +205,7 @@ struct MorningView: View {
                 Text((DayKey.date(for: plan.day) ?? Date()).formatted(.dateTime.weekday(.wide).month(.wide).day()))
                     .font(.title3)
                     .foregroundStyle(.secondary)
+                autoLockBanner
             }
 
             if model.data.settings.googleShowEventsEnabled,
@@ -253,7 +257,58 @@ struct MorningView: View {
         .onAppear {
             let greeting = "\(DayPlanner.greeting(at: Date())), \(firstName). What are you starting with today?"
             VoiceOutput.shared.speak(greeting)
+            startAutoLockCountdown()
         }
+        .onDisappear {
+            autoLockTimer?.invalidate()
+            autoLockTimer = nil
+        }
+    }
+
+    @ViewBuilder private var autoLockBanner: some View {
+        if !autoLockPaused, autoLockSecondsRemaining > 0, !isLockInDisabled {
+            HStack(spacing: Theme.Space.s) {
+                Image(systemName: "timer")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Theme.amber)
+                Text("Default lock-in in \(TimeFormat.clock(TimeInterval(autoLockSecondsRemaining)))")
+                    .font(.system(size: 12, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Theme.amber)
+                Text("• Click any item to pause")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Button("Pause") {
+                    autoLockPaused = true
+                    autoLockTimer?.invalidate()
+                    autoLockTimer = nil
+                }
+                .buttonStyle(.plain)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(Theme.indigo)
+            }
+            .padding(.horizontal, Theme.Space.m)
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.amber.opacity(0.12)))
+        }
+    }
+
+    private func startAutoLockCountdown() {
+        autoLockTimer?.invalidate()
+        guard !open.isEmpty || !model.data.subjects.isEmpty else { return }
+        let timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak model] _ in
+            MainActor.assumeIsolated {
+                guard !autoLockPaused else { return }
+                if autoLockSecondsRemaining > 0 {
+                    autoLockSecondsRemaining -= 1
+                } else {
+                    autoLockTimer?.invalidate()
+                    autoLockTimer = nil
+                    performLockIn()
+                }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        autoLockTimer = timer
     }
 
     private var firstName: String {
@@ -391,6 +446,8 @@ struct MorningView: View {
     }
 
     private func performLockIn() {
+        autoLockTimer?.invalidate()
+        autoLockTimer = nil
         if let priority = selectedPriority {
             start(priority)
         } else if let subject = selectedSubject {
