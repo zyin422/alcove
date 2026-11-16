@@ -75,17 +75,37 @@ struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
-/// Small-caps title over a large number, in a hairline-bordered box.
+/// Small-caps title over a large number, in a hairline-bordered box with optional icon and semantic accent.
 struct StatCard: View {
     let title: String
     let value: String
+    var tint: Color? = nil
+    var icon: String? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xs) {
-            Text(title).font(Theme.captionFont).foregroundStyle(.secondary)
-            Text(value).font(.system(size: 22, weight: .semibold)).monospacedDigit()
+            HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(tint ?? .secondary)
+                }
+                Text(title).font(Theme.captionFont).foregroundStyle(.secondary)
+            }
+            Text(value)
+                .font(.system(size: 22, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(tint ?? .primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Space.m)
-        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
+        .background(
+            RoundedRectangle(cornerRadius: Theme.radius)
+                .fill(tint?.opacity(0.04) ?? Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.radius)
+                .stroke(tint?.opacity(0.35) ?? Color.primary.opacity(0.15), lineWidth: 1)
+        )
     }
 }

@@ -21,6 +21,16 @@ struct StatsView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Stats").font(Theme.titleFont)
                     Spacer()
+                    Button {
+                        copyRecap(summary: summary, span: span)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.on.doc")
+                            Text("Copy Recap")
+                        }
+                        .font(.caption.weight(.medium))
+                    }
+                    .buttonStyle(.bordered)
                     Picker("Range", selection: $span) {
                         ForEach(StatsSpan.allCases) { option in
                             Text(option.title).tag(option)
@@ -226,6 +236,20 @@ struct StatsView: View {
     /// Week shows every day. Month keeps enough day numbers to stay readable. Year shows every month.
     private func axisCount(_ span: StatsSpan, buckets: Int) -> Int {
         span == .month ? min(buckets, 8) : buckets
+    }
+
+    private func copyRecap(summary: StatsSummary, span: StatsSpan) {
+        let text = """
+        **Tofu Focus Recap (\(span.title))**
+        - Total Focus: \(TimeFormat.short(summary.total))
+        - Deep Work (≥25m): \(TimeFormat.short(summary.deepWorkSeconds))
+        - Focus Purity Score: \(summary.focusScore)%
+        - Sessions: \(summary.sessionCount) (Streak: \(summary.currentStreak)d)
+        - Interventions: \(summary.blockedAttempts) blocked apps, \(summary.closedTabs) closed tabs, \(summary.bails) bails
+        """
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        ToastCenter.shared.show("Recap copied to clipboard")
     }
 }
 
@@ -501,19 +525,25 @@ private struct StatsSummaryGrid: View {
     let summary: StatsSummary
     let subjectCount: Int
 
+    private var scoreTint: Color {
+        if summary.focusScore >= 80 { return Theme.emerald }
+        if summary.focusScore >= 60 { return Theme.amber }
+        return Theme.coral
+    }
+
     var body: some View {
         LazyVGrid(columns: statsGridColumns, alignment: .leading, spacing: Theme.Space.m) {
-            StatCard(title: "Total", value: TimeFormat.short(summary.total))
-            StatCard(title: "Focus score", value: "\(summary.focusScore)%")
-            StatCard(title: "Deep work", value: TimeFormat.short(summary.deepWorkSeconds))
-            StatCard(title: "Current streak", value: "\(summary.currentStreak)d")
-            StatCard(title: "Best streak", value: "\(summary.longestStreak)d")
+            StatCard(title: "Total Focus", value: TimeFormat.short(summary.total), tint: Theme.indigo, icon: "clock.fill")
+            StatCard(title: "Focus Score", value: "\(summary.focusScore)%", tint: scoreTint, icon: "chart.line.uptrend.xyaxis")
+            StatCard(title: "Deep Work", value: TimeFormat.short(summary.deepWorkSeconds), tint: Theme.emerald, icon: "bolt.shield.fill")
+            StatCard(title: "Current Streak", value: "\(summary.currentStreak)d", tint: summary.currentStreak > 0 ? Theme.amber : nil, icon: "flame.fill")
+            StatCard(title: "Best Streak", value: "\(summary.longestStreak)d", icon: "trophy.fill")
             StatCard(title: "Sessions", value: "\(summary.sessionCount)")
             StatCard(title: "Average", value: TimeFormat.short(summary.average))
             StatCard(title: "Longest", value: TimeFormat.short(summary.longest))
-            StatCard(title: "Apps blocked", value: "\(summary.blockedAttempts)")
-            StatCard(title: "Tabs closed", value: "\(summary.closedTabs)")
-            StatCard(title: "Bails", value: "\(summary.bails)")
+            StatCard(title: "Apps Blocked", value: "\(summary.blockedAttempts)", tint: summary.blockedAttempts > 0 ? Theme.rose : nil, icon: "shield.fill")
+            StatCard(title: "Tabs Closed", value: "\(summary.closedTabs)", tint: summary.closedTabs > 0 ? Theme.rose : nil, icon: "xmark.circle.fill")
+            StatCard(title: "Bails", value: "\(summary.bails)", tint: summary.bails > 0 ? Theme.coral : nil)
             StatCard(title: "Subjects", value: "\(subjectCount)")
         }
     }

@@ -155,4 +155,12 @@ final class StatsFormattingTests: XCTestCase {
         XCTAssertEqual(blocks[0].seconds, 1800)
         XCTAssertEqual(blocks[1].seconds, 600)
     }
+
+    func testStatCardProperties() {
+        let card = StatCard(title: "Score", value: "95%", tint: Theme.emerald, icon: "chart.line.uptrend.xyaxis")
+        XCTAssertEqual(card.title, "Score")
+        XCTAssertEqual(card.value, "95%")
+        XCTAssertEqual(card.tint, Theme.emerald)
+        XCTAssertEqual(card.icon, "chart.line.uptrend.xyaxis")
+    }
 }
