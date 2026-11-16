@@ -164,6 +164,8 @@ struct MiniTimerView: View {
     let chrome: MiniTimerChrome
     var model: AppModel? = nil
     var onLockIn: (() -> Void)? = nil
+    @State private var showingQuickThought = false
+    @State private var quickThoughtText = ""
 
     private var isBetweenBlocks: Bool {
         !engine.isLocked && model?.nextForceBlockDeadline != nil
@@ -265,10 +267,46 @@ struct MiniTimerView: View {
                         }
                         .buttonStyle(.plain)
                     } else {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
-                            .overlay(Circle().stroke(Color.lockBackground.opacity(0.5), lineWidth: 1))
+                        HStack(spacing: 6) {
+                            Button {
+                                showingQuickThought.toggle()
+                            } label: {
+                                Image(systemName: "lightbulb.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Color.lockBackground.opacity(0.85))
+                                    .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
+                                    .background(Circle().fill(Color.lockBackground.opacity(0.12)))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Park stray thought")
+                            .popover(isPresented: $showingQuickThought, arrowEdge: .bottom) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Park Stray Thought")
+                                        .font(.caption.weight(.bold))
+                                    TextField("Idea, reminder, or task…", text: $quickThoughtText)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 220)
+                                        .onSubmit {
+                                            saveQuickThought()
+                                        }
+                                    HStack {
+                                        Spacer()
+                                        Button("Park") {
+                                            saveQuickThought()
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .font(.caption.weight(.semibold))
+                                        .disabled(quickThoughtText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                    }
+                                }
+                                .padding(10)
+                            }
+
+                            Image(systemName: "xmark")
+                                .font(.system(size: 10, weight: .bold))
+                                .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
+                                .overlay(Circle().stroke(Color.lockBackground.opacity(0.5), lineWidth: 1))
+                        }
                     }
                 }
                 .padding(.horizontal, MiniTimerLayout.horizontalPadding)
@@ -293,6 +331,21 @@ struct MiniTimerView: View {
                 }
                 .frame(height: 3)
                 .clipShape(RoundedRectangle(cornerRadius: 1.5))
+            }
+        }
+    }
+
+    private func saveQuickThought() {
+        let trimmed = quickThoughtText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        engine.addParkedThought(trimmed)
+        quickThoughtText = ""
+        showingQuickThought = false
+        chrome.noticeText = "Parked: \(trimmed)"
+        Task {
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            if chrome.noticeText?.hasPrefix("Parked:") == true {
+                chrome.noticeText = nil
             }
         }
     }

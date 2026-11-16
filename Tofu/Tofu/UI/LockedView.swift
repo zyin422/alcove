@@ -533,6 +533,16 @@ private struct ParkedThoughtsView: View {
                                 .font(.body)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(thought, forType: .string)
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Copy to clipboard")
+                            Button {
                                 engine.removeParkedThought(at: index)
                             } label: {
                                 Image(systemName: "xmark")
@@ -540,6 +550,7 @@ private struct ParkedThoughtsView: View {
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.borderless)
+                            .help("Remove")
                         }
                         .padding(.vertical, 2)
                     }
@@ -548,6 +559,16 @@ private struct ParkedThoughtsView: View {
             }
 
             Divider()
+
+            HStack(spacing: Theme.Space.xs) {
+                tagButton("Idea", prefix: "[Idea] ")
+                tagButton("Task", prefix: "[Task] ")
+                tagButton("Reminder", prefix: "[Reminder] ")
+                tagButton("Question", prefix: "[Question] ")
+                Spacer()
+            }
+            .padding(.horizontal, Theme.Space.m)
+            .padding(.top, Theme.Space.xs)
 
             HStack(spacing: Theme.Space.s) {
                 TextField("Park a thought for later… (Enter to save)", text: $newThoughtText)
@@ -567,6 +588,23 @@ private struct ParkedThoughtsView: View {
         .onAppear {
             isFieldFocused = true
         }
+    }
+
+    private func tagButton(_ title: String, prefix: String) -> some View {
+        Button {
+            if !newThoughtText.hasPrefix(prefix) {
+                newThoughtText = prefix + newThoughtText
+            }
+            isFieldFocused = true
+        } label: {
+            Text(title)
+                .font(.caption2.weight(.medium))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Theme.indigo.opacity(0.12)))
+                .foregroundStyle(Theme.indigo)
+        }
+        .buttonStyle(.plain)
     }
 
     private func submit() {

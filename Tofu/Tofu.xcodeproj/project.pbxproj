@@ -152,6 +152,7 @@
 		DE94F5D9A7B2EA6BED2EA594 /* MirrorPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = E749A366FA4A51D1319A715B /* MirrorPrompt.swift */; };
 		E08F16B93297F58C8116DDE9 /* CompanionArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EA4051CC75F07BB011EB39 /* CompanionArt.swift */; };
 		E19D6932421B40F53E80A2D7 /* ChromeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FC6341CDAE3FE40E13DF02 /* ChromeController.swift */; };
+		E21C4E5B896761F3E7CDFA0E /* ThoughtParkingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EA0F3B6A1F4278D7F3B0B1 /* ThoughtParkingTests.swift */; };
 		E2CB28DCEC6B6C118C9DD622 /* BedtimeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E988E2FEEE22285F2FF18EBC /* BedtimeScreen.swift */; };
 		E2E1A84C6C3E35FE8C4EFA9A /* EnvFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09BED9839B0F9770E2CBB2C6 /* EnvFileTests.swift */; };
 		E457D803C2D14F8DE268653E /* FocusAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526A6A3D3E25518627F27C01 /* FocusAudioEngine.swift */; };
@@ -330,6 +331,7 @@
 		DB7F60FBE9EC7758F39778AE /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		DD7D59E8433E0BC485351B9F /* PriorityExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriorityExtractor.swift; sourceTree = "<group>"; };
 		DEEEDE16CCBE3AA011F74502 /* DayPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlan.swift; sourceTree = "<group>"; };
+		E1EA0F3B6A1F4278D7F3B0B1 /* ThoughtParkingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtParkingTests.swift; sourceTree = "<group>"; };
 		E520DD2E9747E3431C8A1084 /* RelevanceJudgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelevanceJudgeTests.swift; sourceTree = "<group>"; };
 		E55EBD6998DB5A91B92BA299 /* ScreenGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenGeometryTests.swift; sourceTree = "<group>"; };
 		E5755C17504CD05C65D17AE0 /* MockTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTransport.swift; sourceTree = "<group>"; };
@@ -525,6 +527,7 @@
 				FB1D0B432B65B15BBEDB152F /* StoreTests.swift */,
 				EBDEE160F6306C0293E13450 /* SubjectValidatorTests.swift */,
 				667265F6BFF68C900A5EA6A9 /* TabTriageTests.swift */,
+				E1EA0F3B6A1F4278D7F3B0B1 /* ThoughtParkingTests.swift */,
 				D52B31A62C13EFFB5ADC48E9 /* TimeFormatTests.swift */,
 				449F8A206D39E762B96FEC06 /* ToastLayoutTests.swift */,
 				259A89D3A77AC5745D1E86F5 /* UpdateCardTests.swift */,
@@ -823,6 +826,7 @@
 				07F9780CB0733E49A18A2F30 /* StoreTests.swift in Sources */,
 				8D1EC4E336C30AC1FF45D5D7 /* SubjectValidatorTests.swift in Sources */,
 				7CD0B9A5DBF781CEF0E55F99 /* TabTriageTests.swift in Sources */,
+				E21C4E5B896761F3E7CDFA0E /* ThoughtParkingTests.swift in Sources */,
 				1405FB32B55F694F50D43A04 /* TimeFormatTests.swift in Sources */,
 				006DF63B59A16B38F95340B8 /* ToastLayoutTests.swift in Sources */,
 				F480F63E3B35C38F6B13C080 /* UpdateCardTests.swift in Sources */,
