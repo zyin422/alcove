@@ -23,7 +23,6 @@ enum DistractionApps {
             "com.whatsapp",
             "com.apple.MobileSMS",
             "org.whispersystems.signal-desktop",
-            "com.tencent.xinWeChat",
             "com.facebook.archon.developerID",
             "com.skype.skype",
         ],

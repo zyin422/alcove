@@ -26,6 +26,7 @@ final class DistractionAppsTests: XCTestCase {
         XCTAssertNil(DistractionApps.category(of: "com.apple.Terminal"))
         XCTAssertNil(DistractionApps.category(of: "com.spotify.client"))
         XCTAssertNil(DistractionApps.category(of: "com.apple.Music"))
+        XCTAssertNil(DistractionApps.category(of: "com.tencent.xinWeChat"))
         XCTAssertNil(DistractionApps.category(of: ""))
     }
 

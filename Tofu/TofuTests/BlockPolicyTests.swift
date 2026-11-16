@@ -163,4 +163,21 @@ final class BlockPolicyTests: XCTestCase {
         XCTAssertFalse(strictAllowed.contains("com.spotify.client"))
         XCTAssertTrue(BlockPolicy.shouldBlock(app("com.spotify.client"), allowed: strictAllowed))
     }
+
+    func testWeChatAndSpotifyAreAllowedWhenConfiguredInSlotsOrAllowedApps() {
+        let wechat = AllowedApp(bundleID: "com.tencent.xinWeChat", name: "WeChat")
+        let spotify = AllowedApp(bundleID: "com.spotify.client", name: "Spotify")
+        let subject = Subject(name: "Research", allowedApps: [wechat], slots: [SetupSlot.app(spotify)])
+        let allowed = BlockPolicy.allowedSet(for: subject, ownBundleID: ownID)
+
+        XCTAssertTrue(allowed.contains("com.tencent.xinWeChat"), "Configured WeChat must be allowed")
+        XCTAssertTrue(allowed.contains("com.spotify.client"), "Configured Spotify must be allowed")
+        XCTAssertFalse(BlockPolicy.shouldBlock(app("com.tencent.xinWeChat"), allowed: allowed))
+        XCTAssertFalse(BlockPolicy.shouldBlock(app("com.spotify.client"), allowed: allowed))
+
+        let unallowedSubject = Subject(name: "StrictSubject", allowedApps: [])
+        let strictAllowed = BlockPolicy.allowedSet(for: unallowedSubject, ownBundleID: ownID)
+        XCTAssertFalse(strictAllowed.contains("com.tencent.xinWeChat"))
+        XCTAssertTrue(BlockPolicy.shouldBlock(app("com.tencent.xinWeChat"), allowed: strictAllowed))
+    }
 }
