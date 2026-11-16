@@ -432,14 +432,20 @@ enum DayPlanner {
         for priority in priorities {
             let dur = priority.estimatedMinutes ?? 45
             if let explicitStart = priority.scheduledMinutesFromMidnight {
+                let pEnd = explicitStart + dur
+                let conflict = calBlocks.first { cal in
+                    max(explicitStart, cal.startMinutes) < min(pEnd, cal.endMinutes)
+                }
                 plannedBlocks.append(ScheduleBlock(
                     id: "plan-\(priority.id.uuidString)",
                     kind: .plannedPriority(priorityID: priority.id, title: priority.title, subjectID: priority.subjectID, isDone: priority.isDone),
                     startMinutes: explicitStart,
-                    endMinutes: explicitStart + dur,
+                    endMinutes: pEnd,
                     title: priority.title,
                     subjectID: priority.subjectID,
-                    isDone: priority.isDone
+                    isDone: priority.isDone,
+                    hasConflict: conflict != nil,
+                    conflictingEventTitle: conflict?.title
                 ))
             } else {
                 var candidate = cursor
@@ -467,14 +473,20 @@ enum DayPlanner {
                     }
                 }
                 if !placed {
+                    let pEnd = cursor + dur
+                    let conflict = calBlocks.first { cal in
+                        max(cursor, cal.startMinutes) < min(pEnd, cal.endMinutes)
+                    }
                     plannedBlocks.append(ScheduleBlock(
                         id: "plan-\(priority.id.uuidString)",
                         kind: .plannedPriority(priorityID: priority.id, title: priority.title, subjectID: priority.subjectID, isDone: priority.isDone),
                         startMinutes: cursor,
-                        endMinutes: cursor + dur,
+                        endMinutes: pEnd,
                         title: priority.title,
                         subjectID: priority.subjectID,
-                        isDone: priority.isDone
+                        isDone: priority.isDone,
+                        hasConflict: conflict != nil,
+                        conflictingEventTitle: conflict?.title
                     ))
                     cursor += dur + 15
                 }
@@ -514,6 +526,8 @@ struct ScheduleBlock: Identifiable, Equatable {
     var title: String
     var subjectID: UUID?
     var isDone: Bool
+    var hasConflict: Bool = false
+    var conflictingEventTitle: String? = nil
 
     var durationMinutes: Int {
         max(1, endMinutes - startMinutes)

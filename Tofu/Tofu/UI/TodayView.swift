@@ -541,12 +541,20 @@ private struct TodayScheduleView: View {
                     trackRow(blocks: layout.plannedBlocks, width: width, height: 16) { block in
                         let color = subjectColor(id: block.subjectID, name: block.title)
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(color.opacity(block.isDone ? 0.35 : 0.70))
+                            .fill(block.hasConflict ? Theme.coral.opacity(0.85) : color.opacity(block.isDone ? 0.35 : 0.70))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 4)
-                                    .stroke(color, lineWidth: hoveredBlockID == block.id ? 2 : 1)
+                                    .stroke(block.hasConflict ? Theme.coral : color, lineWidth: hoveredBlockID == block.id ? 2 : 1)
                             )
-                            .help("\(block.title) (\(block.timeRangeLabel))")
+                            .overlay(alignment: .trailing) {
+                                if block.hasConflict {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(Color.black)
+                                        .padding(.trailing, 2)
+                                }
+                            }
+                            .help(block.hasConflict ? "⚠️ Conflict with \(block.conflictingEventTitle ?? "Meeting"): \(block.title) (\(block.timeRangeLabel))" : "\(block.title) (\(block.timeRangeLabel))")
                             .onHover { isHovered in
                                 hoveredBlockID = isHovered ? block.id : nil
                             }
@@ -710,6 +718,18 @@ private struct TodayScheduleView: View {
                             .font(.system(size: 12, weight: .medium))
                             .strikethrough(isDone)
                             .lineLimit(1)
+                        if block.hasConflict {
+                            HStack(spacing: 3) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 8))
+                                Text(block.conflictingEventTitle.map { "Conflict: \($0)" } ?? "Overlap")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                            .foregroundStyle(Theme.coral)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(RoundedRectangle(cornerRadius: 3).fill(Theme.coral.opacity(0.15)))
+                        }
                         if let subjectID, let subject = model.subject(id: subjectID) {
                             let color = Theme.subjectColor(subject.colorHex)
                             HStack(spacing: 3) {

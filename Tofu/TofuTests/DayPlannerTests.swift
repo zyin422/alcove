@@ -428,6 +428,36 @@ final class DayPlannerTests: XCTestCase {
 
         XCTAssertLessThanOrEqual(layout.dayStartHour, 5.0, "Day start must expand for early morning event")
     }
+
+    func testScheduleConflictDetectionWithCalendarEvent() {
+        let calStart = date(15, 14, 0)
+        let calEnd = date(15, 15, 0)
+        let event = GoogleEvent(
+            id: "ev_conflict",
+            summary: "Team Sync",
+            start: GoogleEventTime(dateTime: ISO8601DateFormatter().string(from: calStart), date: nil),
+            end: GoogleEventTime(dateTime: ISO8601DateFormatter().string(from: calEnd), date: nil)
+        )
+
+        let conflictingPriority = Priority(title: "Deep Work", estimatedMinutes: 60, scheduledMinutesFromMidnight: 14 * 60 + 15)
+        let safePriority = Priority(title: "Post-meeting Review", estimatedMinutes: 45, scheduledMinutesFromMidnight: 16 * 60)
+
+        let layout = DayPlanner.computeScheduleLayout(
+            day: "2026-10-15",
+            calendarEvents: [event],
+            priorities: [conflictingPriority, safePriority],
+            sessions: [],
+            calendar: calendar,
+            now: date(15, 8, 0)
+        )
+
+        XCTAssertEqual(layout.plannedBlocks.count, 2)
+        XCTAssertTrue(layout.plannedBlocks[0].hasConflict)
+        XCTAssertEqual(layout.plannedBlocks[0].conflictingEventTitle, "Team Sync")
+
+        XCTAssertFalse(layout.plannedBlocks[1].hasConflict)
+        XCTAssertNil(layout.plannedBlocks[1].conflictingEventTitle)
+    }
 }
 
 @MainActor
