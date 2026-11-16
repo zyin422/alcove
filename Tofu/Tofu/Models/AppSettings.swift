@@ -62,6 +62,10 @@ struct AppSettings: Codable, Equatable {
     var focusSound: FocusSound
     /// Volume of ambient focus audio (0.0 to 1.0).
     var focusSoundVolume: Double
+    /// Launch Tofu automatically when logging into macOS.
+    var autoLaunchAtLogin: Bool
+    /// Keep Tofu running continuously during daytime hours (07:30–23:00) to prevent avoidance.
+    var dayGuardianEnabled: Bool
 
     init(displayName: String = NSFullUserName(), discordEnabled: Bool = false,
          giveUpTemplate: String = "I give up on {subject}", channelCache: [String: String] = [:],
@@ -77,7 +81,9 @@ struct AppSettings: Codable, Equatable {
          aiFeedURL: String = "https://news.ycombinator.com",
          lastMidnightPlanningKey: String? = nil,
          focusSound: FocusSound = .off,
-         focusSoundVolume: Double = 0.5) {
+         focusSoundVolume: Double = 0.5,
+         autoLaunchAtLogin: Bool = true,
+         dayGuardianEnabled: Bool = true) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
         self.giveUpTemplate = giveUpTemplate
@@ -104,6 +110,8 @@ struct AppSettings: Codable, Equatable {
         self.lastMidnightPlanningKey = lastMidnightPlanningKey
         self.focusSound = focusSound
         self.focusSoundVolume = focusSoundVolume
+        self.autoLaunchAtLogin = autoLaunchAtLogin
+        self.dayGuardianEnabled = dayGuardianEnabled
     }
 }
 
@@ -150,7 +158,11 @@ extension AppSettings {
             focusSound: try container.decodeIfPresent(FocusSound.self, forKey: .focusSound)
                 ?? defaults.focusSound,
             focusSoundVolume: try container.decodeIfPresent(Double.self, forKey: .focusSoundVolume)
-                ?? defaults.focusSoundVolume)
+                ?? defaults.focusSoundVolume,
+            autoLaunchAtLogin: try container.decodeIfPresent(Bool.self, forKey: .autoLaunchAtLogin)
+                ?? defaults.autoLaunchAtLogin,
+            dayGuardianEnabled: try container.decodeIfPresent(Bool.self, forKey: .dayGuardianEnabled)
+                ?? defaults.dayGuardianEnabled)
     }
 }
 

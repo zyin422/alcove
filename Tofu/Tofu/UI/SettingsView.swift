@@ -28,6 +28,7 @@ struct SettingsView: View {
             discordSetupSection
             googleSection
             accountabilitySection
+            antiAvoidanceSection
             breakSection
             companionSection
             endOfDaySection
@@ -226,6 +227,19 @@ struct SettingsView: View {
         }
     }
 
+    private var antiAvoidanceSection: some View {
+        Section {
+            Toggle("Launch at login", isOn: autoLaunchAtLogin)
+            Toggle("Always-on daytime guardian", isOn: dayGuardianEnabled)
+        } header: {
+            Text("Anti-Avoidance & Startup")
+        } footer: {
+            Text("Starts Tofu on login and keeps it active between 07:30 and 23:00 so you cannot derail your day by avoiding the app.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var breakSection: some View {
         Section {
             Toggle("Allow other sites and apps", isOn: allowOffTaskDuringBreak)
@@ -388,6 +402,16 @@ struct SettingsView: View {
     private var allowOffTaskDuringBreak: Binding<Bool> {
         Binding(get: { model.data.settings.allowOffTaskDuringBreak },
                 set: { newValue in model.updateSettings { $0.allowOffTaskDuringBreak = newValue } })
+    }
+
+    private var autoLaunchAtLogin: Binding<Bool> {
+        Binding(get: { model.data.settings.autoLaunchAtLogin },
+                set: { newValue in model.updateSettings { $0.autoLaunchAtLogin = newValue } })
+    }
+
+    private var dayGuardianEnabled: Binding<Bool> {
+        Binding(get: { model.data.settings.dayGuardianEnabled },
+                set: { newValue in model.updateSettings { $0.dayGuardianEnabled = newValue } })
     }
 
     private var companionEnabled: Binding<Bool> {

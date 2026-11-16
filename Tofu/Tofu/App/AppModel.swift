@@ -240,6 +240,7 @@ enum TokenSource: Equatable {
         }
         if auth.isConnected { sync.start() }
         assignChartColors()
+        syncAutoLaunchAndGuardian()
     }
 
     /// Connects the assistant and Chrome both ways: the tab watch hands unsure sites to the assistant, and the
@@ -904,6 +905,13 @@ enum TokenSource: Equatable {
     func updateSettings(_ mutate: (inout AppSettings) -> Void) {
         mutate(&data.settings)
         save()
+        syncAutoLaunchAndGuardian()
+    }
+
+    /// Synchronizes LaunchAgents with user preferences to prevent morning evasion.
+    func syncAutoLaunchAndGuardian() {
+        AutoLaunchManager.setAutoLaunch(enabled: data.settings.autoLaunchAtLogin)
+        AutoLaunchManager.setDayGuardian(enabled: data.settings.dayGuardianEnabled)
     }
 
     /// Writes `data` to the store. A failure is shown as a toast; the in-memory data stays intact.
