@@ -76,6 +76,24 @@ final class DiscordClientTests: XCTestCase {
         XCTAssertEqual(json.count, 2)
     }
 
+    func testPostSendsEmbedsWhenProvided() async throws {
+        let transport = MockTransport { _ in (200, MockTransport.json(#"{"id": "501"}"#)) }
+        let embed = DiscordEmbed(title: "Block Done", description: "Focused for 50m", color: 0x059669,
+                                 fields: [.init(name: "Subject", value: "CS128")])
+        try await makeClient(transport).post(channelID: "88", content: "Session finished", embeds: [embed])
+
+        XCTAssertEqual(transport.log, ["POST /api/v10/channels/88/messages"])
+        let request = try XCTUnwrap(transport.requests.first)
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json["content"] as? String, "Session finished")
+        XCTAssertEqual(json.count, 3)
+        let embeds = try XCTUnwrap(json["embeds"] as? [[String: Any]])
+        XCTAssertEqual(embeds.count, 1)
+        XCTAssertEqual(embeds[0]["title"] as? String, "Block Done")
+        XCTAssertEqual(embeds[0]["color"] as? Int, 0x059669)
+    }
+
     // MARK: - Errors
 
     func testNon2xxOnMeThrowsHTTPStatus() async {

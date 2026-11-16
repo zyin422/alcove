@@ -62,8 +62,8 @@ final class DiscordClient {
     }
 
     /// 429 -> sleep(retry_after) once and retry; other non-2xx -> DiscordError.http(code).
-    func post(channelID: String, content: String) async throws {
-        let message = OutgoingMessage(content: content, allowedMentions: .init(parse: []))
+    func post(channelID: String, content: String, embeds: [DiscordEmbed]? = nil) async throws {
+        let message = OutgoingMessage(content: content, embeds: embeds, allowedMentions: .init(parse: []))
         let body: Data
         do {
             body = try JSONEncoder().encode(message)
@@ -74,7 +74,7 @@ final class DiscordClient {
     }
 
     /// Every guild: try ChannelPicker candidates (max 5) until one succeeds. Never throws.
-    func broadcast(_ content: String, channelCache: [String: String]) async -> DiscordPostReport {
+    func broadcast(_ content: String, embeds: [DiscordEmbed]? = nil, channelCache: [String: String]) async -> DiscordPostReport {
         var report = DiscordPostReport()
         let allGuilds: [DiscordGuild]
         do {
@@ -83,7 +83,7 @@ final class DiscordClient {
             return report
         }
         for guild in allGuilds {
-            if let channelID = await postToGuild(guild.id, content: content, cachedID: channelCache[guild.id]) {
+            if let channelID = await postToGuild(guild.id, content: content, embeds: embeds, cachedID: channelCache[guild.id]) {
                 report.posted[guild.id] = channelID
             } else {
                 report.failedGuilds.append(guild.id)
@@ -95,7 +95,7 @@ final class DiscordClient {
     // MARK: - Private
 
     /// Returns the channel that accepted the message, or nil when every candidate failed.
-    private func postToGuild(_ guildID: String, content: String, cachedID: String?) async -> String? {
+    private func postToGuild(_ guildID: String, content: String, embeds: [DiscordEmbed]?, cachedID: String?) async -> String? {
         let guildChannels: [DiscordChannel]
         do {
             guildChannels = try await channels(guildID: guildID)
@@ -105,7 +105,7 @@ final class DiscordClient {
         let candidates = ChannelPicker.candidates(from: guildChannels, cachedID: cachedID)
         for channelID in candidates.prefix(Self.maxCandidatesPerGuild) {
             do {
-                try await post(channelID: channelID, content: content)
+                try await post(channelID: channelID, content: content, embeds: embeds)
                 return channelID
             } catch {
                 continue
@@ -179,6 +179,33 @@ final class DiscordClient {
     }
 }
 
+/// An embed attached to a Discord message.
+struct DiscordEmbed: Codable, Equatable {
+    struct Field: Codable, Equatable {
+        var name: String
+        var value: String
+        var inline: Bool?
+
+        init(name: String, value: String, inline: Bool? = true) {
+            self.name = name
+            self.value = value
+            self.inline = inline
+        }
+    }
+
+    var title: String?
+    var description: String?
+    var color: Int?
+    var fields: [Field]?
+
+    init(title: String? = nil, description: String? = nil, color: Int? = nil, fields: [Field]? = nil) {
+        self.title = title
+        self.description = description
+        self.color = color
+        self.fields = fields
+    }
+}
+
 /// Body of `POST /channels/{id}/messages`. Empty `parse` disables every @mention ping.
 private struct OutgoingMessage: Encodable {
     struct AllowedMentions: Encodable {
@@ -186,11 +213,20 @@ private struct OutgoingMessage: Encodable {
     }
 
     let content: String
+    var embeds: [DiscordEmbed]?
     let allowedMentions: AllowedMentions
 
     enum CodingKeys: String, CodingKey {
         case content
+        case embeds
         case allowedMentions = "allowed_mentions"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(content, forKey: .content)
+        try container.encodeIfPresent(embeds, forKey: .embeds)
+        try container.encode(allowedMentions, forKey: .allowedMentions)
     }
 }
 

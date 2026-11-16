@@ -55,4 +55,37 @@ final class DiscordMessagesTests: XCTestCase {
         XCTAssertEqual(text,
                        "🏳️ **Sam** bailed on **MATH241** after **1h 1m** (goal 1h 30m) · tried other apps **1×**")
     }
+
+    func testCompletedWithStreakBadge() {
+        let text = DiscordMessages.completed(name: "Zixuan", subject: "Tofu", duration: 3600,
+                                             attempts: 0, tabs: 0, streakDays: 5)
+        XCTAssertEqual(text,
+                       "✅ **Zixuan** locked in on **Tofu** for **1h 0m** · tried other apps **0×** · closed **0** tabs · 🔥 5d streak")
+
+        let noStreak = DiscordMessages.completed(name: "Zixuan", subject: "Tofu", duration: 3600,
+                                                attempts: 0, tabs: 0, streakDays: 1)
+        XCTAssertEqual(noStreak,
+                       "✅ **Zixuan** locked in on **Tofu** for **1h 0m** · tried other apps **0×** · closed **0** tabs")
+    }
+
+    func testBailedWithAccountabilityReason() {
+        let text = DiscordMessages.bailed(name: "Alex", subject: "CS128", duration: 600,
+                                          goalMinutes: 45, attempts: 2, reason: "Urgent phone call")
+        XCTAssertEqual(text,
+                       "🏳️ **Alex** bailed on **CS128** after **10m** (goal 45m) · tried other apps **2×** · Reason: Urgent phone call")
+    }
+
+    func testSessionEmbedGeneration() {
+        let completedEmbed = DiscordMessages.sessionEmbed(subject: "Research", isCompleted: true,
+                                                          duration: 3600, attempts: 1, tabs: 2, streakDays: 3)
+        XCTAssertEqual(completedEmbed.title, "✅ Focus Block Completed")
+        XCTAssertEqual(completedEmbed.color, 0x059669)
+        XCTAssertEqual(completedEmbed.fields?.count, 5)
+
+        let bailedEmbed = DiscordMessages.sessionEmbed(subject: "Math", isCompleted: false,
+                                                       duration: 600, attempts: 5, tabs: 0, streakDays: 0)
+        XCTAssertEqual(bailedEmbed.title, "🏳️ Focus Block Bailed")
+        XCTAssertEqual(bailedEmbed.color, 0xE11D48)
+        XCTAssertEqual(bailedEmbed.fields?.count, 4)
+    }
 }

@@ -49,16 +49,27 @@ struct SessionSummaryView: View {
 
             VStack(spacing: Theme.Space.s) {
                 HStack(spacing: Theme.Space.s) {
-                    StatCard(title: "Duration", value: TimeFormat.short(session.duration))
+                    StatCard(title: "Duration", value: TimeFormat.short(session.duration), tint: Theme.indigo, icon: "clock.fill")
                     if let goal = SessionSummaryText.goal(session.mode) {
-                        StatCard(title: "Goal", value: goal)
+                        StatCard(title: "Goal", value: goal, tint: Theme.emerald, icon: "target")
                     }
                 }
                 HStack(spacing: Theme.Space.s) {
-                    StatCard(title: "Apps blocked", value: "\(session.blockedAttempts)")
-                    StatCard(title: "Tabs closed", value: "\(session.closedTabs)")
+                    StatCard(title: "Apps blocked", value: "\(session.blockedAttempts)", tint: session.blockedAttempts > 0 ? Theme.rose : nil, icon: "shield.fill")
+                    StatCard(title: "Tabs closed", value: "\(session.closedTabs)", tint: session.closedTabs > 0 ? Theme.rose : nil, icon: "xmark.circle.fill")
                 }
             }
+
+            Button {
+                copyDiscordRecap()
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                    Text("Copy Discord Message")
+                }
+                .font(.caption.weight(.medium))
+            }
+            .buttonStyle(.borderless)
 
             if !model.engine.relaunchOffer.isEmpty {
                 relaunchList
@@ -145,5 +156,23 @@ struct SessionSummaryView: View {
     private func answer(_ priority: Priority, done: Bool) {
         model.setPriority(priority.id, done: done, day: DayKey.key(for: session.start))
         answered = true
+    }
+
+    private func copyDiscordRecap() {
+        let name = model.displayName
+        let text: String
+        if session.outcome == .bailed, let goal = session.mode.goalMinutes {
+            text = DiscordMessages.bailed(name: name, subject: session.subjectName,
+                                          duration: session.duration, goalMinutes: goal,
+                                          attempts: session.blockedAttempts)
+        } else {
+            text = DiscordMessages.completed(name: name, subject: session.subjectName,
+                                             duration: session.duration,
+                                             attempts: session.blockedAttempts,
+                                             tabs: session.closedTabs)
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        ToastCenter.shared.show("Discord message copied to clipboard")
     }
 }
