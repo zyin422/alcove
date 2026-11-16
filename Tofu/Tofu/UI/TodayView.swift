@@ -526,59 +526,61 @@ private struct TodayScheduleView: View {
             }
 
             // Multi-Track Timeline Bar
-            GeometryReader { geo in
-                let width = geo.size.width
-                VStack(spacing: 3) {
-                    // Track 1: Calendar Events
-                    trackRow(blocks: layout.calendarBlocks, width: width, height: 14) { block in
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Theme.cyan.opacity(0.35))
-                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.cyan.opacity(0.6), lineWidth: 1))
-                            .help("\(block.title) (\(block.timeRangeLabel))")
-                    }
+            TimelineView(.periodic(from: .now, by: 1.0)) { timelineContext in
+                GeometryReader { geo in
+                    let width = geo.size.width
+                    VStack(spacing: 3) {
+                        // Track 1: Calendar Events
+                        trackRow(blocks: layout.calendarBlocks, width: width, height: 14) { block in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Theme.cyan.opacity(0.35))
+                                .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.cyan.opacity(0.6), lineWidth: 1))
+                                .help("\(block.title) (\(block.timeRangeLabel))")
+                        }
 
-                    // Track 2: Planned Priorities
-                    trackRow(blocks: layout.plannedBlocks, width: width, height: 16) { block in
-                        let color = subjectColor(id: block.subjectID, name: block.title)
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(block.hasConflict ? Theme.coral.opacity(0.85) : color.opacity(block.isDone ? 0.35 : 0.70))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(block.hasConflict ? Theme.coral : color, lineWidth: hoveredBlockID == block.id ? 2 : 1)
-                            )
-                            .overlay(alignment: .trailing) {
-                                if block.hasConflict {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .font(.system(size: 8))
-                                        .foregroundStyle(Color.black)
-                                        .padding(.trailing, 2)
-                                }
-                            }
-                            .help(block.hasConflict ? "⚠️ Conflict with \(block.conflictingEventTitle ?? "Meeting"): \(block.title) (\(block.timeRangeLabel))" : "\(block.title) (\(block.timeRangeLabel))")
-                            .onHover { isHovered in
-                                hoveredBlockID = isHovered ? block.id : nil
-                            }
-                    }
+                        // Track 2: Planned Priorities
+                        trackRow(blocks: layout.plannedBlocks, width: width, height: 16) { block in
+                            let color = subjectColor(id: block.subjectID, name: block.title)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(block.hasConflict ? Theme.coral.opacity(0.85) : color.opacity(block.isDone ? 0.35 : 0.70))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .stroke(block.hasConflict ? Theme.coral : color, lineWidth: hoveredBlockID == block.id ? 2 : 1)
+                                    )
+                                    .overlay(alignment: .trailing) {
+                                        if block.hasConflict {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .font(.system(size: 8))
+                                                .foregroundStyle(Color.black)
+                                                .padding(.trailing, 2)
+                                        }
+                                    }
+                                    .help(block.hasConflict ? "⚠️ Conflict with \(block.conflictingEventTitle ?? "Meeting"): \(block.title) (\(block.timeRangeLabel))" : "\(block.title) (\(block.timeRangeLabel))")
+                                    .onHover { isHovered in
+                                        hoveredBlockID = isHovered ? block.id : nil
+                                    }
+                        }
 
-                    // Track 3: Completed Focus Sessions
-                    trackRow(blocks: layout.sessionBlocks, width: width, height: 14) { block in
-                        let color = subjectColor(id: block.subjectID, name: block.title)
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(color)
-                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.emerald.opacity(0.4), lineWidth: 1))
-                            .help("\(block.title) (\(block.timeRangeLabel))")
+                        // Track 3: Completed Focus Sessions
+                        trackRow(blocks: layout.sessionBlocks, width: width, height: 14) { block in
+                            let color = subjectColor(id: block.subjectID, name: block.title)
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(color)
+                                .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.emerald.opacity(0.4), lineWidth: 1))
+                                .help("\(block.title) (\(block.timeRangeLabel))")
+                        }
+                    }
+                    .overlay(alignment: .leading) {
+                        // Current time red/accent vertical line across all 3 tracks
+                        currentTimeLine(width: width, now: timelineContext.date)
+                    }
+                    .overlay(alignment: .leading) {
+                        // Next force block amber vertical line across all 3 tracks
+                        nextForceBlockLine(width: width)
                     }
                 }
-                .overlay(alignment: .leading) {
-                    // Current time red/accent vertical line across all 3 tracks
-                    currentTimeLine(width: width)
-                }
-                .overlay(alignment: .leading) {
-                    // Next force block amber vertical line across all 3 tracks
-                    nextForceBlockLine(width: width)
-                }
+                .frame(height: 52)
             }
-            .frame(height: 52)
 
             // Dynamic Hour Markers
             hourRuler
@@ -626,8 +628,8 @@ private struct TodayScheduleView: View {
     }
 
     @ViewBuilder
-    private func currentTimeLine(width: CGFloat) -> some View {
-        let nowF = layout.currentFraction()
+    private func currentTimeLine(width: CGFloat, now: Date = Date()) -> some View {
+        let nowF = layout.currentFraction(now: now)
         if nowF >= 0 && nowF <= 1.0 {
             Rectangle()
                 .fill(Color.red.opacity(0.85))

@@ -203,8 +203,9 @@ struct MiniTimerView: View {
         !engine.isLocked && model?.nextForceBlockDeadline != nil
     }
 
-    private var clock: String {
-        if isBetweenBlocks, let seconds = model?.secondsUntilNextForceBlock {
+    private func clock(now: Date) -> String {
+        if isBetweenBlocks, let deadline = model?.nextForceBlockDeadline {
+            let seconds = max(0, deadline.timeIntervalSince(now))
             return TimeFormat.clock(seconds)
         }
         if let remaining = engine.breakRemaining { return TimeFormat.clock(remaining) }
@@ -218,10 +219,10 @@ struct MiniTimerView: View {
         return engine.isOnBreak ? "Break" : (engine.session?.subjectName ?? "")
     }
 
-    private var progress: Double {
+    private func progress(now: Date) -> Double {
         if isBetweenBlocks, let deadline = model?.nextForceBlockDeadline {
             let total = DayPlanner.betweenBlockGrace
-            let remaining = max(0, deadline.timeIntervalSince(Date()))
+            let remaining = max(0, deadline.timeIntervalSince(now))
             return min(1.0, max(0.0, 1.0 - (remaining / total)))
         }
         if let breakRem = engine.breakRemaining, let breakTotal = engine.breakTotal, breakTotal > 0 {
@@ -244,6 +245,13 @@ struct MiniTimerView: View {
     }
 
     var body: some View {
+        TimelineView(.periodic(from: .now, by: 1.0)) { context in
+            content(now: context.date)
+        }
+    }
+
+    @ViewBuilder
+    private func content(now: Date) -> some View {
         Group {
             if chrome.isTucked {
                 HStack(spacing: 5) {
@@ -251,7 +259,7 @@ struct MiniTimerView: View {
                         .fill(subjectColor)
                         .frame(width: 5, height: 5)
                         .shadow(color: subjectColor.opacity(0.8), radius: 2)
-                    Text(clock)
+                    Text(clock(now: now))
                         .font(Theme.timerFont(size: 12))
                         .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.primary)
                         .lineLimit(1)
@@ -281,7 +289,7 @@ struct MiniTimerView: View {
                                 .lineLimit(1)
                                 .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.secondary)
                         }
-                        Text(clock)
+                        Text(clock(now: now))
                             .font(Theme.timerFont(size: 28))
                             .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.primary)
                             .lineLimit(1)
@@ -334,7 +342,7 @@ struct MiniTimerView: View {
                 GeometryReader { geo in
                     Rectangle()
                         .fill(subjectColor)
-                        .frame(width: geo.size.width * CGFloat(progress), height: 3)
+                        .frame(width: geo.size.width * CGFloat(progress(now: now)), height: 3)
                 }
                 .frame(height: 3)
                 .clipShape(RoundedRectangle(cornerRadius: 1.5))
