@@ -82,6 +82,8 @@ enum MiniTimerLayout {
     static let untuckDistance: CGFloat = 24
     /// How long the full pill stays up when a block starts, before it tucks to the top on its own.
     static let visibleBeforeTuck: TimeInterval = 3
+    /// Distance from the top edge (below menu bar) within which releasing snaps and tucks into the menu bar tab.
+    static let topSnapThreshold: CGFloat = 50
 
     /// How far the pointer moved downward. Cocoa y grows upward, so a downward drag is positive.
     static func pullDown(from start: CGPoint, to current: CGPoint) -> CGFloat {
@@ -91,6 +93,11 @@ enum MiniTimerLayout {
     /// The pill has gone past the top of `visible` (the edge just under the menu bar). Only the top edge counts.
     static func crossedTop(origin: CGPoint, height: CGFloat, visible: CGRect) -> Bool {
         origin.y + height > visible.maxY
+    }
+
+    /// True when the panel is at or near the top edge of `visible` (within `topSnapThreshold` or crossing it).
+    static func isNearTop(origin: CGPoint, height: CGFloat, visible: CGRect) -> Bool {
+        origin.y + height >= visible.maxY - topMargin - topSnapThreshold
     }
 
     /// Keeps a bar of `width` inside `visible`. A bar wider than the screen stays on the left edge.
@@ -152,7 +159,7 @@ enum MiniTimerLayout {
         return CGRect(origin: moved, size: panelSize)
     }
 
-    /// Where a press ends. A drag past the top edge tucks. A drag of the tab opens only after `untuckDistance`.
+    /// Where a press ends. A drag near or past the top edge tucks. A drag of the tab opens only after `untuckDistance`.
     /// A click on the tab leaves it tucked. A click on the pill opens the chat, and a click on the ✕ ends the session.
     static func release(tucked: Bool, dragging: Bool, origin: CGPoint, size: CGSize,
                         pullDown: CGFloat, closeHit: Bool, visible: CGRect) -> MiniTimerRelease {
@@ -163,7 +170,7 @@ enum MiniTimerLayout {
                     ? .reveal(revealedFrame(centerX: centerX, visible: visible))
                     : .tuck(tuckedFrame(centerX: centerX, visible: visible))
             }
-            if crossedTop(origin: origin, height: size.height, visible: visible) {
+            if isNearTop(origin: origin, height: size.height, visible: visible) {
                 return .tuck(tuckedFrame(centerX: centerX, visible: visible))
             }
             return .leave
@@ -458,6 +465,7 @@ struct MiniTimerView: View {
         chrome.noticeText = text
         if chrome.isTucked {
             if let visible = screen?.visibleFrame ?? ScreenGeometry.mainVisibleFrame() {
+                staysOpen = false
                 settle(tucked: false, frame: MiniTimerLayout.revealedFrame(centerX: frame.midX, visible: visible))
             }
         }
@@ -557,12 +565,19 @@ struct MiniTimerView: View {
                 toggleTuck()
             } else if MiniTimerLayout.isAwayFromTop(frame: frame, visible: visible) {
                 keepOpen()
+            } else {
+                staysOpen = false
+                hideAtTop()
             }
         case .tuck(let frame):
+            staysOpen = false
+            hideTimer?.invalidate()
+            hideTimer = nil
             settle(tucked: true, frame: frame)
         case .reveal(let frame):
-            keepOpen()
+            staysOpen = false
             settle(tucked: false, frame: frame)
+            scheduleHide()
         case .open:
             if !engine.isLocked && model?.nextForceBlockDeadline != nil {
                 if MiniTimerLayout.isLockInHit(point, in: frame.size) {
@@ -597,9 +612,12 @@ struct MiniTimerView: View {
 
     /// Hides the pill if the stay already elapsed while it was being held and it was not dragged away.
     private func finishRelease() {
-        guard tuckAfterRelease else { return }
-        tuckAfterRelease = false
-        hideAtTop()
+        if tuckAfterRelease {
+            tuckAfterRelease = false
+            hideAtTop()
+        } else if !chrome.isTucked && !staysOpen {
+            scheduleHide()
+        }
     }
 
     /// A click that could not find a screen. The tucked tab still opens; the pill still ends or opens the chat.
@@ -629,9 +647,13 @@ struct MiniTimerView: View {
     func toggleTuck() {
         guard let visible = screen?.visibleFrame ?? ScreenGeometry.mainVisibleFrame() else { return }
         if chrome.isTucked {
-            keepOpen()
+            staysOpen = false
             settle(tucked: false, frame: MiniTimerLayout.revealedFrame(centerX: frame.midX, visible: visible))
+            scheduleHide()
         } else {
+            staysOpen = false
+            hideTimer?.invalidate()
+            hideTimer = nil
             settle(tucked: true, frame: MiniTimerLayout.tuckedFrame(centerX: frame.midX, visible: visible))
         }
     }

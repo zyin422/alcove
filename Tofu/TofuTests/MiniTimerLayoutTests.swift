@@ -129,6 +129,28 @@ final class MiniTimerLayoutTests: XCTestCase {
         XCTAssertEqual(action, .tuck(MiniTimerLayout.tuckedFrame(centerX: 720, visible: visible)))
     }
 
+    func testReleasingNearTopTucksAtThePillCenter() {
+        let resting = MiniTimerLayout.frame(size: size, visible: visible)
+        let action = MiniTimerLayout.release(tucked: false, dragging: true, origin: resting.origin, size: size,
+                                              pullDown: 0, closeHit: false, visible: visible)
+        XCTAssertEqual(action, .tuck(MiniTimerLayout.tuckedFrame(centerX: resting.midX, visible: visible)))
+    }
+
+    func testReleasingWithinSnapThresholdTucks() {
+        // Resting top is 867 (875 - 8). Snap threshold is 50, so origin at 867 - 50 - 64 = 753 is boundary.
+        let nearTopOrigin = CGPoint(x: 600, y: 760) // top is 824 >= 817
+        let action = MiniTimerLayout.release(tucked: false, dragging: true, origin: nearTopOrigin, size: size,
+                                              pullDown: 0, closeHit: false, visible: visible)
+        XCTAssertEqual(action, .tuck(MiniTimerLayout.tuckedFrame(centerX: 720, visible: visible)))
+    }
+
+    func testReleasingFarBelowTopDoesNotTuck() {
+        let farOrigin = CGPoint(x: 600, y: 700) // top is 764 < 817
+        let action = MiniTimerLayout.release(tucked: false, dragging: true, origin: farOrigin, size: size,
+                                              pullDown: 0, closeHit: false, visible: visible)
+        XCTAssertEqual(action, .leave)
+    }
+
     func testAShortPullSnapsTheTabBack() {
         let tab = MiniTimerLayout.tuckedFrame(centerX: 720, visible: visible)
         let action = MiniTimerLayout.release(tucked: true, dragging: true, origin: tab.origin, size: tab.size,
