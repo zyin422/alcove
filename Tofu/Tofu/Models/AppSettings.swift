@@ -66,6 +66,10 @@ struct AppSettings: Codable, Equatable {
     var autoLaunchAtLogin: Bool
     /// Keep Tofu running continuously during daytime hours (07:30–23:00) to prevent avoidance.
     var dayGuardianEnabled: Bool
+    /// Chosen Kokoro neural voice persona.
+    var kokoroVoice: KokoroVoice
+    /// Volume of voice coaching announcements (0.0 to 1.0).
+    var voiceVolume: Double
 
     init(displayName: String = NSFullUserName(), discordEnabled: Bool = false,
          giveUpTemplate: String = "I give up on {subject}", channelCache: [String: String] = [:],
@@ -83,7 +87,9 @@ struct AppSettings: Codable, Equatable {
          focusSound: FocusSound = .off,
          focusSoundVolume: Double = 0.5,
          autoLaunchAtLogin: Bool = true,
-         dayGuardianEnabled: Bool = true) {
+         dayGuardianEnabled: Bool = true,
+         kokoroVoice: KokoroVoice = .heart,
+         voiceVolume: Double = 1.0) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
         self.giveUpTemplate = giveUpTemplate
@@ -112,6 +118,8 @@ struct AppSettings: Codable, Equatable {
         self.focusSoundVolume = focusSoundVolume
         self.autoLaunchAtLogin = autoLaunchAtLogin
         self.dayGuardianEnabled = dayGuardianEnabled
+        self.kokoroVoice = kokoroVoice
+        self.voiceVolume = voiceVolume
     }
 }
 
@@ -162,7 +170,11 @@ extension AppSettings {
             autoLaunchAtLogin: try container.decodeIfPresent(Bool.self, forKey: .autoLaunchAtLogin)
                 ?? defaults.autoLaunchAtLogin,
             dayGuardianEnabled: try container.decodeIfPresent(Bool.self, forKey: .dayGuardianEnabled)
-                ?? defaults.dayGuardianEnabled)
+                ?? defaults.dayGuardianEnabled,
+            kokoroVoice: try container.decodeIfPresent(KokoroVoice.self, forKey: .kokoroVoice)
+                ?? defaults.kokoroVoice,
+            voiceVolume: try container.decodeIfPresent(Double.self, forKey: .voiceVolume)
+                ?? defaults.voiceVolume)
     }
 }
 

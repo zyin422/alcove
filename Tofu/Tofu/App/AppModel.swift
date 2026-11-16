@@ -241,6 +241,8 @@ enum TokenSource: Equatable {
         if auth.isConnected { sync.start() }
         assignChartColors()
         syncAutoLaunchAndGuardian()
+        VoiceOutput.shared.voice = loaded.data.settings.kokoroVoice
+        VoiceOutput.shared.volume = Float(loaded.data.settings.voiceVolume)
     }
 
     /// Connects the assistant and Chrome both ways: the tab watch hands unsure sites to the assistant, and the
@@ -906,6 +908,8 @@ enum TokenSource: Equatable {
         mutate(&data.settings)
         save()
         syncAutoLaunchAndGuardian()
+        VoiceOutput.shared.voice = data.settings.kokoroVoice
+        VoiceOutput.shared.volume = Float(data.settings.voiceVolume)
     }
 
     /// Synchronizes LaunchAgents with user preferences to prevent morning evasion.

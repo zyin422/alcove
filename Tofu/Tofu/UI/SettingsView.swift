@@ -59,13 +59,26 @@ struct SettingsView: View {
 
     private var voiceSection: some View {
         Section {
+            Picker("Persona", selection: voiceSelectionBinding) {
+                ForEach(KokoroVoice.allCases) { v in
+                    Text(v.displayName).tag(v)
+                }
+            }
+            HStack {
+                Text("Volume")
+                Slider(value: voiceVolumeBinding, in: 0.1...1.0)
+                Text("\(Int(model.data.settings.voiceVolume * 100))%")
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 40, alignment: .trailing)
+            }
             Button("Play sample") {
                 VoiceOutput.shared.speak("Hi. You're locked in. I'll check in if a site looks off topic.")
             }
         } header: {
-            Text("Voice")
+            Text("Voice Coaching")
         } footer: {
-            Text("The voice used when Tofu talks. The first play downloads it, so that one can take a moment.")
+            Text("Powered by Kokoro neural speech. The voice plays locally and adapts volume dynamically alongside ambient soundscapes.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -397,6 +410,16 @@ struct SettingsView: View {
     private var discordEnabled: Binding<Bool> {
         Binding(get: { model.data.settings.discordEnabled },
                 set: { newValue in model.updateSettings { $0.discordEnabled = newValue } })
+    }
+
+    private var voiceSelectionBinding: Binding<KokoroVoice> {
+        Binding(get: { model.data.settings.kokoroVoice },
+                set: { newValue in model.updateSettings { $0.kokoroVoice = newValue } })
+    }
+
+    private var voiceVolumeBinding: Binding<Double> {
+        Binding(get: { model.data.settings.voiceVolume },
+                set: { newValue in model.updateSettings { $0.voiceVolume = newValue } })
     }
 
     private var allowOffTaskDuringBreak: Binding<Bool> {

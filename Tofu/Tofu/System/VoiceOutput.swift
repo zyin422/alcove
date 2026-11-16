@@ -2,13 +2,47 @@ import AVFoundation
 import FluidAudio
 import Observation
 
-/// Reads the study buddy's lines aloud with Kokoro (`af_heart`) on this Mac.
+/// Kokoro voices supported by FluidAudio.
+enum KokoroVoice: String, Codable, CaseIterable, Identifiable {
+    case heart = "af_heart"
+    case bella = "af_bella"
+    case adam = "am_adam"
+    case michael = "am_michael"
+    case emma = "bf_emma"
+    case george = "bm_george"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .heart: return "Heart (American Warm)"
+        case .bella: return "Bella (American Expressive)"
+        case .adam: return "Adam (American Calm)"
+        case .michael: return "Michael (American Crisp)"
+        case .emma: return "Emma (British Gentle)"
+        case .george: return "George (British Classical)"
+        }
+    }
+}
+
+/// Reads the study buddy's lines aloud with Kokoro on this Mac.
 /// The model downloads once, then stays local. If it cannot load, the best installed system voice speaks instead.
 @Observable @MainActor final class VoiceOutput: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
     /// The one speaker. Loading Kokoro twice would keep two copies of the model in memory.
     static let shared = VoiceOutput()
-    /// Kokoro's default English voice.
-    static let kokoroVoice = "af_heart"
+
+    var voice: KokoroVoice = .heart {
+        didSet {
+            guard voice != oldValue else { return }
+            kokoro = nil
+            load = nil
+            loadFailed = false
+            warmKokoro()
+        }
+    }
+
+    /// Master output volume for voice prompts (0.0 to 1.0).
+    var volume: Float = 1.0
 
     private(set) var isSpeaking = false
 
@@ -51,6 +85,7 @@ import Observation
         synthesizer.stopSpeaking(at: .immediate)
         systemBusy = false
         isSpeaking = false
+        FocusAudioEngine.shared.unduck()
     }
 
     /// Premium beats enhanced beats default; the user's English variant beats other English voices.
@@ -74,9 +109,10 @@ import Observation
         if let kokoro { return kokoro }
         if loadFailed { throw KokoroUnavailable() }
         if let load { return try await load.value }
+        let currentVoice = voice.rawValue
         let task = Task { () -> KokoroAneManager in
-            let manager = KokoroAneManager(defaultVoice: Self.kokoroVoice, version: .v3)
-            try await manager.initialize(preloadVoices: [Self.kokoroVoice])
+            let manager = KokoroAneManager(defaultVoice: currentVoice, version: .v3)
+            try await manager.initialize(preloadVoices: [currentVoice])
             return manager
         }
         load = task
@@ -95,6 +131,7 @@ import Observation
         guard saying == nil, player?.isPlaying != true, !systemBusy else { return }
         guard !queue.isEmpty else {
             isSpeaking = false
+            FocusAudioEngine.shared.unduck()
             return
         }
         let text = queue.removeFirst()
@@ -121,7 +158,7 @@ import Observation
         do {
             let manager = try await readyKokoro()
             try Task.checkCancellation()
-            return try await manager.synthesize(text: text, voice: Self.kokoroVoice)
+            return try await manager.synthesize(text: text, voice: voice.rawValue)
         } catch is CancellationError {
             return nil
         } catch {
@@ -133,9 +170,11 @@ import Observation
     private func startPlayer(_ wav: Data) -> Bool {
         guard let player = try? AVAudioPlayer(data: wav) else { return false }
         player.delegate = self
+        player.volume = min(1.0, max(0.0, volume))
         self.player = player
         systemBusy = false
         isSpeaking = true
+        FocusAudioEngine.shared.duck()
         return player.play()
     }
 
@@ -143,8 +182,10 @@ import Observation
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = systemVoice
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.volume = min(1.0, max(0.0, volume))
         systemBusy = true
         isSpeaking = true
+        FocusAudioEngine.shared.duck()
         synthesizer.speak(utterance)
     }
 
@@ -177,12 +218,18 @@ import Observation
     private func systemFinished() {
         guard !synthesizer.isSpeaking else { return }
         systemBusy = false
+        if queue.isEmpty {
+            FocusAudioEngine.shared.unduck()
+        }
         drain()
     }
 
     private func playerFinished(_ player: AVAudioPlayer) {
         guard player === self.player else { return }
         self.player = nil
+        if queue.isEmpty {
+            FocusAudioEngine.shared.unduck()
+        }
         drain()
     }
 }

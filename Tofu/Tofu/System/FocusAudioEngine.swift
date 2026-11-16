@@ -39,6 +39,7 @@ enum FocusAudioMath {
 
     @ObservationIgnored private var engine: AVAudioEngine?
     @ObservationIgnored private var sourceNode: AVAudioSourceNode?
+    @ObservationIgnored private var preDuckVolume: Float?
 
     /// Starts playing the requested soundscape.
     func play(_ sound: FocusSound) {
@@ -142,5 +143,21 @@ enum FocusAudioMath {
         sourceNode = nil
         isPlaying = false
         activeSound = .off
+        preDuckVolume = nil
+    }
+
+    /// Temporarily ducks the background audio volume during voice output.
+    func duck(level: Float = 0.25) {
+        guard isPlaying else { return }
+        if preDuckVolume == nil { preDuckVolume = volume }
+        let clamped = max(0.0, min(1.0, level))
+        engine?.mainMixerNode.outputVolume = volume * clamped
+    }
+
+    /// Restores background audio volume after voice output completes.
+    func unduck() {
+        guard isPlaying, let original = preDuckVolume else { return }
+        engine?.mainMixerNode.outputVolume = original
+        preDuckVolume = nil
     }
 }

@@ -229,6 +229,8 @@ extension WindowPresenting {
         asleepSince = nil
         unexplainedGapFrom = nil
         breakOpenedTheLock = false
+        announcedHalfway = false
+        announcedTenMinutes = false
         nextBreakElapsed = Self.breakCooldown
         if subject.id == Subject.planningID {
             discordBudgetRemaining = Self.discordPlanningBudget
@@ -423,6 +425,7 @@ extension WindowPresenting {
         if let breakEndsAt, now >= breakEndsAt {
             resumeMonitoring()
         }
+        checkMilestones(session: currentSession)
         updateDiscordBudget()
         if goalReached && !isEnding {
             isEnding = true
@@ -458,6 +461,20 @@ extension WindowPresenting {
 
     @ObservationIgnored private var recentDistractions: [Date] = []
     @ObservationIgnored private var lastAudioIntervention: Date?
+    @ObservationIgnored private var announcedHalfway = false
+    @ObservationIgnored private var announcedTenMinutes = false
+
+    /// Voice milestone encouragement at 50% and 10 minutes remaining in goal sessions.
+    private func checkMilestones(session: Session) {
+        guard let goal = session.mode.goalSeconds, goal >= 20 * 60, !isOnBreak else { return }
+        if elapsed >= (goal / 2.0), !announcedHalfway {
+            announcedHalfway = true
+            VoiceOutput.shared.speak("Halfway mark reached on \(session.subjectName). Strong progress.")
+        } else if let rem = remaining, rem <= 10 * 60, rem > 60, !announcedTenMinutes {
+            announcedTenMinutes = true
+            VoiceOutput.shared.speak("Ten minutes left on \(session.subjectName). Finish strong.")
+        }
+    }
 
     /// Voice intervention when 3 or more distractions occur in rapid succession (< 90s).
     private func checkDistractionSpike(subjectName: String) {
