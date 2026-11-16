@@ -120,6 +120,10 @@ extension WindowPresenting {
     @ObservationIgnored var lookupApp: (String) -> AllowedApp? = { _ in nil }
     /// When true, a break stops app blocking and the tab check. Default is false: the break only pauses the timer.
     @ObservationIgnored var allowsOffTaskDuringBreak: () -> Bool = { false }
+    /// Called when a break begins (e.g. to pause focus audio).
+    @ObservationIgnored var onBreakStarted: (() -> Void)?
+    /// Called when a break finishes (e.g. to resume focus audio).
+    @ObservationIgnored var onBreakEnded: (() -> Void)?
     /// The study companion overlay; nil (e.g. in tests) means no companion.
     @ObservationIgnored var companion: CompanionReacting?
 
@@ -550,6 +554,7 @@ extension WindowPresenting {
         }
         breakEndsAt = now.addingTimeInterval(TimeInterval(clamped * 60))
         breakTotal = TimeInterval(clamped * 60)
+        onBreakStarted?()
         VoiceOutput.shared.speak("Break started. Step away from the screen.")
         return true
     }
@@ -569,6 +574,7 @@ extension WindowPresenting {
         breakEndsAt = nil
         breakTotal = nil
         nextBreakElapsed = elapsed + Self.breakCooldown
+        onBreakEnded?()
         VoiceOutput.shared.speak("Break is over. Time to lock back in.")
         presenter?.showMainWindow()
         let opened = breakOpenedTheLock

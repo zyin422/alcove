@@ -30,10 +30,13 @@ enum FocusAudioMath {
     static let shared = FocusAudioEngine()
 
     private(set) var isPlaying = false
+    private(set) var isPaused = false
     private(set) var activeSound: FocusSound = .off
     var volume: Float = 0.5 {
         didSet {
-            engine?.mainMixerNode.outputVolume = isPlaying ? volume : 0
+            if isPlaying && !isPaused {
+                engine?.mainMixerNode.outputVolume = volume
+            }
         }
     }
 
@@ -70,6 +73,7 @@ enum FocusAudioMath {
         let beatDelta: Double
         switch sound {
         case .alphaBinaural: beatDelta = 10.0
+        case .thetaBinaural: beatDelta = 6.0
         case .gammaBinaural: beatDelta = 40.0
         default: beatDelta = 0.0
         }
@@ -102,7 +106,12 @@ enum FocusAudioMath {
                     leftBuffer?[frame] = val
                     rightBuffer?[frame] = val
 
-                case .alphaBinaural, .gammaBinaural:
+                case .whiteNoise:
+                    let white = Float.random(in: -0.18...0.18)
+                    leftBuffer?[frame] = white
+                    rightBuffer?[frame] = white
+
+                case .alphaBinaural, .thetaBinaural, .gammaBinaural:
                     let sL = sin(phaseLeft * 2.0 * Double.pi)
                     let sR = sin(phaseRight * 2.0 * Double.pi)
 
@@ -142,8 +151,23 @@ enum FocusAudioMath {
         engine = nil
         sourceNode = nil
         isPlaying = false
+        isPaused = false
         activeSound = .off
         preDuckVolume = nil
+    }
+
+    /// Pauses focus sound during break intervals.
+    func pause() {
+        guard isPlaying, !isPaused else { return }
+        isPaused = true
+        engine?.mainMixerNode.outputVolume = 0
+    }
+
+    /// Resumes focus sound after break intervals finish.
+    func resume() {
+        guard isPlaying, isPaused else { return }
+        isPaused = false
+        engine?.mainMixerNode.outputVolume = volume
     }
 
     /// Temporarily ducks the background audio volume during voice output.

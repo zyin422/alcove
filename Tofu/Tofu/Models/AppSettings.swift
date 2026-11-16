@@ -5,7 +5,9 @@ enum FocusSound: String, Codable, CaseIterable, Identifiable {
     case off = "Off"
     case brownNoise = "Brown Noise"
     case pinkNoise = "Pink Noise"
+    case whiteNoise = "White Noise"
     case alphaBinaural = "Alpha Waves (10Hz)"
+    case thetaBinaural = "Theta Calm (6Hz)"
     case gammaBinaural = "Gamma Focus (40Hz)"
 
     var id: String { rawValue }

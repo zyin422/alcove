@@ -203,6 +203,8 @@ enum TokenSource: Equatable {
         engine.allowsOffTaskDuringBreak = { [weak self] in
             self?.data.settings.allowOffTaskDuringBreak ?? false
         }
+        engine.onBreakStarted = { FocusAudioEngine.shared.pause() }
+        engine.onBreakEnded = { FocusAudioEngine.shared.resume() }
         assistant.apps = engine
         engine.onEnded = { [weak self] in
             BlockGuard.disarm()

@@ -60,4 +60,22 @@ final class FocusAudioTests: XCTestCase {
         engine.volume = 0.8
         XCTAssertEqual(engine.volume, 0.8)
     }
+
+    @MainActor
+    func testFocusAudioPauseAndResume() {
+        let engine = FocusAudioEngine.shared
+        engine.play(.alphaBinaural)
+        XCTAssertTrue(engine.isPlaying)
+        XCTAssertFalse(engine.isPaused)
+
+        engine.pause()
+        XCTAssertTrue(engine.isPaused)
+
+        engine.resume()
+        XCTAssertFalse(engine.isPaused)
+
+        engine.stop()
+        XCTAssertFalse(engine.isPlaying)
+        XCTAssertFalse(engine.isPaused)
+    }
 }

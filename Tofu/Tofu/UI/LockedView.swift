@@ -337,15 +337,41 @@ struct LockedView: View {
 
     private var focusSoundControl: some View {
         Menu {
-            ForEach(FocusSound.allCases) { sound in
-                Button {
-                    model.updateSettings { $0.focusSound = sound }
-                    FocusAudioEngine.shared.play(sound)
-                } label: {
-                    if FocusAudioEngine.shared.activeSound == sound {
-                        Label(sound.rawValue, systemImage: "checkmark")
-                    } else {
-                        Text(sound.rawValue)
+            Section("Soundscape") {
+                ForEach(FocusSound.allCases) { sound in
+                    Button {
+                        model.updateSettings { $0.focusSound = sound }
+                        FocusAudioEngine.shared.play(sound)
+                    } label: {
+                        if FocusAudioEngine.shared.activeSound == sound {
+                            Label(sound.rawValue, systemImage: "checkmark")
+                        } else {
+                            Text(sound.rawValue)
+                        }
+                    }
+                }
+            }
+            if FocusAudioEngine.shared.isPlaying {
+                Section("Volume") {
+                    Button("Mute") {
+                        model.updateSettings { $0.focusSound = .off }
+                        FocusAudioEngine.shared.stop()
+                    }
+                    Button("25% Volume") {
+                        model.updateSettings { $0.focusSoundVolume = 0.25 }
+                        FocusAudioEngine.shared.volume = 0.25
+                    }
+                    Button("50% Volume") {
+                        model.updateSettings { $0.focusSoundVolume = 0.50 }
+                        FocusAudioEngine.shared.volume = 0.50
+                    }
+                    Button("75% Volume") {
+                        model.updateSettings { $0.focusSoundVolume = 0.75 }
+                        FocusAudioEngine.shared.volume = 0.75
+                    }
+                    Button("100% Volume") {
+                        model.updateSettings { $0.focusSoundVolume = 1.00 }
+                        FocusAudioEngine.shared.volume = 1.00
                     }
                 }
             }
