@@ -140,4 +140,40 @@ final class DomainMatcherTests: XCTestCase {
         XCTAssertFalse(DomainMatcher.isAllowed("https://notpiazza.com/", allowed: domains))
         XCTAssertFalse(DomainMatcher.isAllowed("https://youtube.com/", allowed: domains))
     }
+
+    // MARK: isSearchEngine
+
+    func testIsSearchEngineRecognizesGoogleAndOtherMajorSearchEngines() {
+        let searchURLs = [
+            "https://www.google.com",
+            "https://google.com",
+            "https://www.google.com/search?q=swift+concurrency",
+            "https://google.com/search?q=apple+developer",
+            "https://www.google.co.uk/search?q=test",
+            "https://google.ca",
+            "https://duckduckgo.com/?q=test",
+            "https://www.bing.com/search?q=test",
+            "https://kagi.com",
+            "https://ecosia.org",
+            "https://search.brave.com",
+            "google.com",
+            "www.google.com",
+        ]
+        for url in searchURLs {
+            XCTAssertTrue(DomainMatcher.isSearchEngine(url), "\(url) must be recognized as search engine")
+        }
+
+        let nonSearchURLs = [
+            "https://reddit.com/r/all",
+            "https://notgoogle.com",
+            "https://google.com.evil.com",
+            "https://youtube.com",
+            "https://piazza.com",
+            "",
+            "   ",
+        ]
+        for url in nonSearchURLs {
+            XCTAssertFalse(DomainMatcher.isSearchEngine(url), "\(url) must NOT be recognized as search engine")
+        }
+    }
 }

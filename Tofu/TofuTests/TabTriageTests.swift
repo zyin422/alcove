@@ -361,4 +361,36 @@ final class TabTriageTests: XCTestCase {
         XCTAssertFalse(triage.isRelated(discordTab))
         XCTAssertFalse(triage.isRelated(redditTab))
     }
+
+    func testGoogleSearchAndSearchEnginesAreKeptAndNeverClosed() {
+        var triage = blockingTriage()
+        let googleHome = tab("https://www.google.com", id: 1)
+        let googleSearch = tab("https://www.google.com/search?q=swift+concurrency", id: 2)
+        let duckduckgo = tab("https://duckduckgo.com/?q=swift", id: 3)
+        let bing = tab("https://www.bing.com/search?q=swift", id: 4)
+
+        // Search engine tabs must not be queued for AI off-task judging
+        XCTAssertEqual(triage.tabsToCheck([googleHome, googleSearch, duckduckgo, bing]), [])
+
+        // Search engine tabs must never be closed immediately
+        XCTAssertFalse(triage.shouldCloseImmediately(googleHome))
+        XCTAssertFalse(triage.shouldCloseImmediately(googleSearch))
+        XCTAssertFalse(triage.shouldCloseImmediately(duckduckgo))
+        XCTAssertFalse(triage.shouldCloseImmediately(bing))
+
+        // Search engine tabs must be recognized as related during break recovery
+        XCTAssertTrue(triage.isRelated(googleHome))
+        XCTAssertTrue(triage.isRelated(googleSearch))
+        XCTAssertTrue(triage.isRelated(duckduckgo))
+        XCTAssertTrue(triage.isRelated(bing))
+    }
+
+    func testDistractionsUnderGoogleDomainRemainBlocked() {
+        let triage = blockingTriage()
+        let gmail = tab("https://mail.google.com/mail/u/0/", id: 1)
+        let gchat = tab("https://chat.google.com/", id: 2)
+
+        XCTAssertTrue(triage.shouldCloseImmediately(gmail))
+        XCTAssertTrue(triage.shouldCloseImmediately(gchat))
+    }
 }

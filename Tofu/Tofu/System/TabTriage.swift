@@ -112,9 +112,10 @@ struct TabTriage {
         recordAnswer(host: host, needed: false)
     }
 
-    /// A study site, or a host the user allowed during this block. Everything else is closed when a break ends.
+    /// A study site, a search engine, or a host the user allowed during this block. Everything else is closed when a break ends.
     func isRelated(_ tab: ChromeTab) -> Bool {
         if DomainMatcher.isAllowed(tab.url, allowed: studyDomains) { return true }
+        if DomainMatcher.isSearchEngine(tab.url) { return true }
         guard let host = DomainMatcher.host(of: tab.url) else { return false }
         return neededHosts.contains(host)
     }
@@ -125,9 +126,10 @@ struct TabTriage {
         return neededHosts.contains(host) || closedHosts.contains(host)
     }
 
-    /// Not a Chrome internal / blank / unparseable page, not a study site, not a protected pre-existing tab.
+    /// Not a Chrome internal / blank / unparseable page, not a study site, not a protected pre-existing tab, and not a search engine.
     private func isCandidate(_ tab: ChromeTab) -> Bool {
         !protected.contains(ChromeScripts.protectionKey(tab))
             && !DomainMatcher.isAllowed(tab.url, allowed: studyDomains)
+            && !DomainMatcher.isSearchEngine(tab.url)
     }
 }

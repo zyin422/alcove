@@ -49,17 +49,13 @@ enum DistractionApps {
         ],
         .streaming: [
             "com.netflix.Netflix",
-            "com.spotify.client",
-            "com.apple.podcasts",
             "com.apple.TV",
             "tv.plex.desktop",
-            "com.google.ios.youtubemusic",
         ],
         .entertainment: [
             "com.apple.GameCenter",
             "com.apple.News",
             "com.apple.stocks",
-            "com.apple.Music",
             "com.apple.FaceTime",
         ],
         .browsers: [

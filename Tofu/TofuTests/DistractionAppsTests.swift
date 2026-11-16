@@ -10,8 +10,8 @@ final class DistractionAppsTests: XCTestCase {
         XCTAssertEqual(DistractionApps.category(of: "com.atebits.Tweetie2"), .social)
         XCTAssertEqual(DistractionApps.category(of: "com.valvesoftware.steam"), .gaming)
         XCTAssertEqual(DistractionApps.category(of: "com.epicgames.EpicGamesLauncher"), .gaming)
-        XCTAssertEqual(DistractionApps.category(of: "com.spotify.client"), .streaming)
-        XCTAssertEqual(DistractionApps.category(of: "com.google.ios.youtubemusic"), .streaming)
+        XCTAssertEqual(DistractionApps.category(of: "com.netflix.Netflix"), .streaming)
+        XCTAssertEqual(DistractionApps.category(of: "com.apple.TV"), .streaming)
         XCTAssertEqual(DistractionApps.category(of: "com.apple.GameCenter"), .entertainment)
         XCTAssertEqual(DistractionApps.category(of: "com.apple.Safari"), .browsers)
         XCTAssertEqual(DistractionApps.category(of: "org.mozilla.firefox"), .browsers)
@@ -24,6 +24,8 @@ final class DistractionAppsTests: XCTestCase {
         XCTAssertNil(DistractionApps.category(of: "com.apple.calculator"))
         XCTAssertNil(DistractionApps.category(of: "com.apple.Preview"))
         XCTAssertNil(DistractionApps.category(of: "com.apple.Terminal"))
+        XCTAssertNil(DistractionApps.category(of: "com.spotify.client"))
+        XCTAssertNil(DistractionApps.category(of: "com.apple.Music"))
         XCTAssertNil(DistractionApps.category(of: ""))
     }
 

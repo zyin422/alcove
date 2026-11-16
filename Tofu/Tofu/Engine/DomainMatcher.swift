@@ -65,6 +65,35 @@ enum DomainMatcher {
         }
     }
 
+    /// Known general web search engines needed for researching topics during work.
+    /// Distraction services under these (like mail.google.com) remain blocked by DistractionList.
+    static let searchEngines: [String] = [
+        "google.com", "duckduckgo.com", "bing.com", "kagi.com", "ecosia.org", "search.brave.com"
+    ]
+
+    /// True if the URL or host belongs to a general web search engine.
+    static func isSearchEngine(_ urlOrHost: String) -> Bool {
+        guard let host = host(of: urlOrHost) ?? (normalizedURL(urlOrHost) == nil ? normalize(urlOrHost) : nil),
+              !host.isEmpty else {
+            return false
+        }
+        if searchEngines.contains(where: { host == $0 || host == "www." + $0 }) {
+            return true
+        }
+        return isGoogleSearchDomain(host)
+    }
+
+    private static func isGoogleSearchDomain(_ host: String) -> Bool {
+        let parts = host.split(separator: ".")
+        guard let googleIndex = parts.firstIndex(of: "google") else { return false }
+        // For a Google search domain, there is either no subdomain (e.g. google.com, google.ca)
+        // or the only subdomain is "www" (e.g. www.google.com, www.google.co.uk).
+        // Specific services like docs.google.com or drive.google.com are productivity services judged on-task.
+        if googleIndex > 1 { return false }
+        if googleIndex == 1 && parts[0] != "www" { return false }
+        return googleIndex == parts.count - 2 || (googleIndex == parts.count - 3 && parts.last?.count == 2)
+    }
+
     /// True when the string starts with an RFC 3986 scheme followed by "://", e.g. "https://".
     private static func hasScheme(_ string: String) -> Bool {
         guard let separator = string.range(of: "://") else { return false }

@@ -149,4 +149,18 @@ final class BlockPolicyTests: XCTestCase {
         XCTAssertTrue(BlockPolicy.shouldBlock(app("com.valvesoftware.steam"), allowed: allowed))
         XCTAssertFalse(BlockPolicy.shouldBlock(app("com.apple.dt.Xcode"), allowed: allowed))
     }
+
+    func testSpotifyIsAllowedWhenExplicitlyConfiguredInAllowedApps() {
+        let spotify = AllowedApp(bundleID: "com.spotify.client", name: "Spotify")
+        let subjectWithSpotify = Subject(name: "MusicStudy", allowedApps: [spotify])
+        let allowed = BlockPolicy.allowedSet(for: subjectWithSpotify, ownBundleID: ownID)
+
+        XCTAssertTrue(allowed.contains("com.spotify.client"), "Explicitly allowed Spotify must be present in allowedSet")
+        XCTAssertFalse(BlockPolicy.shouldBlock(app("com.spotify.client"), allowed: allowed))
+
+        let subjectWithoutSpotify = Subject(name: "QuietStudy", allowedApps: [])
+        let strictAllowed = BlockPolicy.allowedSet(for: subjectWithoutSpotify, ownBundleID: ownID)
+        XCTAssertFalse(strictAllowed.contains("com.spotify.client"))
+        XCTAssertTrue(BlockPolicy.shouldBlock(app("com.spotify.client"), allowed: strictAllowed))
+    }
 }
