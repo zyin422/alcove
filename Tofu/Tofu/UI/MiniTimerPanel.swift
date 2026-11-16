@@ -76,6 +76,16 @@ enum MiniTimerLayout {
         return min(max(x, minX), max(minX, maxX))
     }
 
+    /// Finds the visible frame of the screen containing `point`, or falls back to provided screen.
+    static func targetScreenVisible(point: CGPoint, screens: [CGRect], visibleFrames: [CGRect], fallback: CGRect) -> CGRect {
+        for (index, frame) in screens.enumerated() {
+            if frame.contains(point) && index < visibleFrames.count {
+                return visibleFrames[index]
+            }
+        }
+        return fallback
+    }
+
     /// The tab at the top edge, centered on `centerX`.
     static func tuckedFrame(centerX: CGFloat, visible: CGRect) -> CGRect {
         let x = clampedX(centerX - tabSize.width / 2, width: tabSize.width, visible: visible)
@@ -214,12 +224,13 @@ struct MiniTimerView: View {
     var body: some View {
         Group {
             if chrome.isTucked {
-                HStack(spacing: 4) {
-                    if isBetweenBlocks {
-                        Circle().fill(Theme.amber).frame(width: 4, height: 4)
-                    }
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(subjectColor)
+                        .frame(width: 5, height: 5)
+                        .shadow(color: subjectColor.opacity(0.8), radius: 2)
                     Text(clock)
-                        .font(Theme.timerFont(size: 13))
+                        .font(Theme.timerFont(size: 12))
                         .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.lockBackground)
                         .lineLimit(1)
                 }
@@ -227,10 +238,10 @@ struct MiniTimerView: View {
             } else if let notice = chrome.noticeText {
                 HStack(spacing: Theme.Space.s) {
                     Image(systemName: "shield.lefthalf.filled")
-                        .font(.system(size: 14))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(Theme.rose)
                     Text(notice)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.lockBackground)
                         .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -580,11 +591,22 @@ struct MiniTimerView: View {
         if MiniTimerLayout.isCloseHit(point, in: frame.size) { onEnd() } else { onOpen() }
     }
 
+    /// Toggles the floating mini timer between tucked tab and revealed pill.
+    func toggleTuck() {
+        guard let visible = screen?.visibleFrame ?? ScreenGeometry.mainVisibleFrame() else { return }
+        if chrome.isTucked {
+            keepOpen()
+            settle(tucked: false, frame: MiniTimerLayout.revealedFrame(centerX: frame.midX, visible: visible))
+        } else {
+            settle(tucked: true, frame: MiniTimerLayout.tuckedFrame(centerX: frame.midX, visible: visible))
+        }
+    }
+
     private func settle(tucked: Bool, frame: CGRect) {
         chrome.isTucked = tucked
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.duration = 0.22
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
             animator().setFrame(frame, display: true)
         }
     }

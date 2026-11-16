@@ -175,4 +175,24 @@ final class MiniTimerLayoutTests: XCTestCase {
         chrome.noticeText = "I set reddit.com aside."
         XCTAssertEqual(chrome.noticeText, "I set reddit.com aside.")
     }
+
+    func testTargetScreenVisible() {
+        let screen1 = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let visible1 = CGRect(x: 0, y: 0, width: 1440, height: 875)
+        let screen2 = CGRect(x: 1440, y: 0, width: 1920, height: 1080)
+        let visible2 = CGRect(x: 1440, y: 0, width: 1920, height: 1055)
+        let fallback = visible1
+
+        let screens = [screen1, screen2]
+        let visFrames = [visible1, visible2]
+
+        // Point inside screen 1
+        XCTAssertEqual(MiniTimerLayout.targetScreenVisible(point: CGPoint(x: 500, y: 500), screens: screens, visibleFrames: visFrames, fallback: fallback), visible1)
+
+        // Point inside screen 2
+        XCTAssertEqual(MiniTimerLayout.targetScreenVisible(point: CGPoint(x: 1600, y: 500), screens: screens, visibleFrames: visFrames, fallback: fallback), visible2)
+
+        // Point outside all screens
+        XCTAssertEqual(MiniTimerLayout.targetScreenVisible(point: CGPoint(x: -500, y: -500), screens: screens, visibleFrames: visFrames, fallback: fallback), fallback)
+    }
 }
