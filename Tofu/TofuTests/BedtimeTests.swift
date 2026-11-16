@@ -31,6 +31,23 @@ final class BedtimeTests: XCTestCase {
         XCTAssertFalse(DayPlanner.isPastMidnight(now: date(10, 23, 59), calendar: calendar))
     }
 
+    func testBedtimeSecondsRemaining() {
+        // At 00:00: exactly 4 hours (14,400s) until 04:00
+        XCTAssertEqual(DayPlanner.bedtimeSecondsRemaining(now: date(10, 0, 0), calendar: calendar), 14400)
+
+        // At 01:30: exactly 2.5 hours (9,000s) until 04:00
+        XCTAssertEqual(DayPlanner.bedtimeSecondsRemaining(now: date(10, 1, 30), calendar: calendar), 9000)
+
+        // At 03:59: exactly 60 seconds until 04:00
+        XCTAssertEqual(DayPlanner.bedtimeSecondsRemaining(now: date(10, 3, 59), calendar: calendar), 60)
+
+        // At 04:00: guard lifts, returns 0
+        XCTAssertEqual(DayPlanner.bedtimeSecondsRemaining(now: date(10, 4, 0), calendar: calendar), 0)
+
+        // During daytime: returns 0
+        XCTAssertEqual(DayPlanner.bedtimeSecondsRemaining(now: date(10, 15, 0), calendar: calendar), 0)
+    }
+
     func testShouldShowBedtimeGuard() {
         var settings = AppSettings()
         settings.bedtimeGuardEnabled = true

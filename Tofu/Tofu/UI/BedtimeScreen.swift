@@ -54,7 +54,7 @@ private final class BedtimeWindow: NSWindow {
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
             window.hidesOnDeactivate = false
             window.isMovable = false
-            window.backgroundColor = .windowBackgroundColor
+            window.backgroundColor = NSColor(red: 0.05, green: 0.06, blue: 0.10, alpha: 1.0)
             window.setFrame(frame, display: true)
             if index == hostIndex {
                 window.contentView = NSHostingView(rootView: BedtimeView(model: model))
@@ -133,98 +133,148 @@ struct BedtimeView: View {
     let model: AppModel
 
     var body: some View {
-        VStack(spacing: Theme.Space.xl) {
-            Spacer()
+        TimelineView(.periodic(from: .now, by: 1.0)) { context in
+            let remaining = DayPlanner.bedtimeSecondsRemaining(now: context.date)
+            let canPlan = model.canPlanTonight(now: context.date)
 
-            VStack(spacing: Theme.Space.m) {
-                Image(systemName: "moon.stars.fill")
-                    .font(.system(size: 56))
-                    .foregroundStyle(.secondary)
+            VStack(spacing: Theme.Space.xl) {
+                Spacer()
 
-                Text("Past Midnight")
-                    .font(.system(size: 40, weight: .semibold))
-
-                Text("The day is finished. Computer access is locked for rest.")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            VStack(spacing: Theme.Space.m) {
-                let canPlan = model.canPlanTonight()
-                Button {
-                    Task { await model.startPlanningFromBedtime() }
-                } label: {
-                    HStack(spacing: Theme.Space.s) {
-                        Image(systemName: "timer")
-                        Text("15m Planning Mode")
+                VStack(spacing: Theme.Space.l) {
+                    // Nocturnal lock header pill
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Theme.amber)
+                            .frame(width: 7, height: 7)
+                        Text("NOCTURNAL LOCKDOWN • 00:00 – 04:00")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Theme.amber)
                     }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .frame(width: 320)
-                .disabled(!canPlan)
-                .opacity(canPlan ? 1.0 : 0.4)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Theme.amber.opacity(0.12))
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(Theme.amber.opacity(0.3), lineWidth: 1)
+                    )
 
-                if canPlan {
-                    Text("Set tomorrow's priorities, read your AI feed, check messages (5m Discord limit).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(width: 320)
-                } else {
-                    Text("Planning mode was already used tonight. Rest now to recharge.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(width: 320)
-                }
+                    VStack(spacing: Theme.Space.m) {
+                        Image(systemName: "moon.stars.fill")
+                            .font(.system(size: 56))
+                            .foregroundStyle(Theme.amber)
+                            .shadow(color: Theme.amber.opacity(0.4), radius: 16)
 
-                Button {
-                    sleepDisplay()
-                } label: {
-                    HStack(spacing: Theme.Space.s) {
-                        Image(systemName: "bed.double.fill")
-                        Text("Go to Sleep")
+                        Text("Past Midnight")
+                            .font(.system(size: 40, weight: .semibold))
+                            .foregroundStyle(.white)
+
+                        Text("The day is finished. Computer access is locked for rest.")
+                            .font(.title3)
+                            .foregroundStyle(.white.opacity(0.75))
+                            .multilineTextAlignment(.center)
+
+                        if remaining > 0 {
+                            HStack(spacing: 6) {
+                                Image(systemName: "clock.badge.checkmark")
+                                    .font(.caption.weight(.semibold))
+                                Text("Lock active for \(TimeFormat.short(remaining)) • Lifts at 4:00 AM")
+                                    .font(.caption.weight(.medium))
+                            }
+                            .foregroundStyle(.white.opacity(0.55))
+                            .padding(.top, 2)
+                        }
                     }
-                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(SecondaryButtonStyle())
-                .frame(width: 320)
 
-                HStack(spacing: Theme.Space.l) {
-                    if model.canPostponeMorning {
-                        Button("Not now (10 min)") {
-                            model.postponeMorning()
+                VStack(spacing: Theme.Space.m) {
+                    Button {
+                        Task { await model.startPlanningFromBedtime() }
+                    } label: {
+                        HStack(spacing: Theme.Space.s) {
+                            Image(systemName: "timer")
+                            Text("15m Planning Mode")
                         }
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .frame(width: 320)
+                    .disabled(!canPlan)
+                    .opacity(canPlan ? 1.0 : 0.4)
 
-                        Button("Open Plan") {
-                            model.openPlan()
-                        }
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(.secondary)
-                    } else {
-                        Text("10-minute delay used today")
+                    if canPlan {
+                        Text("Set tomorrow's priorities, read your AI feed, check messages (5m Discord limit).")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.65))
+                            .multilineTextAlignment(.center)
+                            .frame(width: 320)
+                    } else {
+                        Text("Planning mode was already used tonight. Rest now to recharge.")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.65))
+                            .multilineTextAlignment(.center)
+                            .frame(width: 320)
                     }
-                }
-                .padding(.top, Theme.Space.xs)
-            }
-            .padding(.top, Theme.Space.m)
 
-            Spacer()
+                    Button {
+                        sleepDisplay()
+                    } label: {
+                        HStack(spacing: Theme.Space.s) {
+                            Image(systemName: "bed.double.fill")
+                            Text("Go to Sleep")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .frame(width: 320)
+
+                    HStack(spacing: Theme.Space.l) {
+                        if model.canPostponeMorning {
+                            Button("Delay Lock (10 min)") {
+                                model.postponeMorning()
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.white.opacity(0.7))
+
+                            Button("Open Plan") {
+                                model.openPlan()
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.white.opacity(0.7))
+                        } else {
+                            Text("10-minute delay used today")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+                    }
+                    .padding(.top, Theme.Space.xs)
+                }
+                .padding(.top, Theme.Space.m)
+
+                Spacer()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.05, green: 0.06, blue: 0.11),
+                    Color(red: 0.02, green: 0.03, blue: 0.07)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
         .onAppear {
+            FocusAudioEngine.shared.stop()
             VoiceOutput.shared.speak("It is past midnight. The day is complete. Time to sleep and protect your energy.")
         }
     }
 
     private func sleepDisplay() {
+        FocusAudioEngine.shared.stop()
         let task = Process()
         task.launchPath = "/usr/bin/pmset"
         task.arguments = ["displaysleepnow"]

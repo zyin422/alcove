@@ -20,6 +20,17 @@ enum DayPlanner {
         return hour >= 0 && hour < DayKey.dayStartHour
     }
 
+    /// Returns the seconds remaining until the night guard lifts at 4 AM, or 0 if not currently past midnight.
+    static func bedtimeSecondsRemaining(now: Date, calendar: Calendar = .current) -> TimeInterval {
+        guard isPastMidnight(now: now, calendar: calendar) else { return 0 }
+        var components = calendar.dateComponents([.year, .month, .day], from: now)
+        components.hour = DayKey.dayStartHour
+        components.minute = 0
+        components.second = 0
+        guard let deadline = calendar.date(from: components) else { return 0 }
+        return max(0, deadline.timeIntervalSince(now))
+    }
+
     /// True when the bedtime guard should lock the screen:
     /// It is past midnight (00:00 - 03:59), bedtime guard is enabled, and no active work block is in progress.
     static func shouldShowBedtime(now: Date, settings: AppSettings, isLocked: Bool, isBusy: Bool = false,
