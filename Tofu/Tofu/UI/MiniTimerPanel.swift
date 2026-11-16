@@ -154,6 +154,7 @@ enum MiniTimerRelease: Equatable {
 /// Whether the floating timer is the full pill or the tab left at the top edge.
 @Observable @MainActor final class MiniTimerChrome {
     var isTucked = false
+    var noticeText: String?
 }
 
 /// Rounded black/white (inverted in dark mode) pill: subject, timer and a small ✕ (End).
@@ -161,17 +162,34 @@ enum MiniTimerRelease: Equatable {
 struct MiniTimerView: View {
     let engine: SessionEngine
     let chrome: MiniTimerChrome
+    var model: AppModel? = nil
+    var onLockIn: (() -> Void)? = nil
+
+    private var isBetweenBlocks: Bool {
+        !engine.isLocked && model?.nextForceBlockDeadline != nil
+    }
 
     private var clock: String {
+        if isBetweenBlocks, let seconds = model?.secondsUntilNextForceBlock {
+            return TimeFormat.clock(seconds)
+        }
         if let remaining = engine.breakRemaining { return TimeFormat.clock(remaining) }
         return TimeFormat.clock(engine.remaining ?? engine.elapsed)
     }
 
     private var caption: String {
-        engine.isOnBreak ? "Break" : (engine.session?.subjectName ?? "")
+        if isBetweenBlocks {
+            return model?.nextForceBlockReason ?? "Force Lock-In"
+        }
+        return engine.isOnBreak ? "Break" : (engine.session?.subjectName ?? "")
     }
 
     private var progress: Double {
+        if isBetweenBlocks, let deadline = model?.nextForceBlockDeadline {
+            let total = DayPlanner.betweenBlockGrace
+            let remaining = max(0, deadline.timeIntervalSince(Date()))
+            return min(1.0, max(0.0, 1.0 - (remaining / total)))
+        }
         if let breakRem = engine.breakRemaining, let breakTotal = engine.breakTotal, breakTotal > 0 {
             return min(1.0, max(0.0, 1.0 - (breakRem / breakTotal)))
         }
@@ -183,19 +201,39 @@ struct MiniTimerView: View {
     }
 
     private var subjectColor: Color {
+        if isBetweenBlocks { return Theme.amber }
+        if engine.isOnBreak { return Theme.coral }
         if let name = engine.session?.subjectName {
             return Theme.subjectColor(SubjectColor.hex(for: name))
         }
-        return Color.accentColor
+        return Theme.indigo
     }
 
     var body: some View {
         Group {
             if chrome.isTucked {
-                Text(clock)
-                    .font(Theme.timerFont(size: 13))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                HStack(spacing: 4) {
+                    if isBetweenBlocks {
+                        Circle().fill(Theme.amber).frame(width: 4, height: 4)
+                    }
+                    Text(clock)
+                        .font(Theme.timerFont(size: 13))
+                        .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.lockBackground)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let notice = chrome.noticeText {
+                HStack(spacing: Theme.Space.s) {
+                    Image(systemName: "shield.lefthalf.filled")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.rose)
+                    Text(notice)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.lockBackground)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, MiniTimerLayout.horizontalPadding)
             } else {
                 HStack(spacing: Theme.Space.s) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -206,26 +244,48 @@ struct MiniTimerView: View {
                             Text(caption)
                                 .font(Theme.captionFont)
                                 .lineLimit(1)
-                                .opacity(0.85)
+                                .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.lockBackground.opacity(0.85))
                         }
                         Text(clock)
                             .font(Theme.timerFont(size: 28))
+                            .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.lockBackground)
                             .lineLimit(1)
                     }
                     Spacer(minLength: Theme.Space.s)
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
-                        .overlay(Circle().stroke(Color.lockBackground.opacity(0.5), lineWidth: 1))
+                    if isBetweenBlocks {
+                        Button {
+                            onLockIn?()
+                        } label: {
+                            Text("LOCK IN")
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(RoundedRectangle(cornerRadius: 6).fill(Theme.amber))
+                                .foregroundStyle(Color.black)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
+                            .overlay(Circle().stroke(Color.lockBackground.opacity(0.5), lineWidth: 1))
+                    }
                 }
                 .padding(.horizontal, MiniTimerLayout.horizontalPadding)
             }
         }
         .foregroundStyle(Color.lockBackground)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: chrome.isTucked ? 8 : Theme.radius).fill(Color.primary))
+        .background(
+            RoundedRectangle(cornerRadius: chrome.isTucked ? 8 : Theme.radius)
+                .fill(Color.primary)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: chrome.isTucked ? 8 : Theme.radius)
+                .stroke(subjectColor.opacity(chrome.isTucked ? 0.35 : 0.6), lineWidth: 1)
+        )
         .overlay(alignment: .bottom) {
-            if !chrome.isTucked {
+            if !chrome.isTucked && chrome.noticeText == nil {
                 GeometryReader { geo in
                     Rectangle()
                         .fill(subjectColor)
@@ -298,7 +358,7 @@ struct MiniTimerView: View {
     private var tuckAfterRelease = false
     private var hideTimer: Timer?
 
-    init(engine: SessionEngine, onOpen: @escaping () -> Void, onEnd: @escaping () -> Void) {
+    init(engine: SessionEngine, model: AppModel? = nil, onOpen: @escaping () -> Void, onEnd: @escaping () -> Void, onLockIn: (() -> Void)? = nil) {
         self.onOpen = onOpen
         self.onEnd = onEnd
         let size = MiniTimerLayout.panelSize
@@ -315,7 +375,7 @@ struct MiniTimerView: View {
         hasShadow = true
 
         let container = NSView(frame: NSRect(origin: .zero, size: size))
-        let hosting = NSHostingView(rootView: MiniTimerView(engine: engine, chrome: chrome))
+        let hosting = NSHostingView(rootView: MiniTimerView(engine: engine, chrome: chrome, model: model, onLockIn: onLockIn))
         hosting.frame = container.bounds
         hosting.autoresizingMask = [.width, .height]
         container.addSubview(hosting)
@@ -331,6 +391,25 @@ struct MiniTimerView: View {
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+
+    /// Briefly displays an intervention notice (e.g. closed tab or hidden app) then smoothly tucks back.
+    func showNotice(_ text: String) {
+        chrome.noticeText = text
+        if chrome.isTucked {
+            if let visible = screen?.visibleFrame ?? ScreenGeometry.mainVisibleFrame() {
+                settle(tucked: false, frame: MiniTimerLayout.revealedFrame(centerX: frame.midX, visible: visible))
+            }
+        }
+        hideTimer?.invalidate()
+        let timer = Timer(timeInterval: 3.5, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.chrome.noticeText = nil
+                self?.hideAtTop()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        hideTimer = timer
+    }
 
     /// Places the panel top-center on the main screen and shows it without activating the app.
     /// The full pill stays up for `visibleBeforeTuck`, then tucks to the top unless it has been dragged away.

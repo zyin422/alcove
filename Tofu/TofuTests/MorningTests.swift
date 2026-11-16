@@ -336,4 +336,23 @@ final class MorningTests: XCTestCase {
         model.checkMorning(now: morning.addingTimeInterval(60))
         XCTAssertEqual(shown, 2, "a wake that found the screen already flagged still brings it forward")
     }
+
+    @MainActor func testNextForceBlockCountdownTelemetry() async throws {
+        let model = try makeModel(EngineHarness())
+        let now = Date()
+        
+        // When not locked in, postpone sets next force block
+        model.postponeMorning(by: 600, now: now)
+        XCTAssertNotNil(model.nextForceBlockDeadline)
+        XCTAssertEqual(model.nextForceBlockReason, "10-minute postpone active")
+        if let seconds = model.secondsUntilNextForceBlock {
+            XCTAssertGreaterThan(seconds, 0)
+            XCTAssertLessThanOrEqual(seconds, 600)
+        }
+
+        // When locked in, deadline is nil
+        await model.engine.start(subject: Subject(name: "CS128"), mode: .open, displayName: "Alex")
+        XCTAssertNil(model.nextForceBlockDeadline)
+        XCTAssertNil(model.secondsUntilNextForceBlock)
+    }
 }

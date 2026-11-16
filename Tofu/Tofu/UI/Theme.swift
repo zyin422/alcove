@@ -30,6 +30,22 @@ enum Theme {
         let parts = SubjectColor.components(hex)
         return Color(red: parts.red, green: parts.green, blue: parts.blue)
     }
+
+    // MARK: - Semantic Color Palette
+    /// Warm analog amber for countdowns, telemetry, and between-block grace.
+    static let amber = Color(red: 0.851, green: 0.467, blue: 0.024)   // #D97706
+    /// Fresh sage emerald for completed priorities, lock-in confirmation, and verified work.
+    static let emerald = Color(red: 0.020, green: 0.588, blue: 0.412) // #059669
+    /// Vibrant indigo for deep work sessions, planning mode, and primary action controls.
+    static let indigo = Color(red: 0.310, green: 0.275, blue: 0.898)  // #4F46E5
+    /// Electric cyan for calendar rhythm and schedule tracking.
+    static let cyan = Color(red: 0.008, green: 0.518, blue: 0.780)    // #0284C7
+    /// Apricot coral for break intervals and restorative rest.
+    static let coral = Color(red: 0.918, green: 0.345, blue: 0.047)   // #EA580C
+    /// Vivid rose for closed tab notices and distraction firewall interventions.
+    static let rose = Color(red: 0.882, green: 0.114, blue: 0.282)    // #E11D48
+    /// Midnight violet for bedtime wind-down and nocturnal guard.
+    static let violet = Color(red: 0.486, green: 0.227, blue: 0.929)  // #7C3AED
 }
 
 /// Solid fill in the label color (black in light mode, white in dark) with inverted text.

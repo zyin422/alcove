@@ -46,6 +46,8 @@ struct TodayView: View {
                               onShiftMonth: { shiftMonth($0) }, onSelect: { showDay($0) })
             }
 
+            forceBlockCountdownBanner
+
             let todaySessions = model.data.sessions.filter {
                 DayKey.key(for: $0.start) == shownDay && !$0.isDemo
             }
@@ -81,6 +83,76 @@ struct TodayView: View {
         .navigationTitle("Today")
         .sheet(item: $lockInSubject) { subject in
             LockInSheet(model: model, subject: subject)
+        }
+    }
+
+    @ViewBuilder private var forceBlockCountdownBanner: some View {
+        if shownDay == todayKey,
+           !model.engine.isLocked,
+           let deadline = model.nextForceBlockDeadline,
+           let _ = model.secondsUntilNextForceBlock {
+            TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                let remaining = max(0, deadline.timeIntervalSince(context.date))
+                HStack(spacing: Theme.Space.m) {
+                    ZStack {
+                        Circle()
+                            .fill(Theme.amber.opacity(0.18))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: remaining <= 60 ? "exclamationmark.triangle.fill" : "timer")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Theme.amber)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: Theme.Space.s) {
+                            Text("NEXT FORCE LOCK-IN")
+                                .font(Theme.captionFont)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Theme.amber)
+                            if let reason = model.nextForceBlockReason {
+                                Text("• \(reason)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        HStack(alignment: .firstTextBaseline, spacing: Theme.Space.xs) {
+                            Text(TimeFormat.clock(remaining))
+                                .font(Theme.timerFont(size: 24))
+                                .fontWeight(.medium)
+                                .foregroundStyle(remaining <= 60 ? Theme.coral : .primary)
+                            Text("until mandatory lock-in")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    Button {
+                        model.startMyDay()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "lock.shield.fill")
+                            Text("Lock In Now")
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .padding(.horizontal, Theme.Space.m)
+                        .padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.amber))
+                        .foregroundStyle(Color.black)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(Theme.Space.m)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.radius)
+                        .fill(Theme.amber.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.radius)
+                        .stroke(Theme.amber.opacity(remaining <= 60 ? 0.6 : 0.25), lineWidth: remaining <= 60 ? 1.5 : 1)
+                )
+            }
         }
     }
 
@@ -179,13 +251,14 @@ struct TodayView: View {
                 } label: {
                     Image(systemName: priority.isDone ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 18))
+                        .foregroundStyle(priority.isDone ? Theme.emerald : Color.secondary)
                 }
                 .buttonStyle(.plain)
                 .help(priority.isDone ? "Mark as not done" : "Mark as done")
             } else {
                 Image(systemName: priority.isDone ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 18))
-                    .foregroundStyle(priority.isDone ? Color.primary : Color.secondary)
+                    .foregroundStyle(priority.isDone ? Theme.emerald : Color.secondary)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -194,13 +267,24 @@ struct TodayView: View {
                     .foregroundStyle(priority.isDone ? .secondary : .primary)
                 HStack(spacing: Theme.Space.xs) {
                     if let subject = priority.subjectID.flatMap(model.subject(id:)) {
-                        Text(subject.name).font(.caption).foregroundStyle(.secondary)
+                        let color = Theme.subjectColor(subject.colorHex)
+                        HStack(spacing: 4) {
+                            Circle().fill(color).frame(width: 5, height: 5)
+                            Text(subject.name).font(.caption.weight(.semibold)).foregroundStyle(color)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(color.opacity(0.12)))
                     }
                     if let scheduled = priority.scheduledTimeLabel {
-                        if priority.subjectID != nil { Text("·").font(.caption).foregroundStyle(.secondary) }
-                        Text(scheduled)
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(Color.accentColor)
+                        HStack(spacing: 3) {
+                            Image(systemName: "clock").font(.system(size: 8))
+                            Text(scheduled).font(.caption.monospacedDigit())
+                        }
+                        .foregroundStyle(Theme.indigo)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Theme.indigo.opacity(0.10)))
                     }
                     durationBadge(for: priority)
                 }
@@ -209,7 +293,12 @@ struct TodayView: View {
             if canEdit {
                 if !priority.isDone, let subject = priority.subjectID.flatMap(model.subject(id:)) {
                     Button("Lock in") { lockInSubject = subject }
-                        .buttonStyle(SecondaryButtonStyle())
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, Theme.Space.m)
+                        .padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.indigo))
+                        .foregroundStyle(Color.white)
+                        .buttonStyle(.plain)
                 }
                 Button {
                     model.updatePlan(day: plan.day) { $0.priorities.removeAll { $0.id == priority.id } }
@@ -427,9 +516,12 @@ private struct TodayScheduleView: View {
 
             // Legend
             HStack(spacing: Theme.Space.m) {
-                legendItem(title: "Calendar", color: Color.primary.opacity(0.3))
-                legendItem(title: "Planned Focus", color: Color.accentColor.opacity(0.6))
-                legendItem(title: "Completed", color: Color.accentColor)
+                legendItem(title: "Calendar", color: Theme.cyan)
+                legendItem(title: "Planned Focus", color: Theme.indigo)
+                legendItem(title: "Completed", color: Theme.emerald)
+                if model.nextForceBlockDeadline != nil {
+                    legendItem(title: "Force Lock-In", color: Theme.amber)
+                }
                 Spacer()
             }
 
@@ -440,7 +532,8 @@ private struct TodayScheduleView: View {
                     // Track 1: Calendar Events
                     trackRow(blocks: layout.calendarBlocks, width: width, height: 14) { block in
                         RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.primary.opacity(0.25))
+                            .fill(Theme.cyan.opacity(0.35))
+                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.cyan.opacity(0.6), lineWidth: 1))
                             .help("\(block.title) (\(block.timeRangeLabel))")
                     }
 
@@ -448,7 +541,7 @@ private struct TodayScheduleView: View {
                     trackRow(blocks: layout.plannedBlocks, width: width, height: 16) { block in
                         let color = subjectColor(id: block.subjectID, name: block.title)
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(color.opacity(block.isDone ? 0.35 : 0.65))
+                            .fill(color.opacity(block.isDone ? 0.35 : 0.70))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 4)
                                     .stroke(color, lineWidth: hoveredBlockID == block.id ? 2 : 1)
@@ -464,12 +557,17 @@ private struct TodayScheduleView: View {
                         let color = subjectColor(id: block.subjectID, name: block.title)
                         RoundedRectangle(cornerRadius: 3)
                             .fill(color)
+                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.emerald.opacity(0.4), lineWidth: 1))
                             .help("\(block.title) (\(block.timeRangeLabel))")
                     }
                 }
                 .overlay(
                     // Current time red/accent vertical line across all 3 tracks
                     currentTimeLine(width: width)
+                )
+                .overlay(
+                    // Next force block amber vertical line across all 3 tracks
+                    nextForceBlockLine(width: width)
                 )
             }
             .frame(height: 52)
@@ -530,6 +628,29 @@ private struct TodayScheduleView: View {
         }
     }
 
+    @ViewBuilder
+    private func nextForceBlockLine(width: CGFloat) -> some View {
+        if let deadline = model.nextForceBlockDeadline,
+           DayKey.key(for: deadline) == day {
+            let cal = Calendar.current
+            let mins = cal.component(.hour, from: deadline) * 60 + cal.component(.minute, from: deadline)
+            let (f, _) = layout.fractions(startMinutes: mins, endMinutes: mins)
+            if f >= 0 && f <= 1.0 {
+                ZStack(alignment: .top) {
+                    Rectangle()
+                        .fill(Theme.amber)
+                        .frame(width: 2, height: 52)
+                    Circle()
+                        .fill(Theme.amber)
+                        .frame(width: 6, height: 6)
+                        .offset(y: -4)
+                }
+                .offset(x: width * f)
+                .help("Mandatory Lock-In at \(deadline.formatted(date: .omitted, time: .shortened))")
+            }
+        }
+    }
+
     private var hourRuler: some View {
         let startH = Int(layout.dayStartHour)
         let endH = Int(layout.dayEndHour)
@@ -572,7 +693,7 @@ private struct TodayScheduleView: View {
                     case .calendarEvent:
                         Image(systemName: "calendar")
                             .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.cyan)
                         Text(block.title)
                             .font(.system(size: 12))
                             .lineLimit(1)
@@ -582,7 +703,7 @@ private struct TodayScheduleView: View {
                         } label: {
                             Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 12))
-                                .foregroundStyle(isDone ? Color.accentColor : Color.secondary)
+                                .foregroundStyle(isDone ? Theme.emerald : Color.secondary)
                         }
                         .buttonStyle(.plain)
                         Text(title)
@@ -590,16 +711,21 @@ private struct TodayScheduleView: View {
                             .strikethrough(isDone)
                             .lineLimit(1)
                         if let subjectID, let subject = model.subject(id: subjectID) {
-                            Text(subject.name)
-                                .font(.system(size: 10))
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(RoundedRectangle(cornerRadius: 3).fill(Theme.subjectColor(subject.colorHex).opacity(0.18)))
+                            let color = Theme.subjectColor(subject.colorHex)
+                            HStack(spacing: 3) {
+                                Circle().fill(color).frame(width: 4, height: 4)
+                                Text(subject.name)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(color)
+                            }
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(RoundedRectangle(cornerRadius: 3).fill(color.opacity(0.14)))
                         }
                     case .completedSession(_, _, _, _):
                         Image(systemName: "flame.fill")
                             .font(.system(size: 11))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Theme.emerald)
                         Text(block.title)
                             .font(.system(size: 12))
                             .lineLimit(1)

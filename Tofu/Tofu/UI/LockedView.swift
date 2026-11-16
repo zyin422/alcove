@@ -217,10 +217,15 @@ struct LockedView: View {
     }
 
     private func subjectCaption(engine: SessionEngine) -> some View {
-        Text(engine.session?.subjectName ?? "")
-            .font(Theme.captionFont)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
+        let name = engine.session?.subjectName ?? ""
+        let color = Theme.subjectColor(SubjectColor.hex(for: name))
+        return HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(name)
+                .font(Theme.captionFont)
+                .foregroundStyle(color)
+                .lineLimit(1)
+        }
     }
 
     private func timerText(engine: SessionEngine, width: CGFloat) -> some View {
@@ -233,18 +238,25 @@ struct LockedView: View {
     /// Goal progress line and "goal 50m" caption, only in goal mode. `barWidth` nil = as wide as the pane.
     @ViewBuilder private func goalBlock(engine: SessionEngine, barWidth: CGFloat?) -> some View {
         if let goal = engine.session?.mode.goalSeconds {
+            let color: Color = {
+                if let name = engine.session?.subjectName {
+                    return Theme.subjectColor(SubjectColor.hex(for: name))
+                }
+                return Theme.indigo
+            }()
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 Rectangle()
                     .fill(Color.primary.opacity(0.15))
-                    .frame(width: barWidth, height: 2)
+                    .frame(width: barWidth, height: 3)
                     .frame(maxWidth: barWidth == nil ? .infinity : nil)
                     .overlay(alignment: .leading) {
                         GeometryReader { bar in
                             Rectangle()
-                                .fill(Color.primary)
+                                .fill(color)
                                 .frame(width: bar.size.width * LockedLayout.progress(elapsed: engine.elapsed, goal: goal))
                         }
                     }
+                    .clipShape(RoundedRectangle(cornerRadius: 1.5))
                 Text(LockedLayout.goalCaption(goalSeconds: goal))
                     .font(Theme.captionFont)
                     .foregroundStyle(.secondary)
@@ -253,12 +265,27 @@ struct LockedView: View {
     }
 
     private func countersText(engine: SessionEngine) -> some View {
-        Text(LockedLayout.countersText(blocked: engine.session?.blockedAttempts ?? 0,
-                                       tabs: engine.session?.closedTabs ?? 0))
-            .font(.system(size: 13, weight: .medium))
-            .monospacedDigit()
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+        let blocked = engine.session?.blockedAttempts ?? 0
+        let tabs = engine.session?.closedTabs ?? 0
+        return Group {
+            if blocked > 0 || tabs > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "shield.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.rose)
+                    Text(LockedLayout.countersText(blocked: blocked, tabs: tabs))
+                        .font(.system(size: 13, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.rose)
+                }
+            } else {
+                Text(LockedLayout.countersText(blocked: 0, tabs: 0))
+                    .font(.system(size: 13, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var endButton: some View {
@@ -268,10 +295,13 @@ struct LockedView: View {
 
     @ViewBuilder private func breakLine(engine: SessionEngine) -> some View {
         if let remaining = engine.breakRemaining {
-            Text("Break \(TimeFormat.clockFull(remaining))")
-                .font(Theme.captionFont)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+            HStack(spacing: 5) {
+                Circle().fill(Theme.coral).frame(width: 6, height: 6)
+                Text("Break \(TimeFormat.clockFull(remaining))")
+                    .font(Theme.captionFont)
+                    .foregroundStyle(Theme.coral)
+                    .monospacedDigit()
+            }
             Button("End break") { engine.endBreak() }
                 .buttonStyle(SecondaryButtonStyle())
         } else if engine.canTakeBreak {

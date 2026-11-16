@@ -312,16 +312,22 @@ struct MorningView: View {
 
     private func card(_ priority: Priority) -> some View {
         let isSelected = activeTarget == .priority(priority.id)
+        let subject = (setupID(for: priority) ?? priority.subjectID).flatMap(model.subject(id:))
+        let color = subject.map { Theme.subjectColor($0.colorHex) } ?? Theme.indigo
         return Button {
             selection = .priority(priority.id)
         } label: {
             HStack(spacing: Theme.Space.m) {
                 Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
                     .font(.system(size: 20))
+                    .foregroundStyle(isSelected ? color : Color.secondary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(priority.title).font(.title3.weight(.medium))
-                    if let id = setupID(for: priority), let subject = model.subject(id: id) {
-                        Text(subject.name).font(.callout).foregroundStyle(.secondary)
+                    if let subject {
+                        HStack(spacing: 4) {
+                            Circle().fill(color).frame(width: 5, height: 5)
+                            Text(subject.name).font(.callout.weight(.medium)).foregroundStyle(color)
+                        }
                     } else {
                         Text("No setup yet").font(.callout).foregroundStyle(.secondary)
                     }
@@ -329,8 +335,12 @@ struct MorningView: View {
                 Spacer()
             }
             .padding(Theme.Space.m)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.radius)
+                    .fill(isSelected ? color.opacity(0.08) : Color.clear)
+            )
             .overlay(RoundedRectangle(cornerRadius: Theme.radius)
-                .stroke(Color.primary.opacity(isSelected ? 1 : 0.15), lineWidth: isSelected ? 2 : 1))
+                .stroke(isSelected ? color : Color.primary.opacity(0.15), lineWidth: isSelected ? 2 : 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -339,14 +349,19 @@ struct MorningView: View {
 
     private func subjectCard(_ subject: Subject) -> some View {
         let isSelected = activeTarget == .subject(subject.id)
+        let color = Theme.subjectColor(subject.colorHex)
         return Button {
             selection = .subject(subject.id)
         } label: {
             HStack(spacing: Theme.Space.m) {
                 Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
                     .font(.system(size: 20))
+                    .foregroundStyle(isSelected ? color : Color.secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(subject.name).font(.title3.weight(.medium))
+                    HStack(spacing: 5) {
+                        Circle().fill(color).frame(width: 6, height: 6)
+                        Text(subject.name).font(.title3.weight(.medium))
+                    }
                     let details = subject.details.trimmingCharacters(in: .whitespacesAndNewlines)
                     Text(details.isEmpty ? (open.isEmpty ? "Subject" : "Other subject") : details)
                         .font(.callout)
@@ -356,8 +371,12 @@ struct MorningView: View {
                 Spacer()
             }
             .padding(Theme.Space.m)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.radius)
+                    .fill(isSelected ? color.opacity(0.08) : Color.clear)
+            )
             .overlay(RoundedRectangle(cornerRadius: Theme.radius)
-                .stroke(Color.primary.opacity(isSelected ? 1 : 0.15), lineWidth: isSelected ? 2 : 1))
+                .stroke(isSelected ? color : Color.primary.opacity(0.15), lineWidth: isSelected ? 2 : 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

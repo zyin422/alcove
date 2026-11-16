@@ -743,6 +743,52 @@ enum TokenSource: Equatable {
         }
     }
 
+    // MARK: - Force-Block Countdown & Telemetry
+
+    /// When the morning screen or between-block force lock-in will next take over the screen.
+    /// Nil if already locked in, if the day is wrapped up, or if past dayEndMinutes.
+    var nextForceBlockDeadline: Date? {
+        guard !engine.isLocked else { return nil }
+        let now = Date()
+        let prompt = DayPlanner.morningPrompt(
+            now: now, settings: data.settings, isLocked: engine.isLocked,
+            isBusy: isWrappingUpDay,
+            wrappedUp: plan(for: DayKey.key(for: now))?.wrappedUp == true,
+            sessions: data.sessions,
+            quiet: DayPlanner.quietIntervals(googleSync?.todayEvents ?? []),
+            graceUntil: data.settings.morningGraceUntil,
+            graceHeld: data.settings.morningGraceHeld != nil
+        )
+        if prompt.show {
+            return now
+        }
+        return prompt.waitUntil
+    }
+
+    /// Remaining seconds until the next force lock-in. 0 if due now; nil if none scheduled.
+    var secondsUntilNextForceBlock: TimeInterval? {
+        guard let deadline = nextForceBlockDeadline else { return nil }
+        return max(0, deadline.timeIntervalSince(Date()))
+    }
+
+    /// Human explanation of why the next force-block deadline is set to that time.
+    var nextForceBlockReason: String? {
+        guard let deadline = nextForceBlockDeadline else { return nil }
+        let now = Date()
+        if deadline <= now { return "Lock-in required now" }
+        if let postpone = data.settings.morningPostponeUntil, postpone > now {
+            return "10-minute postpone active"
+        }
+        let quiet = DayPlanner.quietIntervals(googleSync?.todayEvents ?? [])
+        if quiet.contains(where: { $0.start <= now && now < $0.end }) {
+            return "Protected calendar event"
+        }
+        if data.settings.morningGraceHeld != nil {
+            return "Grace paused (laptop closed)"
+        }
+        return "Between-block recovery grace"
+    }
+
     // MARK: - Bedtime & Planning Mode
 
     /// Checks if the current time is past midnight (00:00 - 04:00 AM) and locks the computer unless a block is running.

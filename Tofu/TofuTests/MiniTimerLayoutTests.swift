@@ -167,4 +167,12 @@ final class MiniTimerLayoutTests: XCTestCase {
                                                       visible: visible))
         XCTAssertEqual(MiniTimerLayout.visibleBeforeTuck, 3)
     }
+
+    @MainActor func testMiniTimerChromeNotice() {
+        let chrome = MiniTimerChrome()
+        XCTAssertFalse(chrome.isTucked)
+        XCTAssertNil(chrome.noticeText)
+        chrome.noticeText = "I set reddit.com aside."
+        XCTAssertEqual(chrome.noticeText, "I set reddit.com aside.")
+    }
 }

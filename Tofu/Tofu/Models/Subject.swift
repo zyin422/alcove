@@ -215,7 +215,10 @@ extension Subject {
 /// A chart color for a class. Stored as `RRGGBB` so older subject files still load.
 /// Only `palette` is allowed. Anything else (a free-form picker color) snaps back to the name's swatch.
 enum SubjectColor {
-    static let palette = ["4C78A8", "F58518", "54A24B", "E45756", "72B7B2", "B279A2", "C4A017", "9D755D"]
+    static let palette = [
+        "4C78A8", "F58518", "54A24B", "E45756", "72B7B2", "B279A2", "C4A017", "9D755D",
+        "4F46E5", "0284C7", "059669", "D97706", "EA580C", "E11D48", "7C3AED", "0D9488"
+    ]
 
     /// Stable color for a name, so two launches assign the same class the same default.
     static func hex(for name: String) -> String {
