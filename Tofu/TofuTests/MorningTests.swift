@@ -356,7 +356,7 @@ final class MorningTests: XCTestCase {
         XCTAssertNil(model.secondsUntilNextForceBlock)
     }
 
-    @MainActor func testMorningAutoLockSelectionDefaults() throws {
+    @MainActor func testMorningPrioritySelectionDefaults() throws {
         let model = try makeModel(EngineHarness())
         let p1 = Priority(title: "CS225 Lab", estimatedMinutes: 50)
         let p2 = Priority(title: "Read Paper", estimatedMinutes: 30)
