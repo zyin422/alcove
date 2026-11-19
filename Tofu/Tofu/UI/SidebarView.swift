@@ -4,12 +4,25 @@ import SwiftUI
 struct SidebarView: View {
     @Bindable var model: AppModel
     @State private var isAddingSubject = false
-    @State private var subjectToDelete: Subject?
+    @State private var subjectToDelete = Subject?.none
+
+    private var selectionBinding: Binding<SidebarItem?> {
+        Binding(
+            get: { model.selection },
+            set: { newValue in
+                if let newValue {
+                    model.selection = newValue
+                }
+            }
+        )
+    }
 
     var body: some View {
-        List(selection: $model.selection) {
+        List(selection: selectionBinding) {
             Section {
-                Label("Plan", systemImage: "checklist").tag(SidebarItem.today)
+                NavigationLink(value: SidebarItem.today) {
+                    Label("Plan", systemImage: "checklist")
+                }
             }
             Section {
                 if model.data.subjects.isEmpty {
@@ -18,18 +31,19 @@ struct SidebarView: View {
                         .selectionDisabled()
                 }
                 ForEach(model.data.subjects) { subject in
-                    HStack {
-                        Circle()
-                            .fill(Theme.subjectColor(subject.colorHex))
-                            .frame(width: 8, height: 8)
-                        Text(subject.name).lineLimit(1)
-                        Spacer()
-                        Text(TimeFormat.short(totalTime(of: subject.id)))
-                            .font(.callout)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
+                    NavigationLink(value: SidebarItem.subject(subject.id)) {
+                        HStack {
+                            Circle()
+                                .fill(Theme.subjectColor(subject.colorHex))
+                                .frame(width: 8, height: 8)
+                            Text(subject.name).lineLimit(1)
+                            Spacer()
+                            Text(TimeFormat.short(totalTime(of: subject.id)))
+                                .font(.callout)
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .tag(SidebarItem.subject(subject.id))
                     .contextMenu {
                         Button("Delete “\(subject.name)”…") { subjectToDelete = subject }
                     }
@@ -46,7 +60,7 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+        .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: Theme.Space.xs) {
                 if let version = model.updates.availableVersion {

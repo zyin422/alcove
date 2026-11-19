@@ -38,49 +38,51 @@ struct TodayView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Space.l) {
-            HStack(alignment: .top, spacing: Theme.Space.l) {
-                dayStepper
-                Spacer(minLength: Theme.Space.m)
-                MonthCalendar(month: month, today: todayKey, selected: shownDay, completedDays: completedDays,
-                              onShiftMonth: { shiftMonth($0) }, onSelect: { showDay($0) })
-            }
-
-            forceBlockCountdownBanner
-
-            let todaySessions = model.data.sessions.filter {
-                DayKey.key(for: $0.start) == shownDay && !$0.isDemo
-            }
-            let events = (plan.day == todayKey && model.data.settings.googleShowEventsEnabled)
-                ? (model.googleSync?.todayEvents ?? []) : []
-
-            if !events.isEmpty || !todaySessions.isEmpty || !plan.priorities.isEmpty {
-                TodayScheduleView(events: events, sessions: todaySessions, priorities: plan.priorities, day: shownDay, model: model, onLockIn: { subject in
-                    lockInSubject = subject
-                })
-            }
-
-            if plan.priorities.isEmpty {
-                Text(emptyMessage).foregroundStyle(.secondary)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(plan.priorities) { priority in
-                        row(priority)
-                        if priority.id != plan.priorities.last?.id { Divider() }
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Space.l) {
+                HStack(alignment: .top, spacing: Theme.Space.l) {
+                    dayStepper
+                    Spacer(minLength: Theme.Space.m)
+                    MonthCalendar(month: month, today: todayKey, selected: shownDay, completedDays: completedDays,
+                                  onShiftMonth: { shiftMonth($0) }, onSelect: { showDay($0) })
                 }
-                .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
+
+                forceBlockCountdownBanner
+
+                let todaySessions = model.data.sessions.filter {
+                    DayKey.key(for: $0.start) == shownDay && !$0.isDemo
+                }
+                let events = (plan.day == todayKey && model.data.settings.googleShowEventsEnabled)
+                    ? (model.googleSync?.todayEvents ?? []) : []
+
+                if !events.isEmpty || !todaySessions.isEmpty || !plan.priorities.isEmpty {
+                    TodayScheduleView(events: events, sessions: todaySessions, priorities: plan.priorities, day: shownDay, model: model, onLockIn: { subject in
+                        lockInSubject = subject
+                    })
+                }
+
+                if plan.priorities.isEmpty {
+                    Text(emptyMessage).foregroundStyle(.secondary)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(plan.priorities) { priority in
+                            row(priority)
+                            if priority.id != plan.priorities.last?.id { Divider() }
+                        }
+                    }
+                    .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
+                }
+
+                if canEdit { addRow }
+
+                Spacer(minLength: Theme.Space.m)
+
+                dayActions
             }
-
-            if canEdit { addRow }
-
-            Spacer()
-
-            dayActions
+            .padding(Theme.Space.xl)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(Theme.Space.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .navigationTitle("Today")
+        .navigationTitle("Plan")
         .sheet(item: $lockInSubject) { subject in
             LockInSheet(model: model, subject: subject)
         }

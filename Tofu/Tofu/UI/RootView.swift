@@ -5,17 +5,19 @@ import SwiftUI
 struct RootView: View {
     let model: AppModel
     @State private var summary: Session?
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
         Group {
             if model.engine.isLocked {
                 LockedView(model: model)
             } else {
-                NavigationSplitView {
+                NavigationSplitView(columnVisibility: $columnVisibility) {
                     SidebarView(model: model)
                 } detail: {
                     detail
                 }
+                .navigationSplitViewStyle(.balanced)
             }
         }
         .frame(minWidth: model.engine.isLocked ? LockedLayout.chatMinWidth : 820,
