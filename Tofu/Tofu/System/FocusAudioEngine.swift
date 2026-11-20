@@ -22,6 +22,16 @@ enum FocusAudioMath {
         b6 = white * 0.115926
         return pink * 0.11
     }
+
+    /// Single-pole low-pass filter: y[n] = y[n-1] + alpha * (x[n] - y[n-1])
+    static func lowPass(current: Float, input: Float, alpha: Float) -> Float {
+        current + alpha * (input - current)
+    }
+
+    /// Slow sinusoidal wave swell multiplier between (1.0 - depth) and 1.0.
+    static func waveSwell(phase: Double, depth: Double = 0.18) -> Float {
+        Float((1.0 - depth) + depth * (0.5 + 0.5 * sin(phase * 2.0 * Double.pi)))
+    }
 }
 
 /// Synthesizes continuous, soothing ambient soundscapes on the Mac's audio hardware
@@ -62,14 +72,32 @@ enum FocusAudioMath {
         }
         let sampleRate = Float(format.sampleRate)
 
-        // Filter states
-        var brownState: Float = 0.0
-        var b0: Float = 0.0, b1: Float = 0.0, b2: Float = 0.0
-        var b3: Float = 0.0, b4: Float = 0.0, b5: Float = 0.0, b6: Float = 0.0
+        // Filter states (Stereo Decorrelated with Warm Acoustic Shaping)
+        var brownLeft: Float = 0.0
+        var brownRight: Float = 0.0
+        var brownWarmLeft: Float = 0.0
+        var brownWarmRight: Float = 0.0
+
+        var b0L: Float = 0.0, b1L: Float = 0.0, b2L: Float = 0.0
+        var b3L: Float = 0.0, b4L: Float = 0.0, b5L: Float = 0.0, b6L: Float = 0.0
+
+        var b0R: Float = 0.0, b1R: Float = 0.0, b2R: Float = 0.0
+        var b3R: Float = 0.0, b4R: Float = 0.0, b5R: Float = 0.0, b6R: Float = 0.0
+
+        var rainL: Float = 0.0
+        var rainR: Float = 0.0
+
+        var whiteAirL: Float = 0.0
+        var whiteAirR: Float = 0.0
+
+        var brownBedL: Float = 0.0
+        var brownBedR: Float = 0.0
+
+        var lfoPhase: Double = 0.0
         var phaseLeft: Double = 0.0
         var phaseRight: Double = 0.0
 
-        let carrierFreq: Double = 180.0
+        let carrierFreq: Double = 136.1 // Grounding, warm OM tone
         let beatDelta: Double
         switch sound {
         case .alphaBinaural: beatDelta = 10.0
@@ -92,36 +120,82 @@ enum FocusAudioMath {
                     rightBuffer?[frame] = 0
 
                 case .brownNoise:
-                    let white = Float.random(in: -1.0...1.0)
-                    brownState = FocusAudioMath.nextBrown(current: brownState, white: white)
-                    let val = min(1.0, max(-1.0, brownState * 3.5)) * 0.35
-                    leftBuffer?[frame] = val
-                    rightBuffer?[frame] = val
+                    // Stereo decorrelation + low-frequency rolling ocean swell
+                    let whiteL = Float.random(in: -1.0...1.0)
+                    let whiteR = Float.random(in: -1.0...1.0)
+                    brownLeft = FocusAudioMath.nextBrown(current: brownLeft, white: whiteL)
+                    brownRight = FocusAudioMath.nextBrown(current: brownRight, white: whiteR)
+
+                    brownWarmLeft = FocusAudioMath.lowPass(current: brownWarmLeft, input: brownLeft, alpha: 0.28)
+                    brownWarmRight = FocusAudioMath.lowPass(current: brownWarmRight, input: brownRight, alpha: 0.28)
+
+                    let swellL = FocusAudioMath.waveSwell(phase: lfoPhase, depth: 0.18)
+                    let swellR = FocusAudioMath.waveSwell(phase: lfoPhase + 0.12, depth: 0.18)
+                    lfoPhase += 0.07 / Double(sampleRate)
+                    if lfoPhase > 1.0 { lfoPhase -= 1.0 }
+
+                    let valL = min(1.0, max(-1.0, brownWarmLeft * 3.6)) * swellL * 0.36
+                    let valR = min(1.0, max(-1.0, brownWarmRight * 3.6)) * swellR * 0.36
+                    leftBuffer?[frame] = valL
+                    rightBuffer?[frame] = valR
 
                 case .pinkNoise:
-                    let white = Float.random(in: -1.0...1.0)
-                    let pink = FocusAudioMath.nextPink(white: white, b0: &b0, b1: &b1, b2: &b2,
-                                                       b3: &b3, b4: &b4, b5: &b5, b6: &b6)
-                    let val = min(1.0, max(-1.0, pink)) * 0.35
-                    leftBuffer?[frame] = val
-                    rightBuffer?[frame] = val
+                    // Stereo decorrelated rainfall with high-cut warmth and subtle rhythmic gusts
+                    let whiteL = Float.random(in: -1.0...1.0)
+                    let whiteR = Float.random(in: -1.0...1.0)
+                    let pinkL = FocusAudioMath.nextPink(white: whiteL, b0: &b0L, b1: &b1L, b2: &b2L,
+                                                        b3: &b3L, b4: &b4L, b5: &b5L, b6: &b6L)
+                    let pinkR = FocusAudioMath.nextPink(white: whiteR, b0: &b0R, b1: &b1R, b2: &b2R,
+                                                        b3: &b3R, b4: &b4R, b5: &b5R, b6: &b6R)
+
+                    rainL = FocusAudioMath.lowPass(current: rainL, input: pinkL, alpha: 0.35)
+                    rainR = FocusAudioMath.lowPass(current: rainR, input: pinkR, alpha: 0.35)
+
+                    let swellL = FocusAudioMath.waveSwell(phase: lfoPhase, depth: 0.14)
+                    let swellR = FocusAudioMath.waveSwell(phase: lfoPhase + 0.18, depth: 0.14)
+                    lfoPhase += 0.11 / Double(sampleRate)
+                    if lfoPhase > 1.0 { lfoPhase -= 1.0 }
+
+                    leftBuffer?[frame] = min(1.0, max(-1.0, rainL * 1.8)) * swellL * 0.32
+                    rightBuffer?[frame] = min(1.0, max(-1.0, rainR * 1.8)) * swellR * 0.32
 
                 case .whiteNoise:
-                    let white = Float.random(in: -0.18...0.18)
-                    leftBuffer?[frame] = white
-                    rightBuffer?[frame] = white
+                    // Diffuse stereo air/breeze without harsh ear-piercing static
+                    let whiteL = Float.random(in: -0.22...0.22)
+                    let whiteR = Float.random(in: -0.22...0.22)
+                    whiteAirL = FocusAudioMath.lowPass(current: whiteAirL, input: whiteL, alpha: 0.40)
+                    whiteAirR = FocusAudioMath.lowPass(current: whiteAirR, input: whiteR, alpha: 0.40)
+
+                    let swellL = FocusAudioMath.waveSwell(phase: lfoPhase, depth: 0.12)
+                    let swellR = FocusAudioMath.waveSwell(phase: lfoPhase + 0.08, depth: 0.12)
+                    lfoPhase += 0.05 / Double(sampleRate)
+                    if lfoPhase > 1.0 { lfoPhase -= 1.0 }
+
+                    leftBuffer?[frame] = whiteAirL * swellL * 0.28
+                    rightBuffer?[frame] = whiteAirR * swellR * 0.28
 
                 case .alphaBinaural, .thetaBinaural, .gammaBinaural:
+                    // Warm harmonic tone + organic ambient bedding
                     let sL = sin(phaseLeft * 2.0 * Double.pi)
+                    let hL = sin(phaseLeft * 4.0 * Double.pi)
                     let sR = sin(phaseRight * 2.0 * Double.pi)
+                    let hR = sin(phaseRight * 4.0 * Double.pi)
 
                     phaseLeft += carrierFreq / Double(sampleRate)
                     phaseRight += (carrierFreq + beatDelta) / Double(sampleRate)
                     if phaseLeft > 1.0 { phaseLeft -= 1.0 }
                     if phaseRight > 1.0 { phaseRight -= 1.0 }
 
-                    leftBuffer?[frame] = Float(sL) * 0.12
-                    rightBuffer?[frame] = Float(sR) * 0.12
+                    let wL = Float.random(in: -0.4...0.4)
+                    let wR = Float.random(in: -0.4...0.4)
+                    brownBedL = FocusAudioMath.nextBrown(current: brownBedL, white: wL)
+                    brownBedR = FocusAudioMath.nextBrown(current: brownBedR, white: wR)
+
+                    let toneL = Float(sL) * 0.07 + Float(hL) * 0.015 + brownBedL * 0.12
+                    let toneR = Float(sR) * 0.07 + Float(hR) * 0.015 + brownBedR * 0.12
+
+                    leftBuffer?[frame] = toneL
+                    rightBuffer?[frame] = toneR
                 }
             }
             return noErr

@@ -32,6 +32,23 @@ final class FocusAudioTests: XCTestCase {
         XCTAssertFalse(sum.isInfinite)
     }
 
+    func testLowPassFilterStability() {
+        var current: Float = 0.0
+        for _ in 0..<100 {
+            current = FocusAudioMath.lowPass(current: current, input: 1.0, alpha: 0.2)
+        }
+        XCTAssertGreaterThan(current, 0.99)
+        XCTAssertLessThanOrEqual(current, 1.0)
+    }
+
+    func testWaveSwellBounds() {
+        for p in stride(from: 0.0, through: 1.0, by: 0.05) {
+            let swell = FocusAudioMath.waveSwell(phase: p, depth: 0.18)
+            XCTAssertGreaterThanOrEqual(swell, 0.81)
+            XCTAssertLessThanOrEqual(swell, 1.01)
+        }
+    }
+
     func testFocusSoundCodableRoundtrip() throws {
         for sound in FocusSound.allCases {
             let encoded = try JSONEncoder().encode(sound)
