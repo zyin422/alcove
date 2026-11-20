@@ -1,5 +1,45 @@
 import Foundation
 
+/// Known web domains associated with native allowed apps, so their web apps, authentication
+/// flows, and media players are never misclassified or closed by the Decisions API.
+enum AllowedAppDomains {
+    static let known: [String: [String]] = [
+        "com.spotify.client": ["spotify.com", "scdn.co", "spotifycdn.com"],
+        "com.tencent.xinwechat": ["weixin.qq.com", "wechat.com", "qq.com"],
+        "com.tinyspeck.slackmacgap": ["slack.com", "slack-edge.com", "slackb.com"],
+        "notion.id": ["notion.so", "notion.site"],
+        "com.figma.desktop": ["figma.com"],
+        "com.github.githubclient": ["github.com", "github.io", "githubusercontent.com"],
+        "com.linear": ["linear.app"],
+        "com.openai.chat": ["chatgpt.com", "openai.com"],
+        "com.anthropic.claudedesktop": ["claude.ai", "anthropic.com"],
+        "com.meta.endo": ["museapp.com", "muse.app", "muse.so"],
+        "company.thebrowser.browser": ["arc.net"],
+        "net.whatsapp.whatsapp": ["whatsapp.com", "web.whatsapp.com"],
+        "com.whatsapp": ["whatsapp.com", "web.whatsapp.com"],
+        "ru.keepcoder.telegram": ["telegram.org", "web.telegram.org", "t.me"],
+        "com.tdesktop.telegram": ["telegram.org", "web.telegram.org", "t.me"],
+        "com.hnc.discord": ["discord.com", "discord.gg", "discordapp.com"],
+        "com.apple.ical": ["calendar.google.com"],
+        "com.apple.mail": ["mail.google.com", "outlook.com"],
+        "com.microsoft.vscode": ["vscode.dev", "github.dev"],
+    ]
+
+    /// Resolves all web domains that should be considered allowed when `app` is explicitly permitted.
+    static func domains(for app: AllowedApp) -> [String] {
+        let bundleID = app.bundleID.lowercased()
+        if let direct = known[bundleID] {
+            return direct
+        }
+        let parts = bundleID.split(separator: ".")
+        if parts.count >= 2, parts[0] == "com" || parts[0] == "org" || parts[0] == "net" || parts[0] == "io" || parts[0] == "app" {
+            let domain = "\(parts[1]).\(parts[0])"
+            return [domain]
+        }
+        return []
+    }
+}
+
 /// Decides which Chrome tabs belong to the current subject (spec §8).
 enum DomainMatcher {
     /// The browser's own pages and blank tabs. Tabs whose URL starts with one of these are never closed.

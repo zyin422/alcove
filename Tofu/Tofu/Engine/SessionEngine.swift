@@ -295,7 +295,8 @@ extension WindowPresenting {
         // Without Chrome (or without permission to script it) every poll would fail, so skip the watch.
         resumesTabWatch = chromeError != .notInstalled && chromeError != .automationDenied
         if resumesTabWatch {
-            chrome.startTabWatch(subject: subject.name, details: subject.details, studySites: studySites(of: subject))
+            let tools = (subject.allowedApps + subject.slotApps).map(\.name)
+            chrome.startTabWatch(subject: subject.name, details: subject.details, studySites: studySites(of: subject), allowedTools: tools)
         }
 
         if startsTimers { startTimer() }
@@ -587,13 +588,30 @@ extension WindowPresenting {
         blocker.start(allowed: sessionAllowed)
         if resumesTabWatch, let subject {
             chrome.closeUnrelatedTabs()
-            chrome.startTabWatch(subject: subject.name, details: subject.details, studySites: studySites(of: subject))
+            let tools = (subject.allowedApps + subject.slotApps).map(\.name)
+            chrome.startTabWatch(subject: subject.name, details: subject.details, studySites: studySites(of: subject), allowedTools: tools)
         }
     }
 
     /// Study sites plus hosts the work block is allowed to keep open.
+    /// Includes website slots and all domains associated with explicitly allowed apps.
     private func studySites(of subject: Subject) -> [String] {
-        subject.sites + subject.extraDomains
+        var raw: [String] = subject.sites + subject.extraDomains
+        for slot in subject.slots where slot.kind == .website {
+            raw.append(contentsOf: slot.urls)
+        }
+        let allAllowedApps = subject.allowedApps + subject.slotApps
+        for app in allAllowedApps {
+            raw.append(contentsOf: AllowedAppDomains.domains(for: app))
+        }
+        var seen = Set<String>()
+        var sites: [String] = []
+        for s in raw {
+            if seen.insert(s).inserted {
+                sites.append(s)
+            }
+        }
+        return sites
     }
 
     // MARK: End

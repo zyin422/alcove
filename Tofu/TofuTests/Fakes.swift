@@ -68,6 +68,7 @@ import Foundation
     var watchedSubject: String?
     var watchedDetails: String?
     var watchedSites: [String]?
+    var watchedAllowedTools: [String]?
     var stopWatchCount = 0
     var restoreCount = 0
     var pendingRestore: ClosedBrowserState?
@@ -84,10 +85,11 @@ import Foundation
         preparedBounds = windows.compactMap(\.bounds)
         return prepareResult
     }
-    func startTabWatch(subject: String, details: String, studySites: [String]) {
+    func startTabWatch(subject: String, details: String, studySites: [String], allowedTools: [String] = []) {
         watchedSubject = subject
         watchedDetails = details
         watchedSites = studySites
+        watchedAllowedTools = allowedTools
     }
     func pauseTabWatch() { stopWatchCount += 1 }
     private(set) var closeUnrelatedCount = 0

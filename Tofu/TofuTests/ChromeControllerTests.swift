@@ -202,6 +202,18 @@ import XCTest
         XCTAssertEqual(h.judge.judgedDetails, ["Writing the problem sets"])
     }
 
+    func testAllowedToolsEnrichTheRelevanceCheckDetails() async {
+        let page = tab("https://reddit.com/r/all", id: 1)
+        let h = WatchHarness(tabs: [page])
+        h.controller.startTabWatch(subject: "CS128", details: "Writing problem sets", studySites: [], allowedTools: ["Spotify", "Slack"])
+        defer { h.controller.stopTabWatch() }
+        h.controller.pollTabs()
+        await settle()
+        XCTAssertEqual(h.judge.judgedSubjects, ["CS128"])
+        let expected = "Writing problem sets\nExplicitly allowed apps and tools for this session: Spotify, Slack."
+        XCTAssertEqual(h.judge.judgedDetails, [expected])
+    }
+
     func testRelevantVerdictKeepsTheTabAndIsNotAskedAgain() async {
         let video = tab("https://youtube.com/watch?v=lecture", id: 5)
         let h = WatchHarness(tabs: [video])

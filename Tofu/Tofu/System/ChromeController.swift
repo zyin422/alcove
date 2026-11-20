@@ -19,7 +19,7 @@ struct BrowserWindowPlan: Equatable {
     /// Starts the 2 s tab poll. Every tab outside `studySites` is judged for relevance to `subject` (the subject's
     /// name, e.g. "CS128", described by `details`, which may be empty) and closed when it is off-task.
     /// Replaces any watch already running.
-    func startTabWatch(subject: String, details: String, studySites: [String])
+    func startTabWatch(subject: String, details: String, studySites: [String], allowedTools: [String])
     /// Stops polling for a break. Allow and close decisions made while paused still apply when the watch resumes.
     func pauseTabWatch()
     /// Closes every open tab that is not a study site or a host allowed during this block.
@@ -35,6 +35,12 @@ struct BrowserWindowPlan: Equatable {
     func closeHost(_ host: String)
     /// Called when a host is allowed for the session (the assistant, or the user answering "Needed").
     var onHostAllowed: ((String) -> Void)? { get set }
+}
+
+extension ChromeControlling {
+    func startTabWatch(subject: String, details: String = "", studySites: [String], allowedTools: [String] = []) {
+        startTabWatch(subject: subject, details: details, studySites: studySites, allowedTools: allowedTools)
+    }
 }
 
 /// Drives Google Chrome and Arc with NSAppleScript. Never scripts System Events.
@@ -88,6 +94,7 @@ struct BrowserWindowPlan: Equatable {
     private(set) var subjectName = ""
     /// The subject's description from the latest `startTabWatch`, passed to the judge with the name.
     private var subjectDetails = ""
+    private var allowedTools: [String] = []
     private var triage = TabTriage(studySites: [], protected: [])
     /// Tabs seen by the latest poll (minus the ones closed since), for `openTabsSummary`.
     private var lastTabs: [ChromeTab] = []
@@ -300,11 +307,12 @@ struct BrowserWindowPlan: Equatable {
         return .profileNotReady
     }
 
-    func startTabWatch(subject: String, details: String = "", studySites: [String]) {
+    func startTabWatch(subject: String, details: String = "", studySites: [String], allowedTools: [String] = []) {
         haltPolling()
         acceptsSiteDecisions = true
         subjectName = subject
         subjectDetails = details
+        self.allowedTools = allowedTools
         triage = TabTriage(studySites: studySites, protected: [], alwaysBlocked: alwaysBlocked)
         for (host, needed) in sessionAnswers {
             triage.recordAnswer(host: host, needed: needed)
@@ -458,13 +466,20 @@ struct BrowserWindowPlan: Equatable {
     private func check(_ tab: ChromeTab) {
         let token = watchToken
         let subject = subjectName
-        let details = subjectDetails
+        let details = combinedDetails()
         let judge = judge
         let page = PageInfo(url: tab.url, title: tab.title, description: nil, siteName: nil)
         Task { @MainActor [weak self] in
             let verdict = await judge.judge(page: page, subject: subject, details: details)
             self?.handle(verdict, for: tab, token: token)
         }
+    }
+
+    private func combinedDetails() -> String {
+        guard !allowedTools.isEmpty else { return subjectDetails }
+        let toolsList = allowedTools.joined(separator: ", ")
+        let clause = "Explicitly allowed apps and tools for this session: \(toolsList)."
+        return subjectDetails.isEmpty ? clause : "\(subjectDetails)\n\(clause)"
     }
 
     private func handle(_ verdict: RelevanceVerdict, for tab: ChromeTab, token: UUID) {

@@ -275,6 +275,7 @@ struct BedtimeView: View {
 
     private func sleepDisplay() {
         FocusAudioEngine.shared.stop()
+        VoiceOutput.shared.unloadKokoro()
         let task = Process()
         task.launchPath = "/usr/bin/pmset"
         task.arguments = ["displaysleepnow"]

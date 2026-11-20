@@ -176,4 +176,34 @@ final class DomainMatcherTests: XCTestCase {
             XCTAssertFalse(DomainMatcher.isSearchEngine(url), "\(url) must NOT be recognized as search engine")
         }
     }
+
+    // MARK: - AllowedAppDomains
+
+    func testAllowedAppDomainsKnownApps() {
+        let spotify = AllowedApp(bundleID: "com.spotify.client", name: "Spotify")
+        let spotifyDomains = AllowedAppDomains.domains(for: spotify)
+        XCTAssertTrue(spotifyDomains.contains("spotify.com"))
+        XCTAssertTrue(spotifyDomains.contains("scdn.co"))
+
+        let wechat = AllowedApp(bundleID: "com.tencent.xinwechat", name: "WeChat")
+        let wechatDomains = AllowedAppDomains.domains(for: wechat)
+        XCTAssertTrue(wechatDomains.contains("wechat.com"))
+        XCTAssertTrue(wechatDomains.contains("weixin.qq.com"))
+
+        let slack = AllowedApp(bundleID: "com.tinyspeck.slackmacgap", name: "Slack")
+        let slackDomains = AllowedAppDomains.domains(for: slack)
+        XCTAssertTrue(slackDomains.contains("slack.com"))
+    }
+
+    func testAllowedAppDomainsReverseDomainFallback() {
+        let app = AllowedApp(bundleID: "com.example.desktop", name: "Example")
+        let domains = AllowedAppDomains.domains(for: app)
+        XCTAssertEqual(domains, ["example.com"])
+    }
+
+    func testAllowedAppDomainsUnknownAppWithoutStandardPrefix() {
+        let app = AllowedApp(bundleID: "mycustomapp", name: "Custom")
+        let domains = AllowedAppDomains.domains(for: app)
+        XCTAssertTrue(domains.isEmpty)
+    }
 }

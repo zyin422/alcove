@@ -92,6 +92,7 @@ final class DecisionsClient {
         let described = about.isEmpty ? ""
             : "The user describes this work and its goals as: \"\(about)\". "
             + "Use that description to decide which topics, tools and sites support the work. "
+            + "Any tools, apps or sites explicitly mentioned as allowed in that description MUST NOT be marked off-task. "
         return "The user is locked in to work on \"\(name)\". "
             + described
             + "The predicate is true when the page is not itself that work. "

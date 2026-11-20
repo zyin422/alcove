@@ -1,4 +1,5 @@
 import AVFoundation
+import Darwin
 import FluidAudio
 import Observation
 
@@ -26,7 +27,7 @@ enum KokoroVoice: String, Codable, CaseIterable, Identifiable {
 }
 
 /// Reads the study buddy's lines aloud with Kokoro on this Mac.
-/// The model downloads once, then stays local. If it cannot load, the best installed system voice speaks instead.
+/// Lazy-loads on first use and automatically unloads after 60 seconds of inactivity to keep memory at ~40 MB.
 @Observable @MainActor final class VoiceOutput: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
     /// The one speaker. Loading Kokoro twice would keep two copies of the model in memory.
     static let shared = VoiceOutput()
@@ -34,10 +35,11 @@ enum KokoroVoice: String, Codable, CaseIterable, Identifiable {
     var voice: KokoroVoice = .heart {
         didSet {
             guard voice != oldValue else { return }
-            kokoro = nil
-            load = nil
-            loadFailed = false
-            warmKokoro()
+            let wasLoaded = kokoro != nil
+            unloadKokoro()
+            if wasLoaded {
+                warmKokoro()
+            }
         }
     }
 
@@ -57,16 +59,19 @@ enum KokoroVoice: String, Codable, CaseIterable, Identifiable {
     @ObservationIgnored private var systemBusy = false
     /// Bumped by `stop()`, so a line that finishes loading after the user starts talking is not played.
     @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var unloadTimer: Timer?
 
     override init() {
         systemVoice = Self.bestVoice()
         super.init()
         synthesizer.delegate = self
-        warmKokoro()
+        // Lazy load: Kokoro is NOT preloaded at launch, keeping Tofu memory at ~40 MB.
     }
 
     /// Queues `text` after anything already being said.
     func speak(_ text: String) {
+        unloadTimer?.invalidate()
+        unloadTimer = nil
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         queue.append(trimmed)
@@ -86,6 +91,28 @@ enum KokoroVoice: String, Codable, CaseIterable, Identifiable {
         systemBusy = false
         isSpeaking = false
         FocusAudioEngine.shared.unduck()
+        scheduleAutoUnload()
+    }
+
+    /// Unloads the 82M Kokoro model and releases CoreML tensor memory back to macOS.
+    func unloadKokoro() {
+        unloadTimer?.invalidate()
+        unloadTimer = nil
+        kokoro = nil
+        load = nil
+        loadFailed = false
+        malloc_zone_pressure_relief(nil, 0)
+    }
+
+    private func scheduleAutoUnload(after seconds: TimeInterval = 60) {
+        unloadTimer?.invalidate()
+        let timer = Timer(timeInterval: seconds, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.unloadKokoro()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        unloadTimer = timer
     }
 
     /// Premium beats enhanced beats default; the user's English variant beats other English voices.
@@ -132,6 +159,7 @@ enum KokoroVoice: String, Codable, CaseIterable, Identifiable {
         guard !queue.isEmpty else {
             isSpeaking = false
             FocusAudioEngine.shared.unduck()
+            scheduleAutoUnload()
             return
         }
         let text = queue.removeFirst()
@@ -156,11 +184,21 @@ enum KokoroVoice: String, Codable, CaseIterable, Identifiable {
 
     private func kokoroWav(for text: String) async -> Data? {
         do {
-            let manager = try await readyKokoro()
-            try Task.checkCancellation()
-            return try await manager.synthesize(text: text, voice: voice.rawValue)
-        } catch is CancellationError {
-            return nil
+            // Fast fallback: if Kokoro cold-initialization or synthesis takes > 2.0s, return nil to speak immediately via system TTS
+            return try await withThrowingTaskGroup(of: Data?.self) { group in
+                group.addTask {
+                    let manager = try await self.readyKokoro()
+                    try Task.checkCancellation()
+                    return try await manager.synthesize(text: text, voice: self.voice.rawValue)
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    return nil
+                }
+                let first = try await group.next() ?? nil
+                group.cancelAll()
+                return first
+            }
         } catch {
             return nil
         }

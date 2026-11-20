@@ -118,7 +118,7 @@ final class SessionEngineTests: XCTestCase {
                        [ownID, "com.google.Chrome", "com.apple.finder", "com.apple.systempreferences", "com.microsoft.VSCode"])
         XCTAssertEqual(h.chrome.watchedSubject, "CS128")
         XCTAssertEqual(h.chrome.watchedDetails, "Intro CS in C++")
-        XCTAssertEqual(h.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/", "piazza.com"])
+        XCTAssertEqual(h.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/", "piazza.com", "vscode.dev", "github.dev"])
         XCTAssertEqual(h.announcer.messages, ["🔒 **Alex** is locked in on **CS128**"])
         XCTAssertEqual(h.toaster.messages, [])
     }
@@ -292,7 +292,7 @@ final class SessionEngineTests: XCTestCase {
         slow.chrome.prepareResult = .profileNotReady
         await slow.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
         XCTAssertEqual(slow.chrome.watchedSubject, "CS128")
-        XCTAssertEqual(slow.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/", "piazza.com"])
+        XCTAssertEqual(slow.chrome.watchedSites, ["https://cs128.org/schedule", "https://docs.python.org/3/", "piazza.com", "vscode.dev", "github.dev"])
     }
 
     // MARK: During the session
