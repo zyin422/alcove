@@ -16,12 +16,17 @@ final class PlanningModeTests: XCTestCase {
         XCTAssertEqual(setup.id, Subject.planningID)
         XCTAssertEqual(setup.name, "Planning Mode")
         XCTAssertEqual(setup.sites, ["https://news.ycombinator.com"])
+        XCTAssertEqual(setup.browser, .arc)
 
         let allowedBundleIDs = Set(setup.allowedApps.map(\.bundleID))
-        XCTAssertTrue(allowedBundleIDs.contains("com.apple.MobileSMS"))
-        XCTAssertTrue(allowedBundleIDs.contains("com.tinyspeck.slackmacgap"))
-        XCTAssertTrue(allowedBundleIDs.contains("ru.keepcoder.Telegram"))
-        XCTAssertTrue(allowedBundleIDs.contains("com.hnc.Discord"))
+        XCTAssertTrue(allowedBundleIDs.contains("company.thebrowser.Browser"))
+        XCTAssertTrue(allowedBundleIDs.contains("com.meta.endo"))
+        XCTAssertTrue(allowedBundleIDs.contains("com.google.antigravity"))
+        XCTAssertTrue(allowedBundleIDs.contains("com.google.antigravity-ide"))
+        XCTAssertTrue(allowedBundleIDs.contains("com.todesktop.230313mzl4w4u92"))
+        XCTAssertTrue(allowedBundleIDs.contains("com.apple.dt.Xcode"))
+        XCTAssertFalse(allowedBundleIDs.contains("com.hnc.Discord"))
+        XCTAssertFalse(allowedBundleIDs.contains("com.google.Chrome"))
     }
 
     func testAppModelResolvesPlanningSetupWithoutExposingInSubjects() throws {
@@ -32,51 +37,42 @@ final class PlanningModeTests: XCTestCase {
         let resolved = model.subject(id: Subject.planningID)
         XCTAssertNotNil(resolved)
         XCTAssertEqual(resolved?.id, Subject.planningID)
+        XCTAssertEqual(resolved?.browser, .arc)
     }
 
-    func testDiscordBudgetDecrementsWhenDiscordIsActive() async {
-        let h = EngineHarness()
-        var frontmostApp: String? = "com.hnc.Discord"
-        h.engine.activeAppBundleID = { frontmostApp }
-
+    func testPlanningModeBlocksDiscordAndEnforcesArc() {
         let setup = Subject.planningSetup()
-        await h.engine.start(subject: setup, mode: .goal(minutes: 15), displayName: "Alex")
+        let allowed = BlockPolicy.allowedSet(for: setup, ownBundleID: "com.tofu.app")
 
+        XCTAssertTrue(allowed.contains("company.thebrowser.Browser"))
+        XCTAssertTrue(allowed.contains("com.meta.endo"))
+        XCTAssertTrue(allowed.contains("com.google.antigravity"))
+        XCTAssertFalse(allowed.contains("com.hnc.Discord"))
+        XCTAssertFalse(allowed.contains("com.google.Chrome"))
+
+        let discord = RunningAppInfo(bundleID: "com.hnc.Discord", name: "Discord", isRegular: true)
+        XCTAssertTrue(BlockPolicy.shouldBlock(discord, allowed: allowed))
+
+        let arc = RunningAppInfo(bundleID: "company.thebrowser.Browser", name: "Arc", isRegular: true)
+        XCTAssertFalse(BlockPolicy.shouldBlock(arc, allowed: allowed))
+    }
+
+    func testPlanningModeDailyQuotaPreventsSpam() async throws {
+        let h = EngineHarness()
+        let model = AppModel(store: try makeStore(), engine: h.engine)
+
+        XCTAssertTrue(model.canPlanToday)
+        await model.startPlanningMode()
+
+        XCTAssertFalse(model.canPlanToday)
         XCTAssertTrue(h.engine.isPlanningMode)
-        XCTAssertEqual(h.engine.discordBudgetRemaining, 5 * 60)
 
-        // Tick 10 times while Discord is active
-        for _ in 0..<10 {
-            h.engine.tick()
-        }
-        XCTAssertEqual(h.engine.discordBudgetRemaining, 5 * 60 - 10)
+        // Reset engine locked state to test second invocation
+        await h.engine.finish()
+        XCTAssertFalse(h.engine.isLocked)
 
-        // Switch to Messages; Discord budget should stay put
-        frontmostApp = "com.apple.MobileSMS"
-        for _ in 0..<5 {
-            h.engine.tick()
-        }
-        XCTAssertEqual(h.engine.discordBudgetRemaining, 5 * 60 - 10)
-    }
-
-    func testDiscordCutoffWhenBudgetExhausted() async {
-        let h = EngineHarness()
-        let frontmostApp = "com.hnc.Discord"
-        h.engine.activeAppBundleID = { frontmostApp }
-
-        let setup = Subject.planningSetup()
-        await h.engine.start(subject: setup, mode: .goal(minutes: 15), displayName: "Alex")
-
-        XCTAssertTrue(h.blocker.startedWith?.contains("com.hnc.Discord") == true)
-
-        // Fast forward 300 ticks
-        for _ in 0..<300 {
-            h.engine.tick()
-        }
-
-        XCTAssertEqual(h.engine.discordBudgetRemaining, 0)
-        XCTAssertFalse(h.blocker.startedWith?.contains("com.hnc.Discord") == true)
-        XCTAssertTrue(h.chrome.closedHosts.contains("discord.com"))
-        XCTAssertTrue(h.toaster.messages.contains { $0.contains("Discord 5-minute planning budget reached") })
+        // Attempting to start planning mode again should be rejected by the daily quota
+        await model.startPlanningMode()
+        XCTAssertFalse(h.engine.isLocked)
     }
 }

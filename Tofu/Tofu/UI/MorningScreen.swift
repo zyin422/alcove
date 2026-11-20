@@ -240,11 +240,17 @@ struct MorningView: View {
                         .foregroundStyle(.tertiary)
                 }
 
-                Button("15m Planning Mode") {
-                    Task { await model.startPlanningMode() }
+                if model.canPlanToday {
+                    Button("15m Planning Mode") {
+                        Task { await model.startPlanningMode() }
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                } else {
+                    Text("15m Planning used today")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
             }
             .padding(.bottom, Theme.Space.xl)
         }

@@ -179,7 +179,7 @@ struct LockedView: View {
             subjectCaption(engine: engine)
             timerText(engine: engine, width: contentWidth)
             if engine.isPlanningMode {
-                discordBadge(engine: engine)
+                planningBadge()
             }
             breakLine(engine: engine)
             goalBlock(engine: engine, barWidth: nil)
@@ -200,7 +200,7 @@ struct LockedView: View {
                 subjectCaption(engine: engine)
                 timerText(engine: engine, width: max(0, width / 2 - Theme.Space.m))
                 if engine.isPlanningMode {
-                    discordBadge(engine: engine)
+                    planningBadge()
                 }
                 breakLine(engine: engine)
                 goalBlock(engine: engine, barWidth: 160)
@@ -320,23 +320,20 @@ struct LockedView: View {
         isShowingMirror = true
     }
 
-    private func discordBadge(engine: SessionEngine) -> some View {
-        let remaining = Int(engine.discordBudgetRemaining)
-        let formatted = String(format: "%d:%02d", remaining / 60, remaining % 60)
-        let isExhausted = remaining <= 0
-        return HStack(spacing: 6) {
-            Image(systemName: isExhausted ? "slash.circle.fill" : "bubble.left.and.bubble.right.fill")
+    private func planningBadge() -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checklist")
                 .font(.system(size: 11))
-            Text(isExhausted ? "Discord: limit reached" : "Discord: \(formatted) left")
+            Text("Planning Mode: Arc & Tools")
                 .font(.system(size: 11, weight: .medium))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(isExhausted ? Color.primary.opacity(0.06) : Color.primary.opacity(0.12))
+                .fill(Theme.indigo.opacity(0.12))
         )
-        .foregroundStyle(isExhausted ? Color.secondary : Color.primary)
+        .foregroundStyle(Theme.indigo)
     }
 
     private var focusSoundControl: some View {

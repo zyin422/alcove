@@ -60,6 +60,8 @@ struct AppSettings: Codable, Equatable {
     var aiFeedURL: String
     /// DayKey when midnight 15m planning mode was last activated, capping it to once per night.
     var lastMidnightPlanningKey: String?
+    /// DayKey when daytime 15m planning mode was last activated, capping it to once per day.
+    var lastDayPlanningKey: String?
     /// Ambient focus audio played during lock-in sessions.
     var focusSound: FocusSound
     /// Volume of ambient focus audio (0.0 to 1.0).
@@ -86,6 +88,7 @@ struct AppSettings: Codable, Equatable {
          bedtimeGuardEnabled: Bool = true,
          aiFeedURL: String = "https://news.ycombinator.com",
          lastMidnightPlanningKey: String? = nil,
+         lastDayPlanningKey: String? = nil,
          focusSound: FocusSound = .off,
          focusSoundVolume: Double = 0.5,
          autoLaunchAtLogin: Bool = true,
@@ -116,6 +119,7 @@ struct AppSettings: Codable, Equatable {
         self.bedtimeGuardEnabled = bedtimeGuardEnabled
         self.aiFeedURL = aiFeedURL
         self.lastMidnightPlanningKey = lastMidnightPlanningKey
+        self.lastDayPlanningKey = lastDayPlanningKey
         self.focusSound = focusSound
         self.focusSoundVolume = focusSoundVolume
         self.autoLaunchAtLogin = autoLaunchAtLogin
@@ -165,6 +169,7 @@ extension AppSettings {
             aiFeedURL: try container.decodeIfPresent(String.self, forKey: .aiFeedURL)
                 ?? defaults.aiFeedURL,
             lastMidnightPlanningKey: try container.decodeIfPresent(String.self, forKey: .lastMidnightPlanningKey),
+            lastDayPlanningKey: try container.decodeIfPresent(String.self, forKey: .lastDayPlanningKey),
             focusSound: try container.decodeIfPresent(FocusSound.self, forKey: .focusSound)
                 ?? defaults.focusSound,
             focusSoundVolume: try container.decodeIfPresent(Double.self, forKey: .focusSoundVolume)

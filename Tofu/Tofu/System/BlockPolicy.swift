@@ -20,22 +20,16 @@ enum BlockPolicy {
     ]
 
     /// alwaysAllowed ∪ {ownBundleID} ∪ the setup's browser and window apps ∪ subject.allowedApps bundle IDs.
-    /// Chrome is only allowed when it is the setup's browser. Distraction apps and unmonitored browsers are always excluded,
-    /// except in Planning Mode where messaging apps are allowed under the strict 5-minute budget.
+    /// Chrome is only allowed when it is the setup's browser. Distraction apps and unmonitored browsers are always excluded.
     static func allowedSet(for subject: Subject, ownBundleID: String) -> Set<String> {
         var allowed = alwaysAllowed
         if subject.browser != .chrome { allowed.remove(Browser.chrome.bundleID) }
         allowed.insert(subject.browser.bundleID)
         allowed.insert(ownBundleID)
-        if subject.id == Subject.planningID {
-            allowed.formUnion(subject.slotApps.map(\.bundleID))
-            allowed.formUnion(subject.allowedApps.map(\.bundleID))
-        } else {
-            let safeSlotApps = subject.slotApps.map(\.bundleID).filter { !DistractionApps.isDistraction($0) }
-            let safeAllowedApps = subject.allowedApps.map(\.bundleID).filter { !DistractionApps.isDistraction($0) }
-            allowed.formUnion(safeSlotApps)
-            allowed.formUnion(safeAllowedApps)
-        }
+        let safeSlotApps = subject.slotApps.map(\.bundleID).filter { !DistractionApps.isDistraction($0) }
+        let safeAllowedApps = subject.allowedApps.map(\.bundleID).filter { !DistractionApps.isDistraction($0) }
+        allowed.formUnion(safeSlotApps)
+        allowed.formUnion(safeAllowedApps)
         return allowed
     }
 

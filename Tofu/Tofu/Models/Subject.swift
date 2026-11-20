@@ -169,22 +169,31 @@ struct Subject: Codable, Identifiable, Hashable {
     /// Protected non-editable system identifier for 15-minute planning mode.
     static let planningID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
 
-    /// Non-tamperable planning setup with feed URL and fixed communication allowances.
+    /// Non-tamperable planning setup with feed URL and productivity allowances (Arc, Muse, Antigravity, IDEs).
     static func planningSetup(feedURL: String = "https://news.ycombinator.com") -> Subject {
         let feed = feedURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedFeed = feed.isEmpty ? "https://news.ycombinator.com" : feed
         return Subject(
             id: planningID,
             name: "Planning Mode",
-            details: "15m daily planning: read AI digest, set priorities, triage urgent messages",
+            details: "15m daily planning: read AI digest, set priorities, triage with productivity tools",
             preset: .split,
             sites: [resolvedFeed],
             allowedApps: [
-                AllowedApp(bundleID: "com.apple.MobileSMS", name: "Messages"),
-                AllowedApp(bundleID: "com.tinyspeck.slackmacgap", name: "Slack"),
-                AllowedApp(bundleID: "ru.keepcoder.Telegram", name: "Telegram"),
-                AllowedApp(bundleID: "com.hnc.Discord", name: "Discord"),
+                AllowedApp(bundleID: "company.thebrowser.Browser", name: "Arc"),
+                AllowedApp(bundleID: "com.meta.endo", name: "Muse"),
+                AllowedApp(bundleID: "com.google.antigravity", name: "Antigravity"),
+                AllowedApp(bundleID: "com.google.antigravity-ide", name: "Antigravity IDE"),
+                AllowedApp(bundleID: "com.todesktop.230313mzl4w4u92", name: "Cursor"),
+                AllowedApp(bundleID: "com.microsoft.VSCode", name: "VS Code"),
+                AllowedApp(bundleID: "com.apple.dt.Xcode", name: "Xcode"),
+                AllowedApp(bundleID: "com.apple.Notes", name: "Notes"),
+                AllowedApp(bundleID: "com.apple.iCal", name: "Calendar"),
+                AllowedApp(bundleID: "com.apple.reminders", name: "Reminders"),
+                AllowedApp(bundleID: "com.apple.Terminal", name: "Terminal"),
+                AllowedApp(bundleID: "com.googlecode.iterm2", name: "iTerm"),
             ],
+            browser: .arc,
             colorHex: "4f46e5"
         )
     }

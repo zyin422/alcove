@@ -826,8 +826,21 @@ enum TokenSource: Equatable {
         return data.settings.lastMidnightPlanningKey != key
     }
 
+    /// Whether the daytime 15-minute planning mode is available today (capped at once per day to prevent avoidance spam).
+    func canPlanToday(now: Date = Date()) -> Bool {
+        let key = DayKey.key(for: now)
+        return data.settings.lastDayPlanningKey != key
+    }
+
+    var canPlanToday: Bool {
+        canPlanToday()
+    }
+
     /// Starts a dedicated 15-minute planning session on the system planning setup.
-    func startPlanningMode(now: Date = Date()) async {
+    func startPlanningMode(now: Date = Date(), force: Bool = false) async {
+        guard force || canPlanToday(now: now) else { return }
+        let key = DayKey.key(for: now)
+        updateSettings { $0.lastDayPlanningKey = key }
         dismissMorning()
         dismissBedtime()
         await lockIn(subjectID: Subject.planningID, mode: .goal(minutes: 15))
@@ -835,9 +848,10 @@ enum TokenSource: Equatable {
 
     /// Starts planning mode from the past-midnight bedtime screen, recording tonight's quota.
     func startPlanningFromBedtime(now: Date = Date()) async {
+        guard canPlanTonight(now: now) else { return }
         let key = DayKey.key(for: now)
         updateSettings { $0.lastMidnightPlanningKey = key }
-        await startPlanningMode(now: now)
+        await startPlanningMode(now: now, force: true)
     }
 
     /// From the morning screen: ties the priority to `subjectID` (when it had another or none), closes the

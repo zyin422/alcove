@@ -217,8 +217,10 @@ struct TodayView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
                 } else {
-                    Button("15m Planning") { Task { await model.startPlanningMode() } }
-                        .buttonStyle(SecondaryButtonStyle())
+                    if model.canPlanToday {
+                        Button("15m Planning") { Task { await model.startPlanningMode() } }
+                            .buttonStyle(SecondaryButtonStyle())
+                    }
                     Button("Start my day") { model.startMyDay() }
                         .buttonStyle(SecondaryButtonStyle())
                     Button(wrapUpButtonTitle) { model.isWrappingUpDay = true }
