@@ -91,6 +91,7 @@ struct TodayView: View {
     @ViewBuilder private var forceBlockCountdownBanner: some View {
         if shownDay == todayKey,
            !model.engine.isLocked,
+           !model.isStudyCompleted(day: todayKey),
            let deadline = model.nextForceBlockDeadline,
            let _ = model.secondsUntilNextForceBlock {
             TimelineView(.periodic(from: .now, by: 1.0)) { context in
@@ -209,6 +210,10 @@ struct TodayView: View {
             HStack {
                 if showsWrappedUp {
                     Label("Day wrapped up", systemImage: "moon.fill").foregroundStyle(.secondary)
+                } else if model.isStudyCompleted(day: shownDay) {
+                    Label("All study subjects completed 🎉", systemImage: "checkmark.seal.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.emerald)
                 }
                 Spacer()
                 if currentDayIsBlocked || pendingDay != nil {
@@ -229,6 +234,10 @@ struct TodayView: View {
             }
         } else if showsWrappedUp {
             Label("Day wrapped up", systemImage: "moon.fill").foregroundStyle(.secondary)
+        } else if model.isStudyCompleted(day: shownDay) {
+            Label("All study subjects completed 🎉", systemImage: "checkmark.seal.fill")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Theme.emerald)
         }
     }
 

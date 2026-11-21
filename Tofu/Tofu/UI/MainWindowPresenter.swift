@@ -39,6 +39,9 @@ enum MainWindowPolicy {
 
     init(model: AppModel) {
         self.model = model
+        model.onStudyCompleted = { [weak self] in
+            self?.closeBetweenBlocksPanel()
+        }
     }
 
     /// appFrame non-nil: put main window there and show LockedView. nil: hide main window, show mini timer.
@@ -116,7 +119,7 @@ enum MainWindowPolicy {
         } else {
             NSApp.activate()
         }
-        if model.secondsUntilNextForceBlock != nil {
+        if model.secondsUntilNextForceBlock != nil && !model.isStudyCompleted() {
             showBetweenBlocksPanel()
         }
     }
@@ -211,6 +214,10 @@ enum MainWindowPolicy {
                                    })
         panel.show()
         self.panel = panel
+    }
+
+    func closeBetweenBlocksPanel() {
+        closePanel()
     }
 
     private func closePanel() {

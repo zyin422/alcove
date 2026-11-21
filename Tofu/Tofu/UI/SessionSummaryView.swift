@@ -133,10 +133,12 @@ struct SessionSummaryView: View {
     @ViewBuilder private func priorityCheck(_ priority: Priority) -> some View {
         VStack(alignment: .leading, spacing: Theme.Space.s) {
             if answered {
+                let isAllDone = model.isStudyCompleted(day: DayKey.key(for: session.start))
                 Label(model.todayPlan().priorities.first { $0.id == priority.id }?.isDone == true
-                      ? "Ticked off “\(priority.title)”" : "“\(priority.title)” stays on today's list",
-                      systemImage: "checkmark")
-                    .foregroundStyle(.secondary)
+                      ? (isAllDone ? "Ticked off “\(priority.title)” — All study subjects completed for today! 🎉" : "Ticked off “\(priority.title)”")
+                      : "“\(priority.title)” stays on today's list",
+                      systemImage: isAllDone ? "checkmark.seal.fill" : "checkmark")
+                    .foregroundStyle(isAllDone ? Theme.emerald : .secondary)
             } else {
                 Text("Did you finish “\(priority.title)”?")
                     .font(.system(size: 15, weight: .semibold))

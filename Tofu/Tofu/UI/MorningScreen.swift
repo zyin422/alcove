@@ -221,7 +221,14 @@ struct MorningView: View {
             }
             Spacer()
             HStack(spacing: Theme.Space.l) {
-                if model.canPostponeMorning {
+                if model.isStudyCompleted() {
+                    Button("Done for the day") {
+                        model.dismissMorning()
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .keyboardShortcut(.cancelAction)
+                } else if model.canPostponeMorning {
                     Button("Not now (10 min)") {
                         model.postponeMorning()
                     }

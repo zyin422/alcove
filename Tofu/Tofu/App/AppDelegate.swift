@@ -52,6 +52,9 @@ enum QuitPolicy {
             self?.storedModel?.checkEndOfDay()
             self?.storedModel?.checkBedtime()
         }
+        model.onStudyCompleted = { [weak self] in
+            self?.presenter?.closeBetweenBlocksPanel()
+        }
         model.onShowMainWindow = { Self.bringMainWindowForward() }
         let morning = MorningWindowController(model: model)
         self.morning = morning

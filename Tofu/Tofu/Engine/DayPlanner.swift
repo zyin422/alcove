@@ -69,14 +69,15 @@ enum DayPlanner {
     }
 
     /// The morning screen comes back until a real block is under way, and again after one ends, until the day
-    /// is wrapped up. A calendar event and the grace after a real block both keep it down.
+    /// is wrapped up or all study subjects for the day are completed. A calendar event and the grace after a real block both keep it down.
     static func morningPrompt(now: Date, settings: AppSettings, isLocked: Bool, isBusy: Bool, wrappedUp: Bool,
+                              studyCompleted: Bool = false,
                               sessions: [Session], quiet: [QuietInterval], graceUntil: Date?, graceHeld: Bool,
                               calendar: Calendar = .current) -> MorningPrompt {
         let down = MorningPrompt(show: false, waitUntil: nil, postponeAllowed: false, graceUntil: nil)
         guard settings.morningScreenEnabled, !isLocked, !graceHeld else { return down }
         if isBusy { return down }
-        if wrappedUp {
+        if wrappedUp || studyCompleted {
             return MorningPrompt(show: false, waitUntil: DayKey.nextStart(after: now, calendar: calendar),
                                  postponeAllowed: false, graceUntil: nil)
         }
@@ -123,6 +124,7 @@ enum DayPlanner {
     /// minutes" delay is not still running, and the end-of-day time has not come yet.
     static func shouldShowMorning(now: Date, settings: AppSettings, isLocked: Bool, isBusy: Bool,
                                   hasStartedBlock: Bool = false, postponeUntil: Date? = nil,
+                                  studyCompleted: Bool = false,
                                   calendar: Calendar = .current) -> Bool {
         var settings = settings
         if let postponeUntil { settings.morningPostponeUntil = postponeUntil }
@@ -130,6 +132,7 @@ enum DayPlanner {
             ? [Session(subjectID: UUID(), subjectName: "", mode: .open, start: now)]
             : []
         return morningPrompt(now: now, settings: settings, isLocked: isLocked, isBusy: isBusy, wrappedUp: false,
+                             studyCompleted: studyCompleted,
                              sessions: sessions, quiet: [], graceUntil: nil, graceHeld: false, calendar: calendar).show
     }
 

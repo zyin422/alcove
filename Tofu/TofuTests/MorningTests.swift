@@ -368,4 +368,87 @@ final class MorningTests: XCTestCase {
         XCTAssertEqual(plan.priorities.first?.title, "CS225 Lab")
         XCTAssertFalse(plan.priorities.first?.isDone == true)
     }
+
+    @MainActor func testStudyCompletedSuppressesMorningPromptAndDeadline() throws {
+        let model = try makeModel(EngineHarness())
+        let now = Date()
+        let today = DayKey.key(for: now)
+        let subject = Subject(name: "CS128")
+        model.addSubject(subject)
+
+        let p1 = Priority(title: "CS128 Lab", subjectID: subject.id, isDone: false)
+        let p2 = Priority(title: "Math PSet", isDone: false)
+        model.updatePlan(day: today) { $0.priorities = [p1, p2] }
+
+        XCTAssertFalse(model.isStudyCompleted(day: today, now: now))
+
+        var shown = 0
+        model.onShowMorning = { shown += 1 }
+
+        // Finish subject priority CS128 Lab
+        model.setPriority(p1.id, done: true, day: today)
+        XCTAssertFalse(model.isStudyCompleted(day: today, now: now))
+
+        // Finish remaining priority Math PSet
+        model.setPriority(p2.id, done: true, day: today)
+        XCTAssertTrue(model.isStudyCompleted(day: today, now: now))
+
+        // checkMorning should NOT show the morning screen
+        model.checkMorning(now: now)
+        XCTAssertEqual(shown, 0, "completed study subjects must suppress the morning screen")
+
+        // Force-block deadline must be nil so no countdown or restriction is imposed
+        XCTAssertNil(model.nextForceBlockDeadline)
+        XCTAssertNil(model.secondsUntilNextForceBlock)
+    }
+
+    @MainActor func testStudyCompletedDismissesActiveMorningScreen() throws {
+        let model = try makeModel(EngineHarness())
+        let now = Date()
+        let today = DayKey.key(for: now)
+        let priority = Priority(title: "Lab Report", isDone: false)
+        model.updatePlan(day: today) { $0.priorities = [priority] }
+
+        var hidden = 0
+        model.onHideMorning = { hidden += 1 }
+
+        // Simulate morning screen already active
+        model.showMorning(now: now)
+        XCTAssertTrue(model.isShowingMorning)
+
+        // Mark the priority done
+        model.setPriority(priority.id, done: true, day: today)
+
+        XCTAssertTrue(model.isStudyCompleted(day: today, now: now))
+        XCTAssertFalse(model.isShowingMorning, "completing study subjects must dismiss active morning screen")
+        XCTAssertEqual(hidden, 1)
+    }
+
+    @MainActor func testStudyCompletedWhenAllActiveSubjectsStudiedWithoutPriorities() throws {
+        let model = try makeModel(EngineHarness())
+        let now = Date()
+        let today = DayKey.key(for: now)
+        let s1 = Subject(name: "CS128")
+        let s2 = Subject(name: "MATH241")
+        model.addSubject(s1)
+        model.addSubject(s2)
+
+        // No priorities in today's plan
+        model.updatePlan(day: today) { $0.priorities = [] }
+        XCTAssertFalse(model.isStudyCompleted(day: today, now: now))
+
+        // Record a finished session for s1 only
+        let sess1 = Session(subjectID: s1.id, subjectName: "CS128", mode: .open,
+                            start: now.addingTimeInterval(-3600), end: now.addingTimeInterval(-1800))
+        model.upsertSession(sess1)
+        XCTAssertFalse(model.isStudyCompleted(day: today, now: now))
+
+        // Record a finished session for s2
+        let sess2 = Session(subjectID: s2.id, subjectName: "MATH241", mode: .open,
+                            start: now.addingTimeInterval(-1200), end: now.addingTimeInterval(-300))
+        model.upsertSession(sess2)
+
+        XCTAssertTrue(model.isStudyCompleted(day: today, now: now),
+                      "when all configured subjects have completed sessions today, study is completed")
+    }
 }

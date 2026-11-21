@@ -53,6 +53,8 @@ enum TokenSource: Equatable {
     @ObservationIgnored var onShowChat: (() -> Void)?
     /// Runs after a session ends (AppDelegate hides the voice popup).
     @ObservationIgnored var onSessionEnded: (() -> Void)?
+    /// Runs when all study subjects for the day have been completed (closes between-blocks panel, etc).
+    @ObservationIgnored var onStudyCompleted: (() -> Void)?
     /// Brings the main window forward when the end-of-day wrap-up opens on its own.
     @ObservationIgnored var onShowMainWindow: (() -> Void)?
     /// True while the end-of-day wrap-up sheet is up.
@@ -533,7 +535,37 @@ enum TokenSource: Equatable {
             plan.priorities[index].isDone = done
             if done { finished = plan.priorities[index] }
         }
-        if let finished { postPriorityUpdate(finished) }
+        if let finished {
+            postPriorityUpdate(finished)
+            if isStudyCompleted(day: day) {
+                dismissMorning()
+                onStudyCompleted?()
+                ToastCenter.shared.show("All study subjects completed for today! 🎉")
+            }
+        }
+    }
+
+    /// True when the user has completed all study priorities or subjects planned for the given day.
+    func isStudyCompleted(day: String? = nil, now: Date = Date()) -> Bool {
+        let targetDay = day ?? DayKey.key(for: now)
+        let todayPlan = plan(for: targetDay)
+        if todayPlan?.wrappedUp == true { return true }
+
+        let priorities = todayPlan?.priorities ?? []
+        if !priorities.isEmpty {
+            return priorities.allSatisfy(\.isDone)
+        }
+
+        // Fallback: If no priorities were explicitly planned for today, check if every configured
+        // subject has at least one completed focus session recorded for today.
+        let subjects = data.subjects
+        guard !subjects.isEmpty else { return false }
+        let todaysSessions = data.sessions.filter {
+            !$0.isDemo && $0.end != nil && DayKey.key(for: $0.start) == targetDay
+        }
+        guard !todaysSessions.isEmpty else { return false }
+        let completedSubjectIDs = Set(todaysSessions.map(\.subjectID))
+        return subjects.allSatisfy { completedSubjectIDs.contains($0.id) }
     }
 
     /// The one-line update for a priority that just flipped to done. The end-of-day recap is separate.
@@ -584,17 +616,26 @@ enum TokenSource: Equatable {
         resumeMorningGrace(now: now)
         syncGraceSession(now: now)
         if openPreviousWrapUpIfNeeded(now: now) { return }
+        let today = DayKey.key(for: now)
+        let isWrapped = plan(for: today)?.wrappedUp == true
+        let isDone = isStudyCompleted(day: today, now: now)
         let prompt = DayPlanner.morningPrompt(
             now: now, settings: data.settings, isLocked: engine.isLocked,
             isBusy: isWrappingUpDay,
-            wrappedUp: plan(for: DayKey.key(for: now))?.wrappedUp == true,
+            wrappedUp: isWrapped,
+            studyCompleted: isDone,
             sessions: data.sessions, quiet: DayPlanner.quietIntervals(googleSync?.todayEvents ?? []),
             graceUntil: data.settings.morningGraceUntil, graceHeld: data.settings.morningGraceHeld != nil)
         if let deadline = prompt.graceUntil, deadline != data.settings.morningGraceUntil {
             updateSettings { $0.morningGraceUntil = deadline }
         }
         scheduleMorningReturn(at: prompt.waitUntil, now: now)
-        guard prompt.show else { return }
+        guard prompt.show else {
+            if isShowingMorning && (isWrapped || isDone) {
+                dismissMorning()
+            }
+            return
+        }
         showMorning(now: now)
     }
 
@@ -751,14 +792,19 @@ enum TokenSource: Equatable {
     // MARK: - Force-Block Countdown & Telemetry
 
     /// When the morning screen or between-block force lock-in will next take over the screen.
-    /// Nil if already locked in, if the day is wrapped up, or if past dayEndMinutes.
+    /// Nil if already locked in, if the day is wrapped up, if study subjects are completed, or if past dayEndMinutes.
     var nextForceBlockDeadline: Date? {
         guard !engine.isLocked else { return nil }
         let now = Date()
+        let today = DayKey.key(for: now)
+        if plan(for: today)?.wrappedUp == true || isStudyCompleted(day: today, now: now) {
+            return nil
+        }
         let prompt = DayPlanner.morningPrompt(
             now: now, settings: data.settings, isLocked: engine.isLocked,
             isBusy: isWrappingUpDay,
-            wrappedUp: plan(for: DayKey.key(for: now))?.wrappedUp == true,
+            wrappedUp: false,
+            studyCompleted: false,
             sessions: data.sessions,
             quiet: DayPlanner.quietIntervals(googleSync?.todayEvents ?? []),
             graceUntil: data.settings.morningGraceUntil,
@@ -767,7 +813,8 @@ enum TokenSource: Equatable {
         if prompt.show {
             return now
         }
-        return prompt.waitUntil
+        guard let wait = prompt.waitUntil, wait < DayKey.nextStart(after: now) else { return nil }
+        return wait
     }
 
     /// Remaining seconds until the next force lock-in. 0 if due now; nil if none scheduled.
