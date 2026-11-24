@@ -41,4 +41,38 @@ final class ToastLayoutTests: XCTestCase {
         XCTAssertEqual(ToastLayout.frame(index: -1, size: size, visible: visible, margin: 16),
                        ToastLayout.frame(index: 0, size: size, visible: visible, margin: 16))
     }
+
+    func testToastClassificationShield() {
+        let (cat1, msg1) = ToastContentParser.classify("🔒 Discord is blocked during CS128")
+        XCTAssertEqual(cat1, .shield)
+        XCTAssertEqual(msg1, "Discord is blocked during CS128")
+
+        let (cat2, msg2) = ToastContentParser.classify("Closed reddit.com — not relevant to MATH241")
+        XCTAssertEqual(cat2, .shield)
+        XCTAssertEqual(msg2, "Closed reddit.com — not relevant to MATH241")
+    }
+
+    func testToastClassificationGrace() {
+        let (cat, msg) = ToastContentParser.classify("🛡️ Grace pass active: 2 minutes to complete your task.")
+        XCTAssertEqual(cat, .grace)
+        XCTAssertEqual(msg, "Grace pass active: 2 minutes to complete your task.")
+    }
+
+    func testToastClassificationRest() {
+        let (cat, msg) = ToastContentParser.classify("Break extended +2m ☕️")
+        XCTAssertEqual(cat, .rest)
+        XCTAssertEqual(msg, "Break extended +2m")
+    }
+
+    func testToastClassificationCompleted() {
+        let (cat, msg) = ToastContentParser.classify("Saved: 45m on CS128")
+        XCTAssertEqual(cat, .completed)
+        XCTAssertEqual(msg, "Saved: 45m on CS128")
+    }
+
+    func testToastClassificationTelemetryFallback() {
+        let (cat, msg) = ToastContentParser.classify("Microphone permission granted.")
+        XCTAssertEqual(cat, .telemetry)
+        XCTAssertEqual(msg, "Microphone permission granted.")
+    }
 }

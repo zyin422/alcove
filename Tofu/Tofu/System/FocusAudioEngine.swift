@@ -122,9 +122,41 @@ enum FocusAudioMath {
     @ObservationIgnored private var sourceNode: AVAudioSourceNode?
     @ObservationIgnored private var player: AVAudioPlayer?
     @ObservationIgnored private var preDuckVolume: Float?
+    @ObservationIgnored private var fadeTask: Task<Void, Never>?
+
+    /// Smoothly transitions volume to target value over `duration` seconds.
+    func fadeVolume(to target: Float, duration: TimeInterval, completion: (@MainActor () -> Void)? = nil) {
+        fadeTask?.cancel()
+        if duration <= 0 {
+            engine?.mainMixerNode.outputVolume = target
+            player?.volume = target
+            completion?()
+            return
+        }
+
+        player?.setVolume(target, fadeDuration: duration)
+
+        let steps = 12
+        let stepDuration = duration / Double(steps)
+        let startVol = engine?.mainMixerNode.outputVolume ?? volume
+        let delta = (target - startVol) / Float(steps)
+
+        fadeTask = Task { @MainActor [weak self] in
+            var currentVol = startVol
+            for _ in 0..<steps {
+                if Task.isCancelled { return }
+                try? await Task.sleep(nanoseconds: UInt64(stepDuration * 1_000_000_000))
+                if Task.isCancelled { return }
+                currentVol += delta
+                self?.engine?.mainMixerNode.outputVolume = max(0.0, min(1.0, currentVol))
+            }
+            self?.engine?.mainMixerNode.outputVolume = target
+            completion?()
+        }
+    }
 
     /// Starts playing the requested soundscape.
-    func play(_ sound: FocusSound) {
+    func play(_ sound: FocusSound, fadeIn: Bool = true) {
         guard sound != .off else {
             stop()
             return
@@ -139,9 +171,12 @@ enum FocusAudioMath {
             do {
                 let audioPlayer = try AVAudioPlayer(contentsOf: localURL)
                 audioPlayer.numberOfLoops = -1
-                audioPlayer.volume = volume
+                audioPlayer.volume = fadeIn ? 0.0 : volume
                 audioPlayer.prepareToPlay()
                 audioPlayer.play()
+                if fadeIn {
+                    audioPlayer.setVolume(volume, fadeDuration: 1.0)
+                }
                 self.player = audioPlayer
                 self.isPlaying = true
                 return
@@ -344,11 +379,14 @@ enum FocusAudioMath {
         self.sourceNode = node
         audioEngine.attach(node)
         audioEngine.connect(node, to: audioEngine.mainMixerNode, format: format)
-        audioEngine.mainMixerNode.outputVolume = volume
+        audioEngine.mainMixerNode.outputVolume = fadeIn ? 0.0 : volume
 
         do {
             try audioEngine.start()
             isPlaying = true
+            if fadeIn {
+                fadeVolume(to: volume, duration: 1.0)
+            }
         } catch {
             stop()
         }
@@ -374,8 +412,25 @@ enum FocusAudioMath {
         return nil
     }
 
-    /// Stops audio playback and frees audio nodes.
+    /// Stops audio playback and frees audio nodes immediately.
     func stop() {
+        performImmediateStop()
+    }
+
+    /// Smoothly fades out audio over `duration` seconds before halting.
+    func fadeOutAndStop(duration: TimeInterval = 0.6) {
+        guard isPlaying else {
+            performImmediateStop()
+            return
+        }
+        fadeVolume(to: 0.0, duration: duration) { [weak self] in
+            self?.performImmediateStop()
+        }
+    }
+
+    private func performImmediateStop() {
+        fadeTask?.cancel()
+        fadeTask = nil
         if let engine, engine.isRunning {
             engine.stop()
         }
@@ -391,20 +446,35 @@ enum FocusAudioMath {
         activeSound = .off
     }
 
-    /// Pauses current playback without deallocating the pipeline.
-    func pause() {
+    /// Pauses current playback without deallocating the pipeline, with optional smooth fade-out.
+    func pause(fadeOutDuration: TimeInterval = 0) {
         guard isPlaying, !isPaused else { return }
-        engine?.pause()
-        player?.pause()
         isPaused = true
+        if fadeOutDuration > 0 {
+            fadeVolume(to: 0.0, duration: fadeOutDuration) { [weak self] in
+                self?.engine?.pause()
+                self?.player?.pause()
+            }
+        } else {
+            engine?.pause()
+            player?.pause()
+        }
     }
 
-    /// Resumes playback if paused.
-    func resume() {
+    /// Resumes playback if paused, with optional smooth fade-in.
+    func resume(fadeInDuration: TimeInterval = 0) {
         guard isPlaying, isPaused else { return }
+        isPaused = false
         try? engine?.start()
         player?.play()
-        isPaused = false
+        if fadeInDuration > 0 {
+            engine?.mainMixerNode.outputVolume = 0.0
+            player?.volume = 0.0
+            fadeVolume(to: volume, duration: fadeInDuration)
+        } else {
+            engine?.mainMixerNode.outputVolume = volume
+            player?.volume = volume
+        }
     }
 
     /// Ducks audio smoothly while voice assistant is speaking.

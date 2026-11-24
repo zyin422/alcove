@@ -14,6 +14,7 @@ struct EndOfDayView: View {
     @State private var spoken = ""
     @State private var tomorrow: [Priority] = []
     @State private var pendingParkedThoughts: Set<String> = []
+    @State private var pendingRolloverPriorities: Set<UUID> = []
     @State private var isMakingList = false
     @State private var plannerLines: [PlannerLine] = []
     @State private var plannerOffline = false
@@ -102,13 +103,65 @@ struct EndOfDayView: View {
             if today.isEmpty {
                 Text("You had no priorities planned for \(finishedWord).").foregroundStyle(.secondary)
             } else {
+                let unfinished = today.filter { !$0.isDone }
+                if !unfinished.isEmpty {
+                    HStack {
+                        Text("Unfinished priorities (\(unfinished.count))")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            let allQueued = unfinished.allSatisfy { pendingRolloverPriorities.contains($0.id) }
+                            if allQueued {
+                                for p in unfinished { pendingRolloverPriorities.remove(p.id) }
+                            } else {
+                                for p in unfinished { pendingRolloverPriorities.insert(p.id) }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: unfinished.allSatisfy { pendingRolloverPriorities.contains($0.id) } ? "checkmark.circle.fill" : "arrow.forward.square")
+                                    .font(.system(size: 11))
+                                Text(unfinished.allSatisfy { pendingRolloverPriorities.contains($0.id) } ? "Deselect all" : "Roll all \(unfinished.count) to \(nextWord)")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundStyle(Theme.indigo)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 ScrollView {
                     VStack(alignment: .leading, spacing: Theme.Space.s) {
                         ForEach($today) { $priority in
-                            Toggle(isOn: $priority.isDone) {
-                                Text(priority.title)
+                            HStack {
+                                Toggle(isOn: $priority.isDone) {
+                                    Text(priority.title)
+                                }
+                                .toggleStyle(.checkbox)
+                                Spacer()
+                                if !priority.isDone {
+                                    Button {
+                                        if pendingRolloverPriorities.contains(priority.id) {
+                                            pendingRolloverPriorities.remove(priority.id)
+                                        } else {
+                                            pendingRolloverPriorities.insert(priority.id)
+                                        }
+                                    } label: {
+                                        HStack(spacing: 3) {
+                                            Image(systemName: pendingRolloverPriorities.contains(priority.id) ? "arrow.right.circle.fill" : "arrow.right.circle")
+                                                .font(.system(size: 10))
+                                            Text(pendingRolloverPriorities.contains(priority.id) ? "Rollover" : "Roll to \(nextWord)")
+                                                .font(.system(size: 10, weight: .medium))
+                                        }
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(pendingRolloverPriorities.contains(priority.id) ? Theme.indigo.opacity(0.18) : Color.primary.opacity(0.06)))
+                                        .foregroundStyle(pendingRolloverPriorities.contains(priority.id) ? Theme.indigo : .secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Queue for \(nextWord)")
+                                }
                             }
-                            .toggleStyle(.checkbox)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -150,6 +203,13 @@ struct EndOfDayView: View {
 
             Spacer()
             HStack {
+                if !pendingRolloverPriorities.isEmpty {
+                    Button("Skip to review (\(pendingRolloverPriorities.count))") {
+                        tomorrow = DayPlanner.prepareRollover(from: today, selectedIDs: pendingRolloverPriorities)
+                        step = .review
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                }
                 Spacer()
                 Button("Next") {
                     step = .speak
@@ -205,6 +265,7 @@ struct EndOfDayView: View {
                 Button("Back") { step = .recap }.buttonStyle(SecondaryButtonStyle())
                 Spacer()
                 if isMakingList { ProgressView().controlSize(.small) }
+                let canMakeList = !listSource.isEmpty || !pendingParkedThoughts.isEmpty || !pendingRolloverPriorities.isEmpty
                 if usesConversation {
                     Button("Send", action: sendToPlanner)
                         .buttonStyle(PrimaryButtonStyle())
@@ -214,12 +275,12 @@ struct EndOfDayView: View {
                     Button("Make my list", action: makeList)
                         .buttonStyle(SecondaryButtonStyle())
                         .frame(width: 140)
-                        .disabled(isMakingList || voiceIn.isRecording || listSource.isEmpty)
+                        .disabled(isMakingList || voiceIn.isRecording || !canMakeList)
                 } else {
                     Button("Make my list", action: makeList)
                         .buttonStyle(PrimaryButtonStyle())
                         .frame(width: 180)
-                        .disabled(isMakingList || voiceIn.isRecording || listSource.isEmpty)
+                        .disabled(isMakingList || voiceIn.isRecording || !canMakeList)
                 }
             }
         }
@@ -300,7 +361,8 @@ struct EndOfDayView: View {
 
     private func apply(_ turn: PlannerTurn) {
         if turn.ready {
-            tomorrow = turn.priorities
+            let rollover = DayPlanner.prepareRollover(from: today, selectedIDs: pendingRolloverPriorities)
+            tomorrow = DayPlanner.appendNew(rollover, to: turn.priorities)
             step = .review
             return
         }
@@ -312,7 +374,7 @@ struct EndOfDayView: View {
 
     private func makeList() {
         let source = listSource
-        guard !source.isEmpty || !pendingParkedThoughts.isEmpty else { return }
+        guard !source.isEmpty || !pendingParkedThoughts.isEmpty || !pendingRolloverPriorities.isEmpty else { return }
         if voiceIn.isRecording { voiceIn.stop() }
         isMakingList = true
         Task {
@@ -324,7 +386,8 @@ struct EndOfDayView: View {
                     result.append(Priority(title: title, subjectID: subject, estimatedMinutes: estimated))
                 }
             }
-            tomorrow = result
+            let rollover = DayPlanner.prepareRollover(from: today, selectedIDs: pendingRolloverPriorities)
+            tomorrow = DayPlanner.appendNew(rollover, to: result)
             isMakingList = false
             step = .review
         }

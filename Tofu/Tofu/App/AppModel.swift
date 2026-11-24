@@ -212,7 +212,7 @@ enum TokenSource: Equatable {
         assistant.apps = engine
         engine.onEnded = { [weak self] in
             BlockGuard.disarm()
-            FocusAudioEngine.shared.stop()
+            FocusAudioEngine.shared.fadeOutAndStop(duration: 0.8)
             self?.assistant.endSession()
             self?.onSessionEnded?()
             self?.checkMorning()

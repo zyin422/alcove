@@ -224,11 +224,28 @@ enum DayPlanner {
             }
             if let match {
                 if result[match].subjectID == nil { result[match].subjectID = priority.subjectID }
+                if result[match].estimatedMinutes == nil { result[match].estimatedMinutes = priority.estimatedMinutes }
             } else {
                 result.append(priority)
             }
         }
         return result
+    }
+
+    /// Prepares unfinished priorities for rollover into tomorrow with clean uncompleted state.
+    static func prepareRollover(from priorities: [Priority], selectedIDs: Set<UUID>) -> [Priority] {
+        priorities
+            .filter { selectedIDs.contains($0.id) && !$0.isDone }
+            .map { priority in
+                Priority(
+                    title: priority.title,
+                    subjectID: priority.subjectID,
+                    isDone: false,
+                    googleTaskID: priority.googleTaskID,
+                    estimatedMinutes: priority.estimatedMinutes,
+                    scheduledMinutesFromMidnight: nil
+                )
+            }
     }
 
     private static func normalized(_ title: String) -> String {

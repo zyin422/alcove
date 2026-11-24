@@ -88,19 +88,122 @@ enum ToastLayout {
     }
 }
 
-/// Inverted pill: primary-colored fill (black in light mode, white in dark) with background-colored text.
+/// Pure category classification and styling for toast telemetry HUD alerts.
+enum ToastCategory: Equatable {
+    case shield
+    case grace
+    case rest
+    case completed
+    case telemetry
+
+    var tag: String {
+        switch self {
+        case .shield: "SHIELD INTERVENTION"
+        case .grace: "GRACE PASS"
+        case .rest: "BREAK RECHARGE"
+        case .completed: "SESSION LOGGED"
+        case .telemetry: "TOFU TELEMETRY"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .shield: "shield.slash.fill"
+        case .grace: "shield.fill"
+        case .rest: "cup.and.saucer.fill"
+        case .completed: "checkmark.seal.fill"
+        case .telemetry: "bell.badge.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .shield: Color(red: 0.85, green: 0.47, blue: 0.02) // Warm amber #d97706
+        case .grace: Color(red: 0.31, green: 0.27, blue: 0.90)  // Indigo #4f46e5
+        case .rest: Color(red: 0.02, green: 0.59, blue: 0.41)   // Sage #059669
+        case .completed: Color(red: 0.02, green: 0.59, blue: 0.41)
+        case .telemetry: Color(red: 0.45, green: 0.52, blue: 0.60) // Neutral slate
+        }
+    }
+}
+
+enum ToastContentParser {
+    static func classify(_ rawMessage: String) -> (category: ToastCategory, cleanMessage: String) {
+        let trimmed = rawMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.contains("blocked") || trimmed.contains("Closed") || trimmed.hasPrefix("🔒") {
+            return (.shield, stripLeadingEmoji(trimmed))
+        }
+        if trimmed.contains("Grace pass") || trimmed.hasPrefix("🛡️") {
+            return (.grace, stripLeadingEmoji(trimmed))
+        }
+        if trimmed.contains("Break") || trimmed.contains("☕️") {
+            return (.rest, stripLeadingEmoji(trimmed))
+        }
+        if trimmed.contains("Saved:") || trimmed.contains("🎉") {
+            return (.completed, stripLeadingEmoji(trimmed))
+        }
+        return (.telemetry, stripLeadingEmoji(trimmed))
+    }
+
+    private static func stripLeadingEmoji(_ text: String) -> String {
+        var result = text
+        for prefix in ["🔒 ", "🛡️ ", "☕️ ", "🎉 ", "🔒", "🛡️", "☕️", "🎉"] {
+            if result.hasPrefix(prefix) {
+                result = String(result.dropFirst(prefix.count))
+            }
+        }
+        if result.hasSuffix(" ☕️") {
+            result = String(result.dropLast(" ☕️".count))
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// Industrial Telemetry HUD toast pill adhering to DESIGN.md System 2.
 struct ToastView: View {
     let message: String
 
     var body: some View {
-        Text(message)
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(Color(nsColor: .windowBackgroundColor))
-            .lineLimit(2)
-            .minimumScaleFactor(0.8)
-            .multilineTextAlignment(.leading)
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary))
+        let (category, clean) = ToastContentParser.classify(message)
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(category.color.opacity(0.18))
+                    .frame(width: 30, height: 30)
+                Image(systemName: category.iconName)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(category.color)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(category.color)
+                        .frame(width: 4.5, height: 4.5)
+                    Text(category.tag)
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundStyle(category.color)
+                        .tracking(0.6)
+                }
+
+                Text(clean)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(category.color.opacity(0.35), lineWidth: 1)
+                )
+        )
     }
 }

@@ -698,4 +698,42 @@ final class DayPlanModelTests: XCTestCase {
         XCTAssertEqual(plan.activePriority(for: subB)?.id, p4.id)
         XCTAssertNil(plan.activePriority(for: UUID()))
     }
+
+    func testPrepareRolloverFiltersUnfinishedAndResetsCompletionState() {
+        let sub = UUID()
+        let p1 = Priority(title: "Finished Task", subjectID: sub, isDone: true, estimatedMinutes: 30)
+        let p2 = Priority(title: "Unfinished Task 1", subjectID: sub, isDone: false, estimatedMinutes: 45, scheduledMinutesFromMidnight: 600)
+        let p3 = Priority(title: "Unfinished Task 2", subjectID: nil, isDone: false, estimatedMinutes: 60)
+        let p4 = Priority(title: "Unselected Task", subjectID: sub, isDone: false)
+
+        let selected: Set<UUID> = [p1.id, p2.id, p3.id]
+        let rollover = DayPlanner.prepareRollover(from: [p1, p2, p3, p4], selectedIDs: selected)
+
+        XCTAssertEqual(rollover.count, 2)
+        XCTAssertEqual(rollover[0].title, "Unfinished Task 1")
+        XCTAssertEqual(rollover[0].subjectID, sub)
+        XCTAssertEqual(rollover[0].estimatedMinutes, 45)
+        XCTAssertFalse(rollover[0].isDone)
+        XCTAssertNil(rollover[0].scheduledMinutesFromMidnight, "Rolled-over priorities should reset scheduled time for the new day")
+
+        XCTAssertEqual(rollover[1].title, "Unfinished Task 2")
+        XCTAssertEqual(rollover[1].estimatedMinutes, 60)
+        XCTAssertFalse(rollover[1].isDone)
+    }
+
+    func testAppendNewMergesRolloverWithoutDuplication() {
+        let sub = UUID()
+        let existing = [Priority(title: "Existing Task", subjectID: sub)]
+        let rollover = [
+            Priority(title: "Existing task", subjectID: sub, estimatedMinutes: 45),
+            Priority(title: "New Task", subjectID: sub, estimatedMinutes: 30)
+        ]
+
+        let merged = DayPlanner.appendNew(rollover, to: existing)
+        XCTAssertEqual(merged.count, 2)
+        XCTAssertEqual(merged[0].title, "Existing Task")
+        XCTAssertEqual(merged[0].estimatedMinutes, 45, "Should enrich missing metadata")
+        XCTAssertEqual(merged[1].title, "New Task")
+        XCTAssertEqual(merged[1].estimatedMinutes, 30)
+    }
 }

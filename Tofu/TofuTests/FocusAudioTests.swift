@@ -138,4 +138,34 @@ final class FocusAudioTests: XCTestCase {
         XCTAssertEqual(FocusAudioEngine.toggleMute(current: .off, fallback: .stream), .stream)
         XCTAssertEqual(FocusAudioEngine.toggleMute(current: .off, fallback: .off), .brownNoise)
     }
+
+    @MainActor
+    func testFocusAudioFadeTransitions() async {
+        let engine = FocusAudioEngine.shared
+        engine.volume = 0.8
+        engine.play(.brownNoise, fadeIn: false)
+        XCTAssertTrue(engine.isPlaying)
+
+        var completed = false
+        engine.fadeVolume(to: 0.2, duration: 0.05) {
+            completed = true
+        }
+        try? await Task.sleep(nanoseconds: 70_000_000)
+        XCTAssertTrue(completed)
+
+        engine.stop()
+        XCTAssertFalse(engine.isPlaying)
+    }
+
+    @MainActor
+    func testFocusAudioFadeOutAndStop() async {
+        let engine = FocusAudioEngine.shared
+        engine.play(.brownNoise, fadeIn: false)
+        XCTAssertTrue(engine.isPlaying)
+
+        engine.fadeOutAndStop(duration: 0.05)
+        try? await Task.sleep(nanoseconds: 70_000_000)
+        XCTAssertFalse(engine.isPlaying)
+        XCTAssertEqual(engine.activeSound, .off)
+    }
 }
