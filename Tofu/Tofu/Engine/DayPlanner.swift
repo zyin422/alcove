@@ -164,6 +164,12 @@ enum DayPlanner {
         return plan.priorities.first { !$0.isDone && $0.subjectID == session.subjectID }
     }
 
+    /// The next unfinished priority in `plan`, optionally excluding an in-flight or just-confirmed priority ID.
+    static func nextPriority(in plan: DayPlan?, excludingID: UUID? = nil) -> Priority? {
+        guard let plan else { return nil }
+        return plan.priorities.first { !$0.isDone && $0.id != excludingID }
+    }
+
     // MARK: Wrap-up merges (Google-safe: none of these ever drops a stored priority)
 
     /// The sheet's ticks over the stored plan; stored titles and links win, unseen linked priorities are kept.

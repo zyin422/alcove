@@ -5,6 +5,7 @@ import SwiftUI
 struct RootView: View {
     let model: AppModel
     @State private var summary: Session?
+    @State private var lockInSubject: Subject?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
@@ -28,7 +29,12 @@ struct RootView: View {
             }
         }
         .sheet(item: $summary) { ended in
-            SessionSummaryView(model: model, session: ended)
+            SessionSummaryView(model: model, session: ended, onStartNext: { nextSubject in
+                lockInSubject = nextSubject
+            })
+        }
+        .sheet(item: $lockInSubject) { subject in
+            LockInSheet(model: model, subject: subject)
         }
         .sheet(isPresented: Binding(get: { model.isWrappingUpDay && !model.engine.isLocked && summary == nil },
                                     set: { if !$0 { model.isWrappingUpDay = false } })) {

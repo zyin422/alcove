@@ -115,6 +115,23 @@ final class DayPlannerTests: XCTestCase {
         XCTAssertNil(DayPlanner.priorityToConfirm(after: session, in: plan))
     }
 
+    func testNextPriorityFindsNextUnfinishedPriorityExcludingCurrent() {
+        let p1 = Priority(title: "Problem Set 1", isDone: true)
+        let p2 = Priority(title: "Problem Set 2", isDone: false)
+        let p3 = Priority(title: "Read Chapter 4", isDone: false)
+        let plan = DayPlan(day: "2026-10-10", priorities: [p1, p2, p3])
+
+        // Excluding p2 -> returns p3
+        XCTAssertEqual(DayPlanner.nextPriority(in: plan, excludingID: p2.id), p3)
+
+        // Excluding nil -> returns first unfinished (p2)
+        XCTAssertEqual(DayPlanner.nextPriority(in: plan, excludingID: nil), p2)
+
+        // All done or excluded -> nil
+        let allDonePlan = DayPlan(day: "2026-10-10", priorities: [p1])
+        XCTAssertNil(DayPlanner.nextPriority(in: allDonePlan, excludingID: nil))
+    }
+
     // MARK: Spoken list
 
     func testSplitsASpokenListIntoTitles() {

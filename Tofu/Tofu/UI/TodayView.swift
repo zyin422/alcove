@@ -465,14 +465,25 @@ struct SetupPicker: View {
     let subjects: [Subject]
     @Binding var selection: UUID?
 
+    private var selectedSubject: Subject? {
+        subjects.first { $0.id == selection }
+    }
+
     var body: some View {
-        Picker("Setup", selection: $selection) {
-            Text("No setup").tag(UUID?.none)
-            ForEach(subjects) { subject in
-                Text(subject.name).tag(UUID?.some(subject.id))
+        HStack(spacing: 6) {
+            if let selectedSubject {
+                Circle()
+                    .fill(Theme.subjectColor(selectedSubject.colorHex))
+                    .frame(width: 7, height: 7)
             }
+            Picker("Setup", selection: $selection) {
+                Text("No setup").tag(UUID?.none)
+                ForEach(subjects) { subject in
+                    Text(subject.name).tag(UUID?.some(subject.id))
+                }
+            }
+            .labelsHidden()
         }
-        .labelsHidden()
     }
 }
 

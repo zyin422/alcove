@@ -28,6 +28,7 @@ enum SessionSummaryText {
 struct SessionSummaryView: View {
     let model: AppModel
     let session: Session
+    var onStartNext: ((Subject) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     /// The priority this lock-in worked on, asked about once ("Did you finish …?").
     @State private var priority: Priority?
@@ -82,6 +83,11 @@ struct SessionSummaryView: View {
 
             if let priority {
                 priorityCheck(priority)
+            }
+
+            let next = DayPlanner.nextPriority(in: model.plan(for: DayKey.key(for: session.start)) ?? model.todayPlan(), excludingID: priority?.id)
+            if let next {
+                nextPrioritySection(next)
             }
 
             Button("Done") { dismiss() }
@@ -202,17 +208,32 @@ struct SessionSummaryView: View {
         VStack(alignment: .leading, spacing: Theme.Space.s) {
             if answered {
                 let isAllDone = model.isStudyCompleted(day: DayKey.key(for: session.start))
-                Label(model.todayPlan().priorities.first { $0.id == priority.id }?.isDone == true
-                      ? (isAllDone ? "Ticked off “\(priority.title)” — All study subjects completed for today! 🎉" : "Ticked off “\(priority.title)”")
-                      : "“\(priority.title)” stays on today's list",
-                      systemImage: isAllDone ? "checkmark.seal.fill" : "checkmark")
-                    .foregroundStyle(isAllDone ? Theme.emerald : .secondary)
+                let wasDone = model.todayPlan().priorities.first { $0.id == priority.id }?.isDone == true
+                HStack(spacing: 8) {
+                    Image(systemName: wasDone ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(wasDone ? Theme.emerald : Color.secondary)
+                    Text(wasDone
+                         ? (isAllDone ? "Ticked off “\(priority.title)” — All study subjects completed! 🎉" : "Ticked off “\(priority.title)” 🎉")
+                         : "“\(priority.title)” stays on today's list")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(wasDone ? Theme.emerald : Color.secondary)
+                }
+                .padding(.vertical, 4)
             } else {
                 Text("Did you finish “\(priority.title)”?")
                     .font(.system(size: 15, weight: .semibold))
                 HStack(spacing: Theme.Space.s) {
-                    Button("Yes, it's done") { answer(priority, done: true) }
-                        .buttonStyle(SecondaryButtonStyle())
+                    Button {
+                        answer(priority, done: true)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                            Text("Yes, it's done")
+                        }
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+
                     Button("Not yet") { answer(priority, done: false) }
                         .buttonStyle(SecondaryButtonStyle())
                 }
@@ -220,7 +241,64 @@ struct SessionSummaryView: View {
         }
         .padding(Theme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
+        .background(
+            RoundedRectangle(cornerRadius: Theme.radius)
+                .fill(Color.primary.opacity(0.03))
+        )
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.12), lineWidth: 1))
+    }
+
+    private func nextPrioritySection(_ next: Priority) -> some View {
+        let subject = next.subjectID.flatMap(model.subject(id:)) ?? model.data.subjects.first
+        return VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            HStack {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.forward.circle.fill")
+                        .foregroundStyle(Theme.indigo)
+                        .font(.system(size: 11))
+                    Text("NEXT UP TODAY")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Theme.indigo)
+                        .tracking(1)
+                }
+                Spacer()
+                if let subject {
+                    let col = Theme.subjectColor(subject.colorHex)
+                    HStack(spacing: 4) {
+                        Circle().fill(col).frame(width: 5, height: 5)
+                        Text(subject.name)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(col)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(col.opacity(0.12)))
+                }
+            }
+
+            Text(next.title)
+                .font(.system(size: 14, weight: .semibold))
+
+            if let subject {
+                Button {
+                    dismiss()
+                    onStartNext?(subject)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "bolt.fill")
+                        Text("Lock in “\(next.title)”")
+                    }
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .padding(.top, 2)
+            }
+        }
+        .padding(Theme.Space.s)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Theme.indigo.opacity(0.04))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.indigo.opacity(0.2), lineWidth: 1))
+        )
     }
 
     private func answer(_ priority: Priority, done: Bool) {

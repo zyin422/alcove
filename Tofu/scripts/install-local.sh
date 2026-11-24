@@ -15,11 +15,12 @@ if [ "${1:-}" = "--no-restart" ]; then
   RESTART=0
 fi
 
-echo "==> Building Tofu (Release)..."
-xcodebuild -project Tofu.xcodeproj -scheme Tofu -configuration Release -destination 'platform=macOS' build -quiet
+ARCH="$(uname -m)"
+echo "==> Building Tofu (Release for $ARCH)..."
+xcodebuild -project Tofu.xcodeproj -scheme Tofu -configuration Release -destination "platform=macOS,arch=$ARCH" build -quiet
 
-TARGET_BUILD_DIR="$(xcodebuild -project Tofu.xcodeproj -scheme Tofu -configuration Release -destination 'platform=macOS' -showBuildSettings 2>/dev/null | awk -F' = ' '$1 ~ /TARGET_BUILD_DIR/ { print $2; exit }')"
-FULL_PRODUCT_NAME="$(xcodebuild -project Tofu.xcodeproj -scheme Tofu -configuration Release -destination 'platform=macOS' -showBuildSettings 2>/dev/null | awk -F' = ' '$1 ~ /FULL_PRODUCT_NAME/ { print $2; exit }')"
+TARGET_BUILD_DIR="$(xcodebuild -project Tofu.xcodeproj -scheme Tofu -configuration Release -destination "platform=macOS,arch=$ARCH" -showBuildSettings 2>/dev/null | awk -F' = ' '$1 ~ /TARGET_BUILD_DIR/ { print $2; exit }')"
+FULL_PRODUCT_NAME="$(xcodebuild -project Tofu.xcodeproj -scheme Tofu -configuration Release -destination "platform=macOS,arch=$ARCH" -showBuildSettings 2>/dev/null | awk -F' = ' '$1 ~ /FULL_PRODUCT_NAME/ { print $2; exit }')"
 
 BUILT_APP="${TARGET_BUILD_DIR}/${FULL_PRODUCT_NAME}"
 if [ ! -d "$BUILT_APP" ]; then
