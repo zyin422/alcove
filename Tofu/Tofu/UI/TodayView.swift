@@ -72,8 +72,8 @@ struct TodayView: View {
                     }
                 } else {
                     VStack(spacing: 0) {
-                        ForEach(plan.priorities) { priority in
-                            row(priority)
+                        ForEach(Array(plan.priorities.enumerated()), id: \.element.id) { index, priority in
+                            row(priority, index: index, count: plan.priorities.count)
                             if priority.id != plan.priorities.last?.id { Divider() }
                         }
                     }
@@ -263,7 +263,7 @@ struct TodayView: View {
         shownMonth = DayCalendar.shiftMonth(year: month.year, month: month.month, by: delta)
     }
 
-    private func row(_ priority: Priority) -> some View {
+    private func row(_ priority: Priority, index: Int = 0, count: Int = 1) -> some View {
         HStack(spacing: Theme.Space.s) {
             if canEdit {
                 Button {
@@ -323,6 +323,34 @@ struct TodayView: View {
                             .buttonStyle(.plain)
                     }
                 }
+
+                if count > 1 {
+                    HStack(spacing: 2) {
+                        Button {
+                            model.movePriority(from: index, to: index - 1, day: plan.day)
+                        } label: {
+                            Image(systemName: "chevron.up")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(index == 0)
+                        .foregroundStyle(index == 0 ? Color.secondary.opacity(0.3) : Color.secondary)
+                        .help("Move priority up")
+
+                        Button {
+                            model.movePriority(from: index, to: index + 1, day: plan.day)
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(index == count - 1)
+                        .foregroundStyle(index == count - 1 ? Color.secondary.opacity(0.3) : Color.secondary)
+                        .help("Move priority down")
+                    }
+                    .padding(.horizontal, 2)
+                }
+
                 Button {
                     model.updatePlan(day: plan.day) { $0.priorities.removeAll { $0.id == priority.id } }
                 } label: {

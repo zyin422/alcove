@@ -216,6 +216,15 @@ enum MainWindowPolicy {
                                        FocusAudioEngine.shared.play(next)
                                        let notice = next == .off ? "Sound: Off 🔇" : "Sound: \(next.rawValue) 🎧"
                                        self.panel?.showNotice(notice)
+                                   },
+                                   onToggleMute: { [weak self] in
+                                       guard let self else { return }
+                                       let current = self.model.data.settings.focusSound
+                                       let toggled = FocusAudioEngine.toggleMute(current: current)
+                                       self.model.updateSettings { $0.focusSound = toggled }
+                                       FocusAudioEngine.shared.play(toggled)
+                                       let notice = toggled == .off ? "Sound: Muted 🔇" : "Sound: \(toggled.rawValue) 🎧"
+                                       self.panel?.showNotice(notice)
                                    })
         panel.show()
         self.panel = panel

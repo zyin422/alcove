@@ -132,6 +132,27 @@ final class DayPlannerTests: XCTestCase {
         XCTAssertNil(DayPlanner.nextPriority(in: allDonePlan, excludingID: nil))
     }
 
+    func testDayPlanMovePriority() {
+        let p1 = Priority(title: "Task 1")
+        let p2 = Priority(title: "Task 2")
+        let p3 = Priority(title: "Task 3")
+        var plan = DayPlan(day: "2026-11-24", priorities: [p1, p2, p3])
+
+        // Move task 3 to top (index 2 -> 0)
+        plan.movePriority(from: 2, to: 0)
+        XCTAssertEqual(plan.priorities.map(\.title), ["Task 3", "Task 1", "Task 2"])
+
+        // Move task 1 to bottom (index 1 -> 2)
+        plan.movePriority(from: 1, to: 2)
+        XCTAssertEqual(plan.priorities.map(\.title), ["Task 3", "Task 2", "Task 1"])
+
+        // Invalid indices are no-ops
+        plan.movePriority(from: -1, to: 1)
+        plan.movePriority(from: 0, to: 99)
+        plan.movePriority(from: 1, to: 1)
+        XCTAssertEqual(plan.priorities.map(\.title), ["Task 3", "Task 2", "Task 1"])
+    }
+
     // MARK: Spoken list
 
     func testSplitsASpokenListIntoTitles() {

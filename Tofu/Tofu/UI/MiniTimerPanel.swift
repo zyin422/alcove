@@ -407,7 +407,7 @@ struct MiniTimerView: View {
                                 .overlay(
                                     isSoundActive ? Circle().stroke(Theme.indigo.opacity(0.4), lineWidth: 1) : nil
                                 )
-                                .help(isSoundActive ? "Soundscape: \(sound.rawValue) (click to cycle)" : "Focus soundscape: Off (click to cycle)")
+                                .help(isSoundActive ? "Soundscape: \(sound.rawValue) (click to cycle, ⌥-click to mute)" : "Focus soundscape: Off (click to cycle, ⌥-click to resume)")
 
                             Image(systemName: "lightbulb.fill")
                                 .font(.system(size: 11))
@@ -457,7 +457,7 @@ struct MiniTimerView: View {
 @MainActor private final class ClickDragView: NSView {
     var onPress: (() -> Void)?
     var onDrag: ((CGPoint) -> Void)?
-    var onRelease: ((CGPoint, Bool) -> Void)?
+    var onRelease: ((CGPoint, Bool, NSEvent.ModifierFlags) -> Void)?
     private var pressMouse: CGPoint?
     private var isDragging = false
 
@@ -483,9 +483,10 @@ struct MiniTimerView: View {
         guard pressMouse != nil else { return }
         let dragging = isDragging
         let point = convert(event.locationInWindow, from: nil)
+        let flags = event.modifierFlags
         pressMouse = nil
         isDragging = false
-        onRelease?(point, dragging)
+        onRelease?(point, dragging, flags)
     }
 }
 
@@ -501,6 +502,7 @@ struct MiniTimerView: View {
     private let onLockIn: (() -> Void)?
     private let onParkThought: (() -> Void)?
     private let onCycleSound: (() -> Void)?
+    private let onToggleMute: (() -> Void)?
     private let engine: SessionEngine
     private let model: AppModel?
     /// True when the press began on the tucked tab. A drag that starts open can cross the top without this.
@@ -522,7 +524,8 @@ struct MiniTimerView: View {
          onEnd: @escaping () -> Void,
          onLockIn: (() -> Void)? = nil,
          onParkThought: (() -> Void)? = nil,
-         onCycleSound: (() -> Void)? = nil) {
+         onCycleSound: (() -> Void)? = nil,
+         onToggleMute: (() -> Void)? = nil) {
         self.engine = engine
         self.model = model
         self.onOpen = onOpen
@@ -530,6 +533,7 @@ struct MiniTimerView: View {
         self.onLockIn = onLockIn
         self.onParkThought = onParkThought
         self.onCycleSound = onCycleSound
+        self.onToggleMute = onToggleMute
         let size = MiniTimerLayout.panelSize
         super.init(contentRect: NSRect(origin: .zero, size: size),
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -553,7 +557,7 @@ struct MiniTimerView: View {
         overlay.autoresizingMask = [.width, .height]
         overlay.onPress = { [weak self] in self?.pointerPressed() }
         overlay.onDrag = { [weak self] mouse in self?.pointerDragged(to: mouse) }
-        overlay.onRelease = { [weak self] point, dragging in self?.pointerReleased(at: point, dragging: dragging) }
+        overlay.onRelease = { [weak self] point, dragging, flags in self?.pointerReleased(at: point, dragging: dragging, modifiers: flags) }
         container.addSubview(overlay)
         contentView = container
     }
@@ -665,7 +669,7 @@ struct MiniTimerView: View {
         setFrame(next, display: true)
     }
 
-    private func pointerReleased(at point: CGPoint, dragging: Bool) {
+    private func pointerReleased(at point: CGPoint, dragging: Bool, modifiers: NSEvent.ModifierFlags = []) {
         pointerDown = false
         let mouse = NSEvent.mouseLocation
         guard let visible = visibleFrame(near: mouse) else {
@@ -720,7 +724,11 @@ struct MiniTimerView: View {
                 if MiniTimerLayout.isThoughtHit(point, in: frame.size) {
                     onParkThought?()
                 } else if MiniTimerLayout.isSoundHit(point, in: frame.size) {
-                    onCycleSound?()
+                    if modifiers.contains(.option) {
+                        onToggleMute?()
+                    } else {
+                        onCycleSound?()
+                    }
                 } else {
                     onOpen()
                 }

@@ -120,4 +120,22 @@ final class FocusAudioTests: XCTestCase {
         let dir = FocusAudioEngine.audioDirectory
         XCTAssertTrue(dir.path.contains("Tofu/Audio"))
     }
+
+    func testNextSoundRotation() {
+        XCTAssertEqual(FocusAudioEngine.nextSound(after: .off), .rain)
+        XCTAssertEqual(FocusAudioEngine.nextSound(after: .rain), .stream)
+        XCTAssertEqual(FocusAudioEngine.nextSound(after: .stream), .lofiDrone)
+        XCTAssertEqual(FocusAudioEngine.nextSound(after: .lofiDrone), .brownNoise)
+        XCTAssertEqual(FocusAudioEngine.nextSound(after: .brownNoise), .off)
+    }
+
+    func testToggleMute() {
+        // When active, muting sets to .off
+        XCTAssertEqual(FocusAudioEngine.toggleMute(current: .rain), .off)
+        XCTAssertEqual(FocusAudioEngine.toggleMute(current: .brownNoise), .off)
+
+        // When off, unmuting restores fallback
+        XCTAssertEqual(FocusAudioEngine.toggleMute(current: .off, fallback: .stream), .stream)
+        XCTAssertEqual(FocusAudioEngine.toggleMute(current: .off, fallback: .off), .brownNoise)
+    }
 }

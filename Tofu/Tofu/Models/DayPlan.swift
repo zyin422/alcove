@@ -58,6 +58,15 @@ struct DayPlan: Codable, Identifiable, Hashable {
         self.priorities = priorities
         self.wrappedUp = wrappedUp
     }
+
+    /// Reorders a priority within this plan.
+    mutating func movePriority(from sourceIndex: Int, to destinationIndex: Int) {
+        guard sourceIndex >= 0 && sourceIndex < priorities.count,
+              destinationIndex >= 0 && destinationIndex < priorities.count,
+              sourceIndex != destinationIndex else { return }
+        let item = priorities.remove(at: sourceIndex)
+        priorities.insert(item, at: destinationIndex)
+    }
 }
 
 /// "2026-10-10"-style keys for days. A day runs from 4 AM to 4 AM, so wrapping up after midnight

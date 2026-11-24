@@ -89,6 +89,11 @@ enum FocusAudioMath {
         return rotation[nextIdx]
     }
 
+    /// Toggles between muted (.off) and a target sound (defaults to .brownNoise or the previous sound).
+    nonisolated static func toggleMute(current: FocusSound, fallback: FocusSound = .brownNoise) -> FocusSound {
+        current == .off ? (fallback == .off ? .brownNoise : fallback) : .off
+    }
+
     /// System image icon representing the soundscape.
     nonisolated static func iconName(for sound: FocusSound) -> String {
         switch sound {

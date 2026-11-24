@@ -547,6 +547,13 @@ enum TokenSource: Equatable {
         }
     }
 
+    /// Moves a priority from `sourceIndex` to `destinationIndex` in `day`'s plan.
+    func movePriority(from sourceIndex: Int, to destinationIndex: Int, day: String) {
+        updatePlan(day: day) { plan in
+            plan.movePriority(from: sourceIndex, to: destinationIndex)
+        }
+    }
+
     /// True when the user has completed all study priorities or subjects planned for the given day.
     func isStudyCompleted(day: String? = nil, now: Date = Date()) -> Bool {
         let targetDay = day ?? DayKey.key(for: now)
