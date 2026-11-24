@@ -306,9 +306,11 @@ final class SessionEngineTests: XCTestCase {
         h.blocker.simulateBlocked("com.hnc.Discord", name: "Discord")
 
         XCTAssertEqual(h.engine.session?.blockedAttempts, 1)
+        XCTAssertEqual(h.engine.session?.blockedAppHistory, ["Discord"])
         XCTAssertEqual(h.toaster.messages, ["🔒 Discord is blocked during CS128"])
         XCTAssertEqual(changes.count, 1)
         XCTAssertEqual(changes.last?.blockedAttempts, 1)
+        XCTAssertEqual(changes.last?.blockedAppHistory, ["Discord"])
     }
 
     func testClosedTabCountsToastsAndPersists() async {

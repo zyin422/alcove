@@ -170,8 +170,8 @@ struct LockedView: View {
             let count = model.engine.parkedThoughts.count
             return count > 0 ? "Thoughts (\(count)) ⌘3" : "Thoughts (⌘3)"
         case .closedTabs:
-            let count = model.engine.session?.closedTabHistory.count ?? 0
-            return count > 0 ? "Closed Tabs (\(count)) ⌘4" : "Closed Tabs (⌘4)"
+            let count = model.engine.deflectionsCount
+            return count > 0 ? "Shield (\(count)) ⌘4" : "Shield (⌘4)"
         }
     }
 
@@ -675,22 +675,24 @@ private struct ParkedThoughtsView: View {
     }
 }
 
-/// Drawer showing all browser tabs closed during the session so the user never fears losing research URLs.
+/// Drawer showing all interventions (blocked apps and closed browser tabs) during the session.
 private struct ClosedTabsRecoveryView: View {
     let engine: SessionEngine
 
     private var closed: [String] { engine.session?.closedTabHistory ?? [] }
+    private var blocked: [String] { engine.session?.blockedAppHistory ?? [] }
+    private var totalCount: Int { closed.count + blocked.count }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 HStack {
-                    Text("CLOSED OFF-TASK TABS (\(closed.count))")
+                    Text("SHIELD & DEFLECTIONS (\(totalCount))")
                         .font(Theme.captionFont)
                         .foregroundStyle(.secondary)
                     Spacer()
                     if !closed.isEmpty {
-                        Button("Copy All") {
+                        Button("Copy URLs") {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(closed.joined(separator: "\n"), forType: .string)
                         }
@@ -698,53 +700,87 @@ private struct ClosedTabsRecoveryView: View {
                         .controlSize(.small)
                     }
                 }
-                Text("These tabs were set aside so you could focus. Nothing was permanently lost.")
+                Text("Distractions deflected while you locked in. Nothing was permanently lost.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, Theme.Space.m)
             .padding(.top, Theme.Space.m)
 
-            if closed.isEmpty {
+            if totalCount == 0 {
                 VStack(spacing: Theme.Space.s) {
-                    Image(systemName: "checkmark.shield")
+                    Image(systemName: "checkmark.shield.fill")
                         .font(.system(size: 32))
-                        .foregroundStyle(.secondary)
-                    Text("No off-task tabs closed yet.")
+                        .foregroundStyle(Theme.indigo)
+                    Text("Clean focus. Zero distractions deflected so far.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                        ForEach(Array(closed.enumerated()), id: \.offset) { index, host in
-                            HStack(spacing: Theme.Space.s) {
-                                Image(systemName: "safari")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.secondary)
-                                Text(host)
-                                    .font(.system(size: 13, design: .monospaced))
-                                    .lineLimit(1)
-                                Spacer()
-                                Button {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(host, forType: .string)
-                                } label: {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: Theme.Space.m) {
+                        if !blocked.isEmpty {
+                            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                                Text("BLOCKED APPS (\(blocked.count))")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(Theme.rose)
+                                ForEach(Array(blocked.enumerated()), id: \.offset) { index, app in
+                                    HStack(spacing: Theme.Space.s) {
+                                        Image(systemName: "lock.slash.fill")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Theme.rose)
+                                        Text(app)
+                                            .font(.system(size: 13, weight: .medium))
+                                        Spacer()
+                                        Text("Blocked")
+                                            .font(.caption2.bold())
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Capsule().fill(Theme.rose.opacity(0.12)))
+                                            .foregroundStyle(Theme.rose)
+                                    }
+                                    .padding(.horizontal, Theme.Space.m)
+                                    .padding(.vertical, 8)
+                                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
                                 }
-                                .buttonStyle(.plain)
-                                .help("Copy URL")
-
-                                Text("#\(index + 1)")
-                                    .font(.caption2.monospacedDigit())
-                                    .foregroundStyle(.secondary)
                             }
-                            .padding(.horizontal, Theme.Space.m)
-                            .padding(.vertical, 8)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+                        }
+
+                        if !closed.isEmpty {
+                            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                                Text("OFF-TASK TABS (\(closed.count))")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(Theme.amber)
+                                ForEach(Array(closed.enumerated()), id: \.offset) { index, host in
+                                    HStack(spacing: Theme.Space.s) {
+                                        Image(systemName: "safari")
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(.secondary)
+                                        Text(host)
+                                            .font(.system(size: 13, design: .monospaced))
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Button {
+                                            NSPasteboard.general.clearContents()
+                                            NSPasteboard.general.setString(host, forType: .string)
+                                        } label: {
+                                            Image(systemName: "doc.on.doc")
+                                                .font(.system(size: 11))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("Copy URL")
+
+                                        Text("#\(index + 1)")
+                                            .font(.caption2.monospacedDigit())
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.horizontal, Theme.Space.m)
+                                    .padding(.vertical, 8)
+                                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, Theme.Space.m)

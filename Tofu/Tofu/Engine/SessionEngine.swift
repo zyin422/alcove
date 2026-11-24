@@ -510,11 +510,12 @@ extension WindowPresenting {
     private func recordBlocked(_ app: RunningAppInfo) {
         guard var current = session else { return }
         current.blockedAttempts += 1
+        let name = app.name.isEmpty ? app.bundleID : app.name
+        current.blockedAppHistory.append(name)
         session = current
         if !blockedDuringSession.contains(where: { $0.bundleID == app.bundleID }) {
             blockedDuringSession.append(app)
         }
-        let name = app.name.isEmpty ? app.bundleID : app.name
         if onSpirit != nil {
             onSpirit?(.appHidden(name))
         } else {
