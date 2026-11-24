@@ -128,6 +128,21 @@ final class MorningTests: XCTestCase {
         XCTAssertEqual(model.data.settings.lastPostponeKey, DayKey.key(for: now))
     }
 
+    @MainActor func testBetweenBlocksSyncAndDeadlinesWhenPostponing() throws {
+        let model = try makeModel(EngineHarness())
+        let now = Date()
+        var syncCalled = false
+        model.onSyncBetweenBlocks = { syncCalled = true }
+
+        model.showMorning(now: now)
+        model.openPlan(now: now)
+
+        XCTAssertTrue(syncCalled, "Opening plan must trigger between-blocks mini-timer sync")
+        XCTAssertNotNil(model.nextForceBlockDeadline)
+        XCTAssertEqual(model.nextForceBlockReason, "10-minute postpone active")
+        XCTAssertGreaterThan(model.secondsUntilNextForceBlock ?? 0, 500)
+    }
+
     @MainActor func testStartTiesThePriorityToTheSetupAndLocksIn() async throws {
         let harness = EngineHarness()
         let model = try makeModel(harness)

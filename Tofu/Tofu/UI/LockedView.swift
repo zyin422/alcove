@@ -115,42 +115,47 @@ struct LockedView: View {
 
     @ViewBuilder
     private func mainContent(stacked: Bool) -> some View {
-        VStack(spacing: 0) {
-            Picker("", selection: $sessionTab) {
-                ForEach(SessionTab.allCases, id: \.self) { tab in
-                    Text(tabTitle(tab)).tag(tab)
+        if model.engine.isOnBreak {
+            BreakGuideView(engine: model.engine)
+                .frame(minWidth: stacked ? nil : LockedLayout.chatMinWidth, maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            VStack(spacing: 0) {
+                Picker("", selection: $sessionTab) {
+                    ForEach(SessionTab.allCases, id: \.self) { tab in
+                        Text(tabTitle(tab)).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, Theme.Space.m)
+                .padding(.top, Theme.Space.s)
+                .padding(.bottom, Theme.Space.xs)
+
+                // Hidden shortcut buttons for ⌘1...⌘4
+                HStack(spacing: 0) {
+                    Button("") { sessionTab = .assistant }.keyboardShortcut("1", modifiers: .command)
+                    Button("") { sessionTab = .plan }.keyboardShortcut("2", modifiers: .command)
+                    Button("") { sessionTab = .thoughts }.keyboardShortcut("3", modifiers: .command)
+                    Button("") { sessionTab = .closedTabs }.keyboardShortcut("4", modifiers: .command)
+                }
+                .frame(width: 0, height: 0)
+                .opacity(0)
+
+                if sessionTab == .plan {
+                    PlanningPriorityView(model: model)
+                } else if sessionTab == .thoughts {
+                    ParkedThoughtsView(engine: model.engine)
+                } else if sessionTab == .closedTabs {
+                    ClosedTabsRecoveryView(engine: model.engine)
+                } else {
+                    ChatView(assistant: model.assistant)
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, Theme.Space.m)
-            .padding(.top, Theme.Space.s)
-            .padding(.bottom, Theme.Space.xs)
-
-            // Hidden shortcut buttons for ⌘1...⌘4
-            HStack(spacing: 0) {
-                Button("") { sessionTab = .assistant }.keyboardShortcut("1", modifiers: .command)
-                Button("") { sessionTab = .plan }.keyboardShortcut("2", modifiers: .command)
-                Button("") { sessionTab = .thoughts }.keyboardShortcut("3", modifiers: .command)
-                Button("") { sessionTab = .closedTabs }.keyboardShortcut("4", modifiers: .command)
-            }
-            .frame(width: 0, height: 0)
-            .opacity(0)
-
-            if sessionTab == .plan {
-                PlanningPriorityView(model: model)
-            } else if sessionTab == .thoughts {
-                ParkedThoughtsView(engine: model.engine)
-            } else if sessionTab == .closedTabs {
-                ClosedTabsRecoveryView(engine: model.engine)
-            } else {
-                ChatView(assistant: model.assistant)
-            }
-        }
-        .frame(minWidth: stacked ? nil : LockedLayout.chatMinWidth, maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            if model.engine.isPlanningMode {
-                sessionTab = .plan
+            .frame(minWidth: stacked ? nil : LockedLayout.chatMinWidth, maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear {
+                if model.engine.isPlanningMode {
+                    sessionTab = .plan
+                }
             }
         }
     }

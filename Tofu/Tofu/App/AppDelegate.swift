@@ -55,6 +55,9 @@ enum QuitPolicy {
         model.onStudyCompleted = { [weak self] in
             self?.presenter?.closeBetweenBlocksPanel()
         }
+        model.onSyncBetweenBlocks = { [weak self] in
+            self?.presenter?.syncBetweenBlocksPanel()
+        }
         model.onShowMainWindow = { Self.bringMainWindowForward() }
         let morning = MorningWindowController(model: model)
         self.morning = morning

@@ -55,6 +55,8 @@ enum TokenSource: Equatable {
     @ObservationIgnored var onSessionEnded: (() -> Void)?
     /// Runs when all study subjects for the day have been completed (closes between-blocks panel, etc).
     @ObservationIgnored var onStudyCompleted: (() -> Void)?
+    /// Runs when between-blocks or postpone status changes to sync floating mini timer.
+    @ObservationIgnored var onSyncBetweenBlocks: (() -> Void)?
     /// Brings the main window forward when the end-of-day wrap-up opens on its own.
     @ObservationIgnored var onShowMainWindow: (() -> Void)?
     /// True while the end-of-day wrap-up sheet is up.
@@ -634,9 +636,11 @@ enum TokenSource: Equatable {
             if isShowingMorning && (isWrapped || isDone) {
                 dismissMorning()
             }
+            onSyncBetweenBlocks?()
             return
         }
         showMorning(now: now)
+        onSyncBetweenBlocks?()
     }
 
     /// Stores the grace for a new real block. A later check pushes it past a calendar event.
@@ -742,6 +746,7 @@ enum TokenSource: Equatable {
         guard isShowingMorning else { return }
         isShowingMorning = false
         onHideMorning?()
+        onSyncBetweenBlocks?()
     }
 
     /// Postponing is available once per day when the user doesn't want to lock in right now.
@@ -767,6 +772,7 @@ enum TokenSource: Equatable {
         dismissMorning()
         dismissBedtime()
         scheduleMorningReturn(at: deadline, now: now)
+        onSyncBetweenBlocks?()
         onShowMainWindow?()
     }
 

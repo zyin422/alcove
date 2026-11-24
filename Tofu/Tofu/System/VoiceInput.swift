@@ -18,6 +18,15 @@ import Speech
     /// The last recording failed because Dictation is off in System Settings (the UI offers a button to open it).
     private(set) var needsDictation = false
 
+    /// When non-nil, automatically stops recording after this many seconds of silence following spoken words.
+    var autoStopSilenceTimeout: TimeInterval?
+
+    /// Called when silence detection finalizes speech in hands-free duplex mode.
+    @ObservationIgnored var onSpeechEnded: ((String) -> Void)?
+
+    /// Custom scheduler for tests; nil uses Task.sleep.
+    @ObservationIgnored var scheduleSilence: ((TimeInterval, @escaping @MainActor () -> Void) -> Void)?
+
     /// Longest single recording.
     nonisolated static let maxDuration: TimeInterval = 60
     /// How long the recognizer may keep delivering the last words after the person pressed stop.
@@ -29,6 +38,7 @@ import Speech
     @ObservationIgnored private var sink = BufferSink()
     @ObservationIgnored private var timeoutTask: Task<Void, Never>?
     @ObservationIgnored private var graceTask: Task<Void, Never>?
+    @ObservationIgnored private var silenceTask: Task<Void, Never>?
     /// Bumped whenever a recognition ends, so late callbacks of an old recording are ignored.
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var isStarting = false
@@ -161,6 +171,9 @@ import Speech
     /// Closes the microphone. The last words may still arrive in `transcript` for a moment.
     func stop() {
         if isStarting { startCancelled = true }
+        silenceTask?.cancel()
+        silenceTask = nil
+        generation &+= 1
         guard isRecording else { return }
         stopCapture()
         graceTask?.cancel()
@@ -235,6 +248,11 @@ import Speech
         attach(Self.makeRequest(), recognizer: recognizer)
     }
 
+    /// Test hook: simulates a speech recognition result delivered to the handler.
+    func handleResult(text: String?, isFinal: Bool = false) {
+        handle(generation: generation, text: text, isFinal: isFinal, failed: false, dictationOff: false)
+    }
+
     /// A partial or final result (or a failure) from the recognizer.
     private func handle(generation current: Int, text: String?, isFinal: Bool, failed: Bool, dictationOff: Bool) {
         guard current == generation else { return }
@@ -244,6 +262,7 @@ import Speech
             }
             currentPartial = text
             transcript = Self.merged(base: committed, transcript: currentPartial)
+            scheduleSilenceTimeoutIfEnabled()
         }
         guard isFinal || failed else { return }
         if dictationOff {
@@ -275,8 +294,33 @@ import Speech
         releaseRecognition()
     }
 
+    private func scheduleSilenceTimeoutIfEnabled() {
+        guard let timeout = autoStopSilenceTimeout, !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        silenceTask?.cancel()
+        let currentGen = generation
+        let fire: @MainActor () -> Void = { [weak self] in
+            guard let self, self.generation == currentGen else { return }
+            let finalSpoken = self.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !finalSpoken.isEmpty else { return }
+            self.stop()
+            self.onSpeechEnded?(finalSpoken)
+        }
+
+        if let customSchedule = scheduleSilence {
+            customSchedule(timeout, fire)
+        } else {
+            silenceTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                fire()
+            }
+        }
+    }
+
     /// Closes the microphone and tells the recognizer no more audio is coming.
     private func stopCapture() {
+        silenceTask?.cancel()
+        silenceTask = nil
         timeoutTask?.cancel()
         timeoutTask = nil
         if let engine {
@@ -291,6 +335,8 @@ import Speech
     /// Drops the recognition task; callbacks of the old recording are ignored from here on.
     private func releaseRecognition() {
         generation &+= 1
+        silenceTask?.cancel()
+        silenceTask = nil
         graceTask?.cancel()
         graceTask = nil
         task?.cancel()

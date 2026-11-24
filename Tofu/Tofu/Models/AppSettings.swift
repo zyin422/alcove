@@ -3,12 +3,15 @@ import Foundation
 /// Ambient soundscape to mask background distractions during lock-in sessions.
 enum FocusSound: String, Codable, CaseIterable, Identifiable {
     case off = "Off"
-    case brownNoise = "Brown Noise"
-    case pinkNoise = "Pink Noise"
-    case whiteNoise = "White Noise"
+    case rain = "Gentle Rain"
+    case stream = "Forest Stream"
+    case lofiDrone = "Analog Lofi Pad"
+    case gammaBinaural = "Gamma Focus (40Hz)"
     case alphaBinaural = "Alpha Waves (10Hz)"
     case thetaBinaural = "Theta Calm (6Hz)"
-    case gammaBinaural = "Gamma Focus (40Hz)"
+    case brownNoise = "Deep Brown Noise"
+    case pinkNoise = "Warm Pink Noise"
+    case whiteNoise = "White Noise"
 
     var id: String { rawValue }
 }

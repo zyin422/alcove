@@ -3,7 +3,15 @@ import SwiftUI
 
 /// Stats screen. Day is one day's subjects. Week and month are one period at a time. Year is that year's months.
 struct StatsView: View {
+    enum StatsTab: String, CaseIterable, Identifiable {
+        case log = "Activity"
+        case tree = "Mastery Map"
+
+        var id: String { rawValue }
+    }
+
     let model: AppModel
+    @State private var currentTab: StatsTab = .log
     @State private var span: StatsSpan = .day
     @State private var anchor = Date()
 
@@ -16,57 +24,85 @@ struct StatsView: View {
         let period = stats.matching(sessions, span: span, containing: shown)
         let summary = stats.summary(period)
         let shares = stats.shares(period)
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Space.l) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Stats").font(Theme.titleFont)
-                    Spacer()
-                    Button {
-                        copyRecap(summary: summary, span: span)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "doc.on.doc")
-                            Text("Copy Recap")
-                        }
-                        .font(.caption.weight(.medium))
-                    }
-                    .buttonStyle(.bordered)
-                    Picker("Range", selection: $span) {
-                        ForEach(StatsSpan.allCases) { option in
-                            Text(option.title).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(width: 300)
+
+        Group {
+            if currentTab == .tree {
+                VStack(spacing: 0) {
+                    tabHeader(summary: summary)
+                        .padding(.horizontal, Theme.Space.l)
+                        .padding(.top, Theme.Space.l)
+                    TechTreeView(model: model)
                 }
-                if StatsFormatting.hasTrackedSessions(sessions) {
-                    periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
-                    if span == .day {
-                        if !period.isEmpty {
-                            DayChronologicalTimeline(sessions: period, day: shown, color: color(for:))
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Theme.Space.l) {
+                        tabHeader(summary: summary)
+                        if StatsFormatting.hasTrackedSessions(sessions) {
+                            periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
+                            if span == .day {
+                                if !period.isEmpty {
+                                    DayChronologicalTimeline(sessions: period, day: shown, color: color(for:))
+                                }
+                                dayDetail(StatsFormatting.subjectBlocks(period))
+                            } else {
+                                periodChart(stats: stats, sessions: period, shown: shown)
+                                if !shares.isEmpty {
+                                    StatsSubjectBreakdown(shares: shares, color: color(for:))
+                                }
+                                TimeBlockList(blocks: StatsFormatting.timeBlocks(period),
+                                              onDelete: { model.deleteSession(id: $0) })
+                            }
+                            StatsSummaryGrid(summary: summary, subjectCount: shares.count)
+                            FocusTelemetrySection(stats: stats, sessions: period)
+                        } else {
+                            Text(StatsFormatting.emptyMessage)
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, minHeight: 240)
                         }
-                        dayDetail(StatsFormatting.subjectBlocks(period))
-                    } else {
-                        periodChart(stats: stats, sessions: period, shown: shown)
-                        if !shares.isEmpty {
-                            StatsSubjectBreakdown(shares: shares, color: color(for:))
-                        }
-                        TimeBlockList(blocks: StatsFormatting.timeBlocks(period),
-                                      onDelete: { model.deleteSession(id: $0) })
                     }
-                    StatsSummaryGrid(summary: summary, subjectCount: shares.count)
-                } else {
-                    Text(StatsFormatting.emptyMessage)
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 240)
+                    .padding(Theme.Space.l)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(Theme.Space.l)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("Stats")
+    }
+
+    private func tabHeader(summary: StatsSummary) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Stats").font(Theme.titleFont)
+            Spacer()
+            Picker("View", selection: $currentTab) {
+                ForEach(StatsTab.allCases) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 220)
+
+            if currentTab == .log {
+                Button {
+                    copyRecap(summary: summary, span: span)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc")
+                        Text("Copy Recap")
+                    }
+                    .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.bordered)
+                Picker("Range", selection: $span) {
+                    ForEach(StatsSpan.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 240)
+            }
+        }
     }
 
     /// Chevrons and a horizontal strip. On Day, the arrows move a week and each day is its own button.
@@ -605,5 +641,142 @@ private struct StatsShareBar: View {
             }
         }
         .frame(height: 8)
+    }
+}
+
+/// Industrial telemetry showing Focus Velocity momentum and 24-hour diurnal focus heatmap.
+private struct FocusTelemetrySection: View {
+    let stats: StatsEngine
+    let sessions: [Session]
+
+    var body: some View {
+        let velocity = stats.focusVelocity(sessions)
+        let distribution = stats.hourlyDistribution(sessions)
+        let maxMins = max(1.0, distribution.map(\.totalMinutes).max() ?? 1.0)
+        let peakHour = distribution.max { $0.totalMinutes < $1.totalMinutes }
+
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            Text("Focus Velocity & Telemetry")
+                .font(.headline)
+
+            HStack(alignment: .top, spacing: Theme.Space.m) {
+                // Focus Velocity Score
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    HStack {
+                        Image(systemName: "bolt.batteryblock.fill")
+                            .foregroundStyle(Theme.amber)
+                        Text("Focus Velocity")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(velocity.rating)
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Theme.amber.opacity(0.15)))
+                            .foregroundStyle(Theme.amber)
+                    }
+
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("\(velocity.score)")
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                        Text("/ 100")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Clean session rate")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(Int(velocity.cleanSessionRate * 100))%")
+                                .font(.caption2.weight(.medium))
+                                .monospacedDigit()
+                        }
+                        HStack {
+                            Text("Completion integrity")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(Int(velocity.completionRate * 100))%")
+                                .font(.caption2.weight(.medium))
+                                .monospacedDigit()
+                        }
+                    }
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                        )
+                )
+
+                // Diurnal Heatmap
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    HStack {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundStyle(Theme.indigo)
+                        Text("Diurnal Focus Distribution (24h)")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if let peak = peakHour, peak.totalMinutes > 0 {
+                            Text("Peak: \(peak.hourLabel)")
+                                .font(.caption2.weight(.bold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Theme.indigo.opacity(0.12)))
+                                .foregroundStyle(Theme.indigo)
+                        }
+                    }
+
+                    // 24-hour vertical micro bars
+                    HStack(alignment: .bottom, spacing: 2) {
+                        ForEach(distribution) { item in
+                            let heightFrac = max(0.08, item.totalMinutes / maxMins)
+                            let isPeak = peakHour?.hour == item.hour && item.totalMinutes > 0
+
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(isPeak ? Theme.indigo : (item.totalMinutes > 0 ? Color.primary.opacity(0.35) : Color.primary.opacity(0.08)))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50 * CGFloat(heightFrac))
+                                .help("\(item.hourLabel): \(Int(item.totalMinutes))m focus (\(item.sessionCount) blocks)")
+                        }
+                    }
+                    .frame(height: 50, alignment: .bottom)
+
+                    HStack {
+                        Text("12 AM")
+                        Spacer()
+                        Text("6 AM")
+                        Spacer()
+                        Text("12 PM")
+                        Spacer()
+                        Text("6 PM")
+                        Spacer()
+                        Text("11 PM")
+                    }
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                        )
+                )
+            }
+        }
     }
 }

@@ -21,6 +21,7 @@ struct ChatView: View {
     @State private var voiceOut = VoiceOutput.shared
     @State private var autoSpeakReplies = false
     @State private var spokeViaVoice = false
+    @State private var isDuplexMode = false
     @State private var currentlySpeakingID: UUID?
     @State private var text = ""
     /// What was in the field when dictation started; non-nil while the transcript should be merged into the field.
@@ -35,8 +36,12 @@ struct ChatView: View {
             inputBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { isFieldFocused = true }
+        .onAppear {
+            isFieldFocused = true
+            setupVoiceCallbacks()
+        }
         .onDisappear {
+            isDuplexMode = false
             voice.stop()
             voiceOut.stop()
             currentlySpeakingID = nil
@@ -44,6 +49,12 @@ struct ChatView: View {
         .onChange(of: voice.transcript) { _, transcript in
             guard let base = dictationBase else { return }
             text = VoiceInput.merged(base: base, transcript: transcript)
+        }
+        .onChange(of: voiceOut.isSpeaking) { wasSpeaking, isSpeaking in
+            if wasSpeaking && !isSpeaking && isDuplexMode && !assistant.isThinking {
+                // Assistant finished speaking in duplex mode -> re-open mic for hands-free answer
+                rearmDuplexListening()
+            }
         }
     }
 
@@ -117,6 +128,17 @@ struct ChatView: View {
                     .padding(.vertical, Theme.Space.s)
                     .background(Capsule().stroke(Color.primary.opacity(0.25), lineWidth: 1))
 
+                Button { toggleDuplex() } label: {
+                    Image(systemName: isDuplexMode ? "waveform.badge.mic" : "waveform")
+                        .font(.system(size: 16))
+                        .frame(width: 28, height: 28)
+                        .foregroundStyle(isDuplexMode ? Theme.indigo : Color.secondary)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(isDuplexMode ? "Continuous voice duplex active (click to turn off)" : "Enable continuous voice duplex")
+                .accessibilityLabel("Voice duplex")
+
                 Button { toggleMic() } label: {
                     Image(systemName: voice.isRecording ? "stop.circle.fill" : "mic")
                         .font(.system(size: 18))
@@ -168,6 +190,10 @@ struct ChatView: View {
             get: { text },
             set: { newValue in
                 if newValue != text {
+                    if isDuplexMode {
+                        isDuplexMode = false
+                        voice.autoStopSilenceTimeout = nil
+                    }
                     dictationBase = nil
                     voice.stop()
                     voiceOut.stop()
@@ -178,9 +204,43 @@ struct ChatView: View {
         )
     }
 
+    private func setupVoiceCallbacks() {
+        voice.onSpeechEnded = { finalTranscript in
+            guard isDuplexMode else { return }
+            submit(textToSend: finalTranscript)
+        }
+    }
+
+    private func toggleDuplex() {
+        voiceOut.stop()
+        currentlySpeakingID = nil
+        isDuplexMode.toggle()
+        if isDuplexMode {
+            autoSpeakReplies = true
+            voice.autoStopSilenceTimeout = 1.8
+            dictationBase = ""
+            spokeViaVoice = true
+            Task { await voice.start() }
+        } else {
+            voice.autoStopSilenceTimeout = nil
+            voice.stop()
+        }
+    }
+
+    private func rearmDuplexListening() {
+        guard isDuplexMode, !assistant.isThinking, !voice.isRecording else { return }
+        dictationBase = ""
+        spokeViaVoice = true
+        Task { await voice.start() }
+    }
+
     private func toggleMic() {
         voiceOut.stop()
         currentlySpeakingID = nil
+        if isDuplexMode {
+            isDuplexMode = false
+            voice.autoStopSilenceTimeout = nil
+        }
         if voice.isRecording {
             voice.stop()
         } else {
@@ -190,12 +250,13 @@ struct ChatView: View {
         }
     }
 
-    private func submit() {
-        guard ChatInput.canSend(text, isThinking: assistant.isThinking) else { return }
+    private func submit(textToSend: String? = nil) {
+        let candidate = textToSend ?? text
+        guard ChatInput.canSend(candidate, isThinking: assistant.isThinking) else { return }
         voiceOut.stop()
         currentlySpeakingID = nil
-        let message = ChatInput.trimmed(text)
-        let wasVoice = spokeViaVoice || dictationBase != nil
+        let message = ChatInput.trimmed(candidate)
+        let wasVoice = spokeViaVoice || dictationBase != nil || isDuplexMode
         dictationBase = nil
         spokeViaVoice = false
         voice.stop()

@@ -32,12 +32,54 @@ enum FocusAudioMath {
     static func waveSwell(phase: Double, depth: Double = 0.18) -> Float {
         Float((1.0 - depth) + depth * (0.5 + 0.5 * sin(phase * 2.0 * Double.pi)))
     }
+
+    /// Warm polyphonic analog chord pad with subtle detune and soft saturation.
+    static func analogChord(time: Double, rootFreq: Double = 130.81) -> Float {
+        // C minor 9th harmonics: root (1x), minor third (1.2x), fifth (1.5x), minor seventh (1.8x), ninth (2.25x)
+        let r = rootFreq
+        let chorus = 0.5 * sin(2.0 * .pi * 0.2 * time)
+        let f1 = r + chorus * 0.3
+        let f2 = r * 1.2 - chorus * 0.2
+        let f3 = r * 1.5 + chorus * 0.4
+        let f4 = r * 1.8 - chorus * 0.3
+        let f5 = r * 2.25 + chorus * 0.5
+
+        let s1 = sin(2.0 * .pi * f1 * time)
+        let s2 = sin(2.0 * .pi * f2 * time)
+        let s3 = sin(2.0 * .pi * f3 * time)
+        let s4 = sin(2.0 * .pi * f4 * time)
+        let s5 = sin(2.0 * .pi * f5 * time)
+
+        let mix = (s1 * 0.35 + s2 * 0.25 + s3 * 0.2 + s4 * 0.15 + s5 * 0.1)
+        return Float(tanh(mix * 1.4))
+    }
+
+    /// Acoustic raindrop splatter impulse generator with exponential decay.
+    static func rainDrop(white: Float, threshold: Float = 0.96, state: inout Float, decay: Float = 0.94) -> Float {
+        if white > threshold {
+            state = (white - threshold) / (1.0 - threshold)
+        } else {
+            state *= decay
+        }
+        return state
+    }
+
+    /// Dual-phase non-commensurate stream modulation.
+    static func streamModulation(phase1: Double, phase2: Double) -> Float {
+        let m1 = 0.5 + 0.5 * sin(phase1 * 2.0 * .pi)
+        let m2 = 0.5 + 0.5 * sin(phase2 * 2.0 * .pi)
+        return Float(0.4 + 0.6 * (m1 * 0.6 + m2 * 0.4))
+    }
 }
 
-/// Synthesizes continuous, soothing ambient soundscapes on the Mac's audio hardware
-/// without audio file assets or network latency.
+/// Plays continuous, soothing ambient soundscapes on the Mac's audio hardware
+/// using cached audio recordings when available or high-fidelity organic synthesis.
 @Observable @MainActor final class FocusAudioEngine: NSObject {
     static let shared = FocusAudioEngine()
+
+    static var audioDirectory: URL {
+        Store.defaultURL().deletingLastPathComponent().appendingPathComponent("Audio")
+    }
 
     private(set) var isPlaying = false
     private(set) var isPaused = false
@@ -46,12 +88,14 @@ enum FocusAudioMath {
         didSet {
             if isPlaying && !isPaused {
                 engine?.mainMixerNode.outputVolume = volume
+                player?.volume = volume
             }
         }
     }
 
     @ObservationIgnored private var engine: AVAudioEngine?
     @ObservationIgnored private var sourceNode: AVAudioSourceNode?
+    @ObservationIgnored private var player: AVAudioPlayer?
     @ObservationIgnored private var preDuckVolume: Float?
 
     /// Starts playing the requested soundscape.
@@ -64,6 +108,23 @@ enum FocusAudioMath {
         stop()
 
         activeSound = sound
+
+        // First check for a real cached audio file
+        if let localURL = findCachedAudio(for: sound) {
+            do {
+                let audioPlayer = try AVAudioPlayer(contentsOf: localURL)
+                audioPlayer.numberOfLoops = -1
+                audioPlayer.volume = volume
+                audioPlayer.prepareToPlay()
+                audioPlayer.play()
+                self.player = audioPlayer
+                self.isPlaying = true
+                return
+            } catch {
+                // Fall back to synthesis
+            }
+        }
+
         let audioEngine = AVAudioEngine()
         self.engine = audioEngine
 
@@ -86,6 +147,11 @@ enum FocusAudioMath {
 
         var rainL: Float = 0.0
         var rainR: Float = 0.0
+        var dropL: Float = 0.0
+        var dropR: Float = 0.0
+
+        var streamL: Float = 0.0
+        var streamR: Float = 0.0
 
         var whiteAirL: Float = 0.0
         var whiteAirR: Float = 0.0
@@ -94,6 +160,8 @@ enum FocusAudioMath {
         var brownBedR: Float = 0.0
 
         var lfoPhase: Double = 0.0
+        var lfoPhase2: Double = 0.0
+        var chordTime: Double = 0.0
         var phaseLeft: Double = 0.0
         var phaseRight: Double = 0.0
 
@@ -118,6 +186,53 @@ enum FocusAudioMath {
                 case .off:
                     leftBuffer?[frame] = 0
                     rightBuffer?[frame] = 0
+
+                case .rain:
+                    // Multi-layer rain: low-frequency background rumble + random acoustic droplet splatters
+                    let whiteL = Float.random(in: -1.0...1.0)
+                    let whiteR = Float.random(in: -1.0...1.0)
+                    brownLeft = FocusAudioMath.nextBrown(current: brownLeft, white: whiteL)
+                    brownRight = FocusAudioMath.nextBrown(current: brownRight, white: whiteR)
+                    let bedL = FocusAudioMath.lowPass(current: brownWarmLeft, input: brownLeft, alpha: 0.15) * 0.4
+                    let bedR = FocusAudioMath.lowPass(current: brownWarmRight, input: brownRight, alpha: 0.15) * 0.4
+                    brownWarmLeft = bedL
+                    brownWarmRight = bedR
+
+                    let dropNoiseL = abs(Float.random(in: 0.0...1.0))
+                    let dropNoiseR = abs(Float.random(in: 0.0...1.0))
+                    let dropImpulseL = FocusAudioMath.rainDrop(white: dropNoiseL, threshold: 0.985, state: &dropL, decay: 0.91)
+                    let dropImpulseR = FocusAudioMath.rainDrop(white: dropNoiseR, threshold: 0.985, state: &dropR, decay: 0.91)
+
+                    leftBuffer?[frame] = (bedL * 0.6 + dropImpulseL * 0.35) * 0.5
+                    rightBuffer?[frame] = (bedR * 0.6 + dropImpulseR * 0.35) * 0.5
+
+                case .stream:
+                    // Babbling forest brook: pink noise shaped by dual non-commensurate sinusoidal currents
+                    let whiteL = Float.random(in: -1.0...1.0)
+                    let whiteR = Float.random(in: -1.0...1.0)
+                    let pinkL = FocusAudioMath.nextPink(white: whiteL, b0: &b0L, b1: &b1L, b2: &b2L,
+                                                        b3: &b3L, b4: &b4L, b5: &b5L, b6: &b6L)
+                    let pinkR = FocusAudioMath.nextPink(white: whiteR, b0: &b0R, b1: &b1R, b2: &b2R,
+                                                        b3: &b3R, b4: &b4R, b5: &b5R, b6: &b6R)
+                    streamL = FocusAudioMath.lowPass(current: streamL, input: pinkL, alpha: 0.22)
+                    streamR = FocusAudioMath.lowPass(current: streamR, input: pinkR, alpha: 0.22)
+
+                    let modL = FocusAudioMath.streamModulation(phase1: lfoPhase, phase2: lfoPhase2)
+                    let modR = FocusAudioMath.streamModulation(phase1: lfoPhase + 0.17, phase2: lfoPhase2 + 0.23)
+                    lfoPhase += 0.35 / Double(sampleRate)
+                    lfoPhase2 += 0.82 / Double(sampleRate)
+                    if lfoPhase > 1.0 { lfoPhase -= 1.0 }
+                    if lfoPhase2 > 1.0 { lfoPhase2 -= 1.0 }
+
+                    leftBuffer?[frame] = streamL * modL * 0.4
+                    rightBuffer?[frame] = streamR * modR * 0.4
+
+                case .lofiDrone:
+                    // Polyphonic analog tape pad
+                    let pad = FocusAudioMath.analogChord(time: chordTime, rootFreq: 130.81)
+                    chordTime += 1.0 / Double(sampleRate)
+                    leftBuffer?[frame] = pad * 0.32
+                    rightBuffer?[frame] = pad * 0.32
 
                 case .brownNoise:
                     // Stereo decorrelation + low-frequency rolling ocean swell
@@ -214,6 +329,26 @@ enum FocusAudioMath {
         }
     }
 
+    private func findCachedAudio(for sound: FocusSound) -> URL? {
+        let fm = FileManager.default
+        let dir = Self.audioDirectory
+        let candidates = [
+            sound.rawValue,
+            sound.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"),
+            sound.rawValue.lowercased().replacingOccurrences(of: " ", with: "-")
+        ]
+        let extensions = ["m4a", "wav", "mp3", "caf", "aif"]
+        for name in candidates {
+            for ext in extensions {
+                let file = dir.appendingPathComponent("\(name).\(ext)")
+                if fm.fileExists(atPath: file.path) {
+                    return file
+                }
+            }
+        }
+        return nil
+    }
+
     /// Stops audio playback and frees audio nodes.
     func stop() {
         if let engine, engine.isRunning {
@@ -222,40 +357,45 @@ enum FocusAudioMath {
         if let sourceNode, let engine {
             engine.detach(sourceNode)
         }
-        engine = nil
+        player?.stop()
+        player = nil
         sourceNode = nil
+        engine = nil
         isPlaying = false
         isPaused = false
         activeSound = .off
-        preDuckVolume = nil
     }
 
-    /// Pauses focus sound during break intervals.
+    /// Pauses current playback without deallocating the pipeline.
     func pause() {
         guard isPlaying, !isPaused else { return }
+        engine?.pause()
+        player?.pause()
         isPaused = true
-        engine?.mainMixerNode.outputVolume = 0
     }
 
-    /// Resumes focus sound after break intervals finish.
+    /// Resumes playback if paused.
     func resume() {
         guard isPlaying, isPaused else { return }
+        try? engine?.start()
+        player?.play()
         isPaused = false
-        engine?.mainMixerNode.outputVolume = volume
     }
 
-    /// Temporarily ducks the background audio volume during voice output.
+    /// Ducks audio smoothly while voice assistant is speaking.
     func duck(level: Float = 0.25) {
-        guard isPlaying else { return }
-        if preDuckVolume == nil { preDuckVolume = volume }
-        let clamped = max(0.0, min(1.0, level))
-        engine?.mainMixerNode.outputVolume = volume * clamped
+        guard isPlaying, !isPaused, preDuckVolume == nil else { return }
+        preDuckVolume = volume
+        let ducked = volume * level
+        engine?.mainMixerNode.outputVolume = ducked
+        player?.volume = ducked
     }
 
-    /// Restores background audio volume after voice output completes.
+    /// Restores volume after voice assistant finishes speaking.
     func unduck() {
-        guard isPlaying, let original = preDuckVolume else { return }
-        engine?.mainMixerNode.outputVolume = original
+        guard let original = preDuckVolume else { return }
         preDuckVolume = nil
+        engine?.mainMixerNode.outputVolume = original
+        player?.volume = original
     }
 }

@@ -19,6 +19,11 @@ struct SubjectDetailView: View {
     }
 
     var body: some View {
+        let mastery = TechTreeEngine.computeMastery(
+            for: subject,
+            sessions: model.data.sessions,
+            priorities: model.data.dayPlans.flatMap(\.priorities)
+        )
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.l) {
                 TextField("Name", text: $form.name)
@@ -33,6 +38,7 @@ struct SubjectDetailView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .keyboardShortcut(.return, modifiers: .command)
+                masteryCard(mastery: mastery)
                 SubjectForm(form: $form, showsName: false)
                 if !form.errors.isEmpty {
                     VStack(alignment: .leading, spacing: Theme.Space.xs) {
@@ -56,6 +62,55 @@ struct SubjectDetailView: View {
         .sheet(isPresented: $isChoosingMode) {
             LockInSheet(model: model, subject: subject)
         }
+    }
+
+    private func masteryCard(mastery: SubjectMastery) -> some View {
+        let subjectColor = Theme.subjectColor(mastery.subject.colorHex)
+        return HStack(spacing: Theme.Space.m) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(mastery.tier.title)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(subjectColor)
+                    Text("• Level \(mastery.level)")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Text("(\(mastery.xp) XP)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let nextTier = mastery.tier.next {
+                    Text("\(Int(mastery.progressToNextTier * 100))% to \(nextTier.title) · \(String(format: "%.1f hrs", mastery.totalHours)) total")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Grandmaster reached · \(String(format: "%.1f hrs", mastery.totalHours)) total")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            HStack(spacing: 4) {
+                ForEach(mastery.unlockedBadges.prefix(4)) { badge in
+                    Image(systemName: badge.systemImage)
+                        .font(.system(size: 11))
+                        .foregroundStyle(subjectColor)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(subjectColor.opacity(0.12)))
+                        .help("\(badge.title): \(badge.description)")
+                }
+            }
+        }
+        .padding(.horizontal, Theme.Space.m)
+        .padding(.vertical, Theme.Space.s)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+        )
     }
 
     /// Saves the form whenever it is valid; an invalid draft keeps the last valid state saved.

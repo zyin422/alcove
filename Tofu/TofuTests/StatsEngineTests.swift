@@ -439,4 +439,61 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertEqual(engine.seconds(for: subjectID, in: [active], window: .rolling), 0)
         XCTAssertEqual(engine.seconds(for: subjectID, in: [active], window: .week), 0)
     }
+
+    func testHourlyDistributionGroupsByHourOfDay() {
+        // Session 1: 9:00 AM, 45 minutes
+        let s1 = Session(subjectID: subjectID, subjectName: "CS128", mode: .goal(minutes: 45),
+                         start: date(2026, 10, 10, 9, 0), end: date(2026, 10, 10, 9, 45),
+                         outcome: .completed)
+        // Session 2: 9:30 AM (another block), 30 minutes -> hour 9 has 75 minutes total
+        let s2 = Session(subjectID: subjectID, subjectName: "CS128", mode: .goal(minutes: 30),
+                         start: date(2026, 10, 9, 9, 30), end: date(2026, 10, 9, 10, 0),
+                         outcome: .completed)
+        // Session 3: 2:00 PM (hour 14), 60 minutes
+        let s3 = Session(subjectID: subjectID, subjectName: "CS128", mode: .goal(minutes: 60),
+                         start: date(2026, 10, 10, 14, 0), end: date(2026, 10, 10, 15, 0),
+                         outcome: .completed)
+
+        let distribution = engine.hourlyDistribution([s1, s2, s3])
+        XCTAssertEqual(distribution.count, 24)
+
+        let hour9 = distribution.first { $0.hour == 9 }!
+        XCTAssertEqual(hour9.totalMinutes, 75.0)
+        XCTAssertEqual(hour9.sessionCount, 2)
+        XCTAssertEqual(hour9.hourLabel, "9 AM")
+
+        let hour14 = distribution.first { $0.hour == 14 }!
+        XCTAssertEqual(hour14.totalMinutes, 60.0)
+        XCTAssertEqual(hour14.sessionCount, 1)
+        XCTAssertEqual(hour14.hourLabel, "2 PM")
+
+        let hour0 = distribution.first { $0.hour == 0 }!
+        XCTAssertEqual(hour0.totalMinutes, 0.0)
+        XCTAssertEqual(hour0.sessionCount, 0)
+    }
+
+    func testFocusVelocityComputesMomentumScore() {
+        // High volume, fully completed clean sessions:
+        // 2x 60m clean completed sessions = 120 mins -> full 30 volume, full 40 comp, full 30 clean -> 100
+        let s1 = Session(subjectID: subjectID, subjectName: "CS128", mode: .goal(minutes: 60),
+                         start: date(2026, 10, 10, 9, 0), end: date(2026, 10, 10, 10, 0),
+                         blockedAttempts: 0, closedTabs: 0, outcome: .completed)
+        let s2 = Session(subjectID: subjectID, subjectName: "CS128", mode: .goal(minutes: 60),
+                         start: date(2026, 10, 10, 11, 0), end: date(2026, 10, 10, 12, 0),
+                         blockedAttempts: 0, closedTabs: 0, outcome: .completed)
+
+        let vel = engine.focusVelocity([s1, s2])
+        XCTAssertEqual(vel.score, 100)
+        XCTAssertEqual(vel.rating, "Exceptional")
+        XCTAssertEqual(vel.cleanSessionRate, 1.0)
+        XCTAssertEqual(vel.completionRate, 1.0)
+
+        // Bailed session with violations scores lower
+        let bailed = Session(subjectID: subjectID, subjectName: "CS128", mode: .goal(minutes: 30),
+                             start: date(2026, 10, 10, 13, 0), end: date(2026, 10, 10, 13, 10),
+                             blockedAttempts: 3, closedTabs: 2, outcome: .bailed)
+        let mixedVel = engine.focusVelocity([bailed])
+        XCTAssertLessThan(mixedVel.score, 50)
+        XCTAssertEqual(mixedVel.rating, "Building")
+    }
 }

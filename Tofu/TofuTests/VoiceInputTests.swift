@@ -104,6 +104,52 @@ final class VoiceInputTests: XCTestCase {
         voice.stop()
         XCTAssertFalse(voice.isRecording)
     }
+
+    // MARK: Hands-Free Silence Detection (VAD)
+
+    @MainActor func testSilenceDetectionFiresOnSpeechEnded() {
+        let voice = VoiceInput()
+        var silenceHandler: (@MainActor () -> Void)?
+        voice.scheduleSilence = { timeout, action in
+            XCTAssertEqual(timeout, 1.8)
+            silenceHandler = action
+        }
+        voice.autoStopSilenceTimeout = 1.8
+        var endedTranscript: String?
+        voice.onSpeechEnded = { endedTranscript = $0 }
+
+        voice.handleResult(text: "what should I focus on next")
+        XCTAssertEqual(voice.transcript, "what should I focus on next")
+        XCTAssertNil(endedTranscript)
+
+        silenceHandler?()
+        XCTAssertEqual(endedTranscript, "what should I focus on next")
+    }
+
+    @MainActor func testSilenceDetectionNotTriggeredWhenTranscriptIsEmpty() {
+        let voice = VoiceInput()
+        var scheduled = false
+        voice.scheduleSilence = { _, _ in scheduled = true }
+        voice.autoStopSilenceTimeout = 1.8
+
+        voice.handleResult(text: "")
+        XCTAssertFalse(scheduled)
+    }
+
+    @MainActor func testManualStopCancelsSilenceDetection() {
+        let voice = VoiceInput()
+        var silenceHandler: (@MainActor () -> Void)?
+        voice.scheduleSilence = { _, action in silenceHandler = action }
+        voice.autoStopSilenceTimeout = 1.8
+        var endedTranscript: String?
+        voice.onSpeechEnded = { endedTranscript = $0 }
+
+        voice.handleResult(text: "testing cancel")
+        voice.stop()
+        silenceHandler?()
+        // Should not fire because stop bumped generation
+        XCTAssertNil(endedTranscript)
+    }
 }
 
 /// Pure rules of the chat screen and the locked window's chat layout.

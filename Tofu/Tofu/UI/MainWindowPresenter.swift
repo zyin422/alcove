@@ -220,6 +220,18 @@ enum MainWindowPolicy {
         closePanel()
     }
 
+    /// Syncs the between-blocks mini-timer panel: shows when a force-block countdown is running and study is not done.
+    func syncBetweenBlocksPanel() {
+        guard !model.engine.isLocked else { return }
+        if model.secondsUntilNextForceBlock != nil && !model.isStudyCompleted() {
+            if panel == nil {
+                showBetweenBlocksPanel()
+            }
+        } else {
+            closeBetweenBlocksPanel()
+        }
+    }
+
     private func closePanel() {
         panel?.orderOut(nil)
         panel = nil

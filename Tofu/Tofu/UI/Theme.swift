@@ -46,6 +46,8 @@ enum Theme {
     static let rose = Color(red: 0.882, green: 0.114, blue: 0.282)    // #E11D48
     /// Midnight violet for bedtime wind-down and nocturnal guard.
     static let violet = Color(red: 0.486, green: 0.227, blue: 0.929)  // #7C3AED
+    /// Deep plum for mastery badges and milestone achievements.
+    static let plum = Color(red: 0.745, green: 0.094, blue: 0.365)    // #BE185D
 }
 
 /// Solid fill in the label color (black in light mode, white in dark) with inverted text.

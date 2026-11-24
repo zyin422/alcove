@@ -84,6 +84,30 @@ struct StatsBucket: Identifiable, Equatable {
     var totalMinutes: Double { minutesBySubject.values.reduce(0, +) }
 }
 
+/// Focus minutes and session count for one hour of the day (0...23).
+struct HourlyFocusDensity: Equatable, Identifiable {
+    let hour: Int
+    let totalMinutes: Double
+    let sessionCount: Int
+    var id: Int { hour }
+
+    var hourLabel: String {
+        let h = hour % 24
+        let period = h >= 12 ? "PM" : "AM"
+        let displayH = h == 0 ? 12 : (h > 12 ? h - 12 : h)
+        return "\(displayH) \(period)"
+    }
+}
+
+/// Dynamic focus velocity score reflecting momentum, volume, and adherence.
+struct FocusVelocity: Equatable {
+    let score: Int
+    let totalMinutes: Double
+    let cleanSessionRate: Double
+    let completionRate: Double
+    let rating: String
+}
+
 /// Numbers for the summary cards (spec §10).
 struct StatsSummary: Equatable {
     var today: TimeInterval
@@ -480,6 +504,73 @@ struct StatsEngine {
         return starts.map { start in
             StatsBucket(start: start, label: labels.string(from: start), minutesBySubject: minutes[start] ?? [:])
         }
+    }
+
+    /// Groups session minutes by the starting hour of the day (0 to 23).
+    func hourlyDistribution(_ sessions: [Session]) -> [HourlyFocusDensity] {
+        var minutesByHour = [Int: Double]()
+        var countByHour = [Int: Int]()
+
+        for session in sessions {
+            guard session.end != nil else { continue }
+            let h = calendar.component(.hour, from: session.start)
+            let mins = session.duration / 60.0
+            minutesByHour[h, default: 0] += mins
+            countByHour[h, default: 0] += 1
+        }
+
+        return (0..<24).map { hour in
+            HourlyFocusDensity(
+                hour: hour,
+                totalMinutes: minutesByHour[hour] ?? 0.0,
+                sessionCount: countByHour[hour] ?? 0
+            )
+        }
+    }
+
+    /// Evaluates daily/periodic focus velocity based on completed volume, completion integrity, and distraction resistance.
+    func focusVelocity(_ sessions: [Session]) -> FocusVelocity {
+        guard !sessions.isEmpty else {
+            return FocusVelocity(score: 0, totalMinutes: 0, cleanSessionRate: 0, completionRate: 0, rating: "Building")
+        }
+
+        let finished = sessions.filter { $0.end != nil }
+        guard !finished.isEmpty else {
+            return FocusVelocity(score: 0, totalMinutes: 0, cleanSessionRate: 0, completionRate: 0, rating: "Building")
+        }
+
+        let totalMins = finished.reduce(0.0) { $0 + ($1.duration / 60.0) }
+        let completedSessions = finished.filter { $0.outcome == .completed }.count
+        let cleanSessions = finished.filter { $0.outcome == .completed && $0.blockedAttempts == 0 && $0.closedTabs == 0 }.count
+
+        let compRate = Double(completedSessions) / Double(finished.count)
+        let cleanRate = Double(cleanSessions) / Double(finished.count)
+
+        // Baseline integrity: up to 40 pts
+        let integrityPts = compRate * 40.0
+        // Clean focus: up to 30 pts
+        let cleanPts = cleanRate * 30.0
+        // Volume target (120 min focus = full 30 pts)
+        let volumePts = min(30.0, (totalMins / 120.0) * 30.0)
+
+        let rawScore = Int((integrityPts + cleanPts + volumePts).rounded())
+        let score = min(100, max(0, rawScore))
+
+        let rating: String
+        switch score {
+        case 85...100: rating = "Exceptional"
+        case 70..<85: rating = "High Momentum"
+        case 50..<70: rating = "Steady"
+        default: rating = "Building"
+        }
+
+        return FocusVelocity(
+            score: score,
+            totalMinutes: totalMins,
+            cleanSessionRate: cleanRate,
+            completionRate: compRate,
+            rating: rating
+        )
     }
 }
 

@@ -83,7 +83,7 @@ enum MiniTimerLayout {
     /// How long the full pill stays up when a block starts, before it tucks to the top on its own.
     static let visibleBeforeTuck: TimeInterval = 3
     /// Distance from the top edge (below menu bar) within which releasing snaps and tucks into the menu bar tab.
-    static let topSnapThreshold: CGFloat = 50
+    static let topSnapThreshold: CGFloat = 80
 
     /// How far the pointer moved downward. Cocoa y grows upward, so a downward drag is positive.
     static func pullDown(from start: CGPoint, to current: CGPoint) -> CGFloat {
@@ -113,6 +113,13 @@ enum MiniTimerLayout {
             if frame.contains(point) && index < visibleFrames.count {
                 return visibleFrames[index]
             }
+        }
+        // If cursor is thrown into menu bar or slightly outside screen bounds, find screen with closest midpoint
+        if let closestIndex = screens.indices.min(by: { i1, i2 in
+            let f1 = screens[i1], f2 = screens[i2]
+            return hypot(f1.midX - point.x, f1.midY - point.y) < hypot(f2.midX - point.x, f2.midY - point.y)
+        }), closestIndex < visibleFrames.count {
+            return visibleFrames[closestIndex]
         }
         return fallback
     }
@@ -669,9 +676,9 @@ struct MiniTimerView: View {
 
     /// The visible frame of the screen under `point`, else the screen the panel is on.
     private func visibleFrame(near point: CGPoint) -> CGRect? {
-        if let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) {
-            return screen.visibleFrame
-        }
-        return screen?.visibleFrame ?? ScreenGeometry.mainVisibleFrame()
+        let screens = NSScreen.screens.map(\.frame)
+        let visible = NSScreen.screens.map(\.visibleFrame)
+        let fallback = screen?.visibleFrame ?? ScreenGeometry.mainVisibleFrame() ?? .zero
+        return MiniTimerLayout.targetScreenVisible(point: point, screens: screens, visibleFrames: visible, fallback: fallback)
     }
 }

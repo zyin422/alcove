@@ -145,6 +145,8 @@ struct MorningView: View {
     @State private var option: LockInOption = .minutes50
     @State private var customMinutes = 45
     @State private var newTitle = ""
+    @State private var weather: WeatherBriefing?
+    @State private var topArticles: [DigestFeedItem] = []
 
     private var plan: DayPlan { model.todayPlan() }
     private var open: [Priority] { plan.priorities.filter { !$0.isDone } }
@@ -202,6 +204,65 @@ struct MorningView: View {
                 Text((DayKey.date(for: plan.day) ?? Date()).formatted(.dateTime.weekday(.wide).month(.wide).day()))
                     .font(.title3)
                     .foregroundStyle(.secondary)
+
+                if let weather {
+                    HStack(spacing: Theme.Space.s) {
+                        Text(weather.icon)
+                        Text("\(Int(weather.tempF.rounded()))°F")
+                            .fontWeight(.medium)
+                        Text("·")
+                        Text(weather.condition)
+                        if let advisory = weather.advisory {
+                            Text("·")
+                            Text(advisory)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .font(.subheadline)
+                    .padding(.horizontal, Theme.Space.m)
+                    .padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+                }
+            }
+
+            if !topArticles.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                    HStack {
+                        Image(systemName: "newspaper.fill")
+                            .foregroundStyle(Color.accentColor)
+                        Text("Today's AI Digest Highlights")
+                            .font(.headline)
+                    }
+                    ForEach(topArticles) { article in
+                        Button {
+                            if let url = URL(string: article.url) {
+                                NSWorkspace.shared.open(url)
+                            }
+                        } label: {
+                            HStack(spacing: Theme.Space.s) {
+                                Text("\(article.score) pts")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Color.accentColor.opacity(0.15)))
+                                    .foregroundStyle(Color.accentColor)
+                                Text(article.title)
+                                    .font(.subheadline)
+                                    .lineLimit(1)
+                                    .foregroundStyle(Color.primary)
+                                Spacer()
+                                Text(article.source)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.secondary)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .frame(maxWidth: 580)
+                .padding(Theme.Space.m)
+                .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Color.secondary.opacity(0.08)))
             }
 
             if model.data.settings.googleShowEventsEnabled,
@@ -264,6 +325,8 @@ struct MorningView: View {
         .padding(Theme.Space.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
+            weather = DailyDashboardReader.loadWeather()
+            topArticles = DailyDashboardReader.loadTopDigestItems(limit: 2)
             let greeting = "\(DayPlanner.greeting(at: Date())), \(firstName). What are you starting with today?"
             VoiceOutput.shared.speak(greeting)
         }

@@ -235,4 +235,34 @@ final class MiniTimerLayoutTests: XCTestCase {
         XCTAssertTrue(MiniTimerLayout.isLockInHit(CGPoint(x: 160, y: 20), in: panelSize))
         XCTAssertFalse(MiniTimerLayout.isLockInHit(CGPoint(x: 100, y: 32), in: panelSize))
     }
+
+    func testIsNearTopWithGenerousThreshold() {
+        let visible = CGRect(x: 0, y: 0, width: 1440, height: 875)
+        // At rest: maxY is 875 - 8 = 867
+        let resting = MiniTimerLayout.frame(size: size, visible: visible)
+        XCTAssertTrue(MiniTimerLayout.isNearTop(origin: resting.origin, height: size.height, visible: visible))
+
+        // Pulled down 60pt: maxY is 807. Within 80pt threshold
+        let near = resting.offsetBy(dx: 0, dy: -60)
+        XCTAssertTrue(MiniTimerLayout.isNearTop(origin: near.origin, height: size.height, visible: visible))
+
+        // Pulled down 90pt: maxY is 777. Beyond 80pt threshold
+        let far = resting.offsetBy(dx: 0, dy: -90)
+        XCTAssertFalse(MiniTimerLayout.isNearTop(origin: far.origin, height: size.height, visible: visible))
+    }
+
+    func testTargetScreenVisibleResolvesClosestScreenWhenAboveTop() {
+        let screen1 = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let visible1 = CGRect(x: 0, y: 0, width: 1440, height: 875)
+        let screen2 = CGRect(x: 1440, y: 0, width: 1920, height: 1080)
+        let visible2 = CGRect(x: 1440, y: 0, width: 1920, height: 1055)
+        let fallback = visible1
+
+        let screens = [screen1, screen2]
+        let visFrames = [visible1, visible2]
+
+        // Point thrown above menu bar of screen 1 (e.g. y = 920)
+        let aboveScreen1 = CGPoint(x: 500, y: 920)
+        XCTAssertEqual(MiniTimerLayout.targetScreenVisible(point: aboveScreen1, screens: screens, visibleFrames: visFrames, fallback: fallback), visible1)
+    }
 }

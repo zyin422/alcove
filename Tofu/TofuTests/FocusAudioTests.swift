@@ -95,4 +95,29 @@ final class FocusAudioTests: XCTestCase {
         XCTAssertFalse(engine.isPlaying)
         XCTAssertFalse(engine.isPaused)
     }
+
+    func testAnalogChordGeneratesBoundedHarmonicWave() {
+        for t in stride(from: 0.0, through: 1.0, by: 0.01) {
+            let sample = FocusAudioMath.analogChord(time: t, rootFreq: 130.81) // C3
+            XCTAssertFalse(sample.isNaN)
+            XCTAssertGreaterThanOrEqual(sample, -1.0)
+            XCTAssertLessThanOrEqual(sample, 1.0)
+        }
+    }
+
+    func testRainSplatterGeneratesTransientImpulse() {
+        var state: Float = 0.0
+        // High white noise trigger above threshold generates acoustic drop
+        let drop = FocusAudioMath.rainDrop(white: 0.98, threshold: 0.95, state: &state, decay: 0.92)
+        XCTAssertGreaterThan(drop, 0.0)
+        // Subsequent zero noise decays the droplet smoothly
+        let decayed = FocusAudioMath.rainDrop(white: 0.0, threshold: 0.95, state: &state, decay: 0.92)
+        XCTAssertLessThan(decayed, drop)
+    }
+
+    @MainActor
+    func testAudioCacheDirectoryConfiguration() {
+        let dir = FocusAudioEngine.audioDirectory
+        XCTAssertTrue(dir.path.contains("Tofu/Audio"))
+    }
 }
