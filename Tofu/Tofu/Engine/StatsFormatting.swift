@@ -103,7 +103,7 @@ enum StatsFormatting {
             let blocks = (groups[name] ?? []).sorted { lhs, rhs in
                 if lhs.start != rhs.start { return lhs.start < rhs.start }
                 return lhs.id.uuidString < rhs.id.uuidString
-            }.map { TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration) }
+            }.map { TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration, notes: $0.notes) }
             return SubjectBlocks(name: name, seconds: seconds, fraction: total > 0 ? seconds / total : 0, blocks: blocks)
         }
     }
@@ -116,7 +116,7 @@ enum StatsFormatting {
                 if lhs.start != rhs.start { return lhs.start > rhs.start }
                 return lhs.id.uuidString < rhs.id.uuidString
             }
-            .map { TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration) }
+            .map { TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration, notes: $0.notes) }
     }
 }
 
@@ -138,4 +138,13 @@ struct TimeBlock: Identifiable, Equatable {
     let subjectName: String
     let start: Date
     let seconds: TimeInterval
+    let notes: String?
+
+    init(id: UUID, subjectName: String, start: Date, seconds: TimeInterval, notes: String? = nil) {
+        self.id = id
+        self.subjectName = subjectName
+        self.start = start
+        self.seconds = seconds
+        self.notes = notes
+    }
 }

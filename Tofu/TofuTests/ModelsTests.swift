@@ -97,6 +97,23 @@ final class ModelsTests: XCTestCase {
         XCTAssertTrue(empty.sessions.isEmpty)
     }
 
+    func testSessionNotesCodableBackwardsCompatibility() throws {
+        // Legacy JSON without notes
+        let legacyJSON = """
+        {"id":"B621E1F8-C36C-495A-93FC-0C247A3E6E5F","subjectID":"C621E1F8-C36C-495A-93FC-0C247A3E6E5F","subjectName":"CS128","mode":{"open":{}},"start":1760000000}
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(Session.self, from: legacyJSON)
+        XCTAssertEqual(decoded.subjectName, "CS128")
+        XCTAssertNil(decoded.notes)
+
+        // New session with notes
+        var session = Session(subjectID: UUID(), subjectName: "CS128", mode: .open, start: Date())
+        session.notes = "Completed compiler AST visitor implementation"
+        let encoded = try JSONEncoder().encode(session)
+        let roundtrip = try JSONDecoder().decode(Session.self, from: encoded)
+        XCTAssertEqual(roundtrip.notes, "Completed compiler AST visitor implementation")
+    }
+
     func testSubjectDefaults() {
         let subject = Subject(name: "CS128")
         XCTAssertEqual(subject.details, "")

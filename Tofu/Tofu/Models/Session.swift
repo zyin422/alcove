@@ -40,11 +40,14 @@ struct Session: Codable, Identifiable, Hashable {
     var blockedAppHistory: [String]
     /// Whether an emergency 2-minute grace pass was used during this lock-in.
     var gracePassUsed: Bool
+    /// Optional post-session reflection notes or summary comments.
+    var notes: String?
 
     init(id: UUID = UUID(), subjectID: UUID, subjectName: String, mode: SessionMode, start: Date,
          end: Date? = nil, lastHeartbeat: Date? = nil, blockedAttempts: Int = 0, closedTabs: Int = 0,
          outcome: SessionOutcome? = nil, isDemo: Bool = false, excluded: TimeInterval = 0,
-         parkedThoughts: [String] = [], closedTabHistory: [String] = [], blockedAppHistory: [String] = [], gracePassUsed: Bool = false) {
+         parkedThoughts: [String] = [], closedTabHistory: [String] = [], blockedAppHistory: [String] = [],
+         gracePassUsed: Bool = false, notes: String? = nil) {
         self.id = id
         self.subjectID = subjectID
         self.subjectName = subjectName
@@ -61,6 +64,7 @@ struct Session: Codable, Identifiable, Hashable {
         self.closedTabHistory = closedTabHistory
         self.blockedAppHistory = blockedAppHistory
         self.gracePassUsed = gracePassUsed
+        self.notes = notes
     }
 
     /// Seconds from start to end (or to the last heartbeat while active), minus time the Mac was asleep.
@@ -68,7 +72,7 @@ struct Session: Codable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, subjectID, subjectName, mode, start, end, lastHeartbeat
-        case blockedAttempts, closedTabs, outcome, isDemo, excluded, parkedThoughts, closedTabHistory, blockedAppHistory, gracePassUsed
+        case blockedAttempts, closedTabs, outcome, isDemo, excluded, parkedThoughts, closedTabHistory, blockedAppHistory, gracePassUsed, notes
     }
 
     init(from decoder: Decoder) throws {
@@ -89,5 +93,6 @@ struct Session: Codable, Identifiable, Hashable {
         closedTabHistory = try container.decodeIfPresent([String].self, forKey: .closedTabHistory) ?? []
         blockedAppHistory = try container.decodeIfPresent([String].self, forKey: .blockedAppHistory) ?? []
         gracePassUsed = try container.decodeIfPresent(Bool.self, forKey: .gracePassUsed) ?? false
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
     }
 }

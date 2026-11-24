@@ -291,13 +291,22 @@ private struct DaySubjectCard: View {
             }
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 ForEach(subject.blocks) { block in
-                    HStack {
-                        Text(block.start.formatted(.dateTime.hour().minute()))
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text(block.start.formatted(.dateTime.hour().minute()))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(TimeFormat.short(block.seconds))
+                                .monospacedDigit()
+                            SessionRemoveButton { onDelete(block.id) }
+                        }
+                        if let notes = block.notes, !notes.isEmpty {
+                            HStack(spacing: 3) {
+                                Image(systemName: "note.text").font(.system(size: 8))
+                                Text(notes).font(.caption2).lineLimit(1)
+                            }
                             .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(TimeFormat.short(block.seconds))
-                            .monospacedDigit()
-                        SessionRemoveButton { onDelete(block.id) }
+                        }
                     }
                     .font(.caption)
                 }
@@ -446,6 +455,13 @@ private struct TimeBlockList: View {
                                 Text(block.start.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                if let notes = block.notes, !notes.isEmpty {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "note.text").font(.system(size: 8))
+                                        Text(notes).font(.caption2).lineLimit(1)
+                                    }
+                                    .foregroundStyle(.secondary)
+                                }
                             }
                             Spacer(minLength: Theme.Space.s)
 

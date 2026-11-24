@@ -243,7 +243,8 @@ enum DayPlanner {
                     isDone: false,
                     googleTaskID: priority.googleTaskID,
                     estimatedMinutes: priority.estimatedMinutes,
-                    scheduledMinutesFromMidnight: nil
+                    scheduledMinutesFromMidnight: nil,
+                    isAnchor: priority.isAnchor
                 )
             }
     }

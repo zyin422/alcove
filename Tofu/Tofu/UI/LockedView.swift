@@ -252,13 +252,20 @@ struct LockedView: View {
         if let session = engine.session {
             let todayKey = DayKey.key(for: Date())
             if let priority = model.plan(for: todayKey)?.activePriority(for: session.subjectID) {
-                let color = Theme.subjectColor(SubjectColor.hex(for: session.subjectName))
+                let color = priority.isAnchor ? Theme.amber : Theme.subjectColor(SubjectColor.hex(for: session.subjectName))
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("ACTIVE FOCUS")
-                            .font(.system(size: 8.5, weight: .bold))
-                            .foregroundStyle(color)
-                            .tracking(0.8)
+                        HStack(spacing: 3) {
+                            if priority.isAnchor {
+                                Image(systemName: "star.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(Theme.amber)
+                            }
+                            Text(priority.isAnchor ? "FOCUS ANCHOR" : "ACTIVE FOCUS")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundStyle(color)
+                                .tracking(0.8)
+                        }
                         Spacer()
                         Button {
                             Task {

@@ -425,6 +425,14 @@ enum TokenSource: Equatable {
         save()
     }
 
+    /// Attaches or updates reflection notes for a completed session.
+    func updateSessionNotes(id: UUID, notes: String?) {
+        guard let index = data.sessions.firstIndex(where: { $0.id == id }) else { return }
+        let clean = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        data.sessions[index].notes = (clean?.isEmpty == true) ? nil : clean
+        save()
+    }
+
     /// Drops finished blocks under five minutes. Called after the morning check, so a short abort
     /// still brings the screen back, then leaves no row in stats.
     func dropShortEndedSessions() {
@@ -570,6 +578,27 @@ enum TokenSource: Equatable {
             }
         }
         ToastCenter.shared.show("Deferred “\(item.title)” to tomorrow.")
+    }
+
+    /// Toggles a priority's focus anchor status (⭐ primary target). Un-anchors sibling tasks under the same subject.
+    func togglePriorityAnchor(_ id: UUID, day: String) {
+        var anchorTitle: String?
+        var nowAnchor = false
+        updatePlan(day: day) { plan in
+            guard let index = plan.priorities.firstIndex(where: { $0.id == id }) else { return }
+            let willBeAnchor = !plan.priorities[index].isAnchor
+            nowAnchor = willBeAnchor
+            anchorTitle = plan.priorities[index].title
+            if willBeAnchor, let subID = plan.priorities[index].subjectID {
+                for i in plan.priorities.indices where plan.priorities[i].subjectID == subID {
+                    plan.priorities[i].isAnchor = false
+                }
+            }
+            plan.priorities[index].isAnchor = willBeAnchor
+        }
+        if nowAnchor, let title = anchorTitle {
+            ToastCenter.shared.show("⭐ Designated “\(title)” as focus anchor.")
+        }
     }
 
     /// True when the user has completed all study priorities or subjects planned for the given day.

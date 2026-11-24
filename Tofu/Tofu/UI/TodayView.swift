@@ -430,7 +430,8 @@ struct TodayView: View {
                 let check = p.isDone ? "✓" : "○"
                 let subName = p.subjectID.flatMap(model.subject(id:))?.name
                 let subTag = subName.map { " [\($0)]" } ?? ""
-                lines.append("  \(check)\(subTag) \(p.title)")
+                let anchorTag = p.isAnchor ? " ⭐" : ""
+                lines.append("  \(check)\(subTag)\(anchorTag) \(p.title)")
             }
         }
 
@@ -440,6 +441,17 @@ struct TodayView: View {
             lines.append("- **Parked Thoughts** (\(thoughts.count)):")
             for t in thoughts {
                 lines.append("  - \(t)")
+            }
+        }
+
+        let sessionNotes = todaySessions.compactMap { s -> (String, String)? in
+            guard let n = s.notes, !n.isEmpty else { return nil }
+            return (s.subjectName, n)
+        }
+        if !sessionNotes.isEmpty {
+            lines.append("- **Session Notes**:")
+            for (subj, note) in sessionNotes {
+                lines.append("  - *\(subj)*: \(note)")
             }
         }
 
@@ -507,6 +519,16 @@ struct TodayView: View {
                         .padding(.vertical, 2)
                         .background(RoundedRectangle(cornerRadius: 4).fill(Theme.indigo.opacity(0.10)))
                     }
+                    if priority.isAnchor {
+                        HStack(spacing: 3) {
+                            Image(systemName: "star.fill").font(.system(size: 8))
+                            Text("Anchor").font(.system(size: 9.5, weight: .bold))
+                        }
+                        .foregroundStyle(Theme.amber)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Theme.amber.opacity(0.15)))
+                    }
                     durationBadge(for: priority)
                 }
             }
@@ -553,6 +575,16 @@ struct TodayView: View {
                 }
 
                 if !priority.isDone {
+                    Button {
+                        model.togglePriorityAnchor(priority.id, day: plan.day)
+                    } label: {
+                        Image(systemName: priority.isAnchor ? "star.fill" : "star")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(priority.isAnchor ? Theme.amber : Color.secondary)
+                    .help(priority.isAnchor ? "Remove focus anchor" : "Set as primary focus anchor (⭐)")
+
                     Button {
                         model.deferPriorityToTomorrow(priority.id, from: plan.day)
                     } label: {

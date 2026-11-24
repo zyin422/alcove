@@ -12,10 +12,12 @@ struct Priority: Codable, Identifiable, Hashable {
     var estimatedMinutes: Int?
     /// Scheduled start time in minutes from midnight (e.g. 9 * 60 = 540 for 9:00 AM), optional.
     var scheduledMinutesFromMidnight: Int?
+    /// Whether this priority is designated as the primary focus anchor (⭐ Starred) for its subject.
+    var isAnchor: Bool
 
     init(id: UUID = UUID(), title: String, subjectID: UUID? = nil, isDone: Bool = false,
          googleTaskID: String? = nil, estimatedMinutes: Int? = nil,
-         scheduledMinutesFromMidnight: Int? = nil) {
+         scheduledMinutesFromMidnight: Int? = nil, isAnchor: Bool = false) {
         self.id = id
         self.title = title
         self.subjectID = subjectID
@@ -23,6 +25,37 @@ struct Priority: Codable, Identifiable, Hashable {
         self.googleTaskID = googleTaskID
         self.estimatedMinutes = estimatedMinutes
         self.scheduledMinutesFromMidnight = scheduledMinutesFromMidnight
+        self.isAnchor = isAnchor
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, subjectID, isDone, googleTaskID, estimatedMinutes, scheduledMinutesFromMidnight, isAnchor
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        subjectID = try container.decodeIfPresent(UUID.self, forKey: .subjectID)
+        isDone = try container.decodeIfPresent(Bool.self, forKey: .isDone) ?? false
+        googleTaskID = try container.decodeIfPresent(String.self, forKey: .googleTaskID)
+        estimatedMinutes = try container.decodeIfPresent(Int.self, forKey: .estimatedMinutes)
+        scheduledMinutesFromMidnight = try container.decodeIfPresent(Int.self, forKey: .scheduledMinutesFromMidnight)
+        isAnchor = try container.decodeIfPresent(Bool.self, forKey: .isAnchor) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encodeIfPresent(subjectID, forKey: .subjectID)
+        try container.encode(isDone, forKey: .isDone)
+        try container.encodeIfPresent(googleTaskID, forKey: .googleTaskID)
+        try container.encodeIfPresent(estimatedMinutes, forKey: .estimatedMinutes)
+        try container.encodeIfPresent(scheduledMinutesFromMidnight, forKey: .scheduledMinutesFromMidnight)
+        if isAnchor {
+            try container.encode(isAnchor, forKey: .isAnchor)
+        }
     }
 
     /// Formatted time label (e.g. "9:00 AM", or "9:00 AM – 10:30 AM" if duration is known).
@@ -68,9 +101,12 @@ struct DayPlan: Codable, Identifiable, Hashable {
         priorities.insert(item, at: destinationIndex)
     }
 
-    /// First pending (uncompleted) priority for a given subject ID, if any.
+    /// First pending (uncompleted) priority for a given subject ID, preferring the focus anchor if set.
     func activePriority(for subjectID: UUID) -> Priority? {
-        priorities.first(where: { $0.subjectID == subjectID && !$0.isDone })
+        if let anchor = priorities.first(where: { $0.subjectID == subjectID && !$0.isDone && $0.isAnchor }) {
+            return anchor
+        }
+        return priorities.first(where: { $0.subjectID == subjectID && !$0.isDone })
     }
 }
 

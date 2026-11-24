@@ -736,4 +736,29 @@ final class DayPlanModelTests: XCTestCase {
         XCTAssertEqual(merged[1].title, "New Task")
         XCTAssertEqual(merged[1].estimatedMinutes, 30)
     }
+
+    func testActivePriorityPrefersAnchorOverEarlierPriorities() {
+        let sub = UUID()
+        let p1 = Priority(title: "Task 1", subjectID: sub, isDone: false, isAnchor: false)
+        let p2 = Priority(title: "Task 2 (Anchor)", subjectID: sub, isDone: false, isAnchor: true)
+        let p3 = Priority(title: "Task 3", subjectID: sub, isDone: false, isAnchor: false)
+
+        let plan = DayPlan(day: "2026-11-24", priorities: [p1, p2, p3])
+        XCTAssertEqual(plan.activePriority(for: sub)?.id, p2.id, "Should prioritize starred anchor priority")
+    }
+
+    func testPriorityAnchorCodableBackwardsCompatibility() throws {
+        let legacyJSON = """
+        {"id":"A621E1F8-C36C-495A-93FC-0C247A3E6E5F","title":"Old task","isDone":false}
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(Priority.self, from: legacyJSON)
+        XCTAssertEqual(decoded.title, "Old task")
+        XCTAssertFalse(decoded.isAnchor)
+
+        let anchor = Priority(title: "Starred task", isAnchor: true)
+        let encoded = try JSONEncoder().encode(anchor)
+        let roundtrip = try JSONDecoder().decode(Priority.self, from: encoded)
+        XCTAssertEqual(roundtrip.title, "Starred task")
+        XCTAssertTrue(roundtrip.isAnchor)
+    }
 }

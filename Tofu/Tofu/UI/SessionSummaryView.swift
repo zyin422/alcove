@@ -22,6 +22,33 @@ enum SessionSummaryText {
         guard let outcome = session?.outcome else { return false }
         return outcome != .interrupted
     }
+
+    /// Formats a single focus block into a clean Markdown recap.
+    static func markdownRecap(session: Session, priority: Priority? = nil, notes: String? = nil) -> String {
+        var lines: [String] = []
+        let outcomeStr = outcome(session.outcome)
+        lines.append("### 🎯 Focus Block: \(session.subjectName) (\(outcomeStr))")
+        var meta = "- **Duration:** \(TimeFormat.short(session.duration))"
+        if let g = goal(session.mode) {
+            meta += " (Goal: \(g))"
+        }
+        lines.append(meta)
+        if let priority {
+            lines.append("- **Active Focus Priority:** \(priority.title) \(priority.isDone ? "✓" : "")")
+        }
+        lines.append("- **Shield Interventions:** \(session.blockedAttempts) apps blocked · \(session.closedTabs) tabs closed")
+        let activeNotes = notes ?? session.notes
+        if let activeNotes, !activeNotes.isEmpty {
+            lines.append("- **Notes & Reflection:** \(activeNotes)")
+        }
+        if !session.parkedThoughts.isEmpty {
+            lines.append("- **Parked Thoughts:**")
+            for thought in session.parkedThoughts {
+                lines.append("  - \(thought)")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
 }
 
 /// Sheet shown after a session ends (spec §6, end step 5): subject, outcome, time, counters and the goal.
@@ -34,6 +61,9 @@ struct SessionSummaryView: View {
     @State private var priority: Priority?
     @State private var answered = false
     @State private var addedThoughtsToPlan = false
+    @State private var notesText: String = ""
+    @State private var copiedMarkdown = false
+    @State private var copiedDiscord = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
@@ -62,16 +92,42 @@ struct SessionSummaryView: View {
                 }
             }
 
-            Button {
-                copyDiscordRecap()
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                    Text("Copy Discord Message")
-                }
-                .font(.caption.weight(.medium))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Reflection & Notes")
+                    .font(Theme.captionFont)
+                    .foregroundStyle(.secondary)
+                TextField("Add reflection or notes...", text: $notesText)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: notesText) { _, val in
+                        model.updateSessionNotes(id: session.id, notes: val)
+                    }
             }
-            .buttonStyle(.borderless)
+
+            HStack(spacing: Theme.Space.m) {
+                Button {
+                    copyMarkdownRecap()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: copiedMarkdown ? "checkmark" : "doc.on.doc")
+                        Text(copiedMarkdown ? "Copied Markdown ✓" : "Copy Markdown")
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(copiedMarkdown ? Theme.emerald : Color.primary)
+                }
+                .buttonStyle(.borderless)
+
+                Button {
+                    copyDiscordRecap()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: copiedDiscord ? "checkmark" : "bubble.left.and.bubble.right.fill")
+                        Text(copiedDiscord ? "Copied Discord ✓" : "Copy Discord")
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(copiedDiscord ? Theme.emerald : Color.primary)
+                }
+                .buttonStyle(.borderless)
+            }
 
             if !session.parkedThoughts.isEmpty {
                 parkedThoughtsSection
@@ -96,7 +152,10 @@ struct SessionSummaryView: View {
         }
         .padding(Theme.Space.l)
         .frame(width: 460)
-        .onAppear { priority = model.priorityToConfirm(after: session) }
+        .onAppear {
+            priority = model.priorityToConfirm(after: session)
+            notesText = session.notes ?? ""
+        }
         .onDisappear { model.engine.applyRelaunch() }
     }
 
@@ -306,6 +365,18 @@ struct SessionSummaryView: View {
         answered = true
     }
 
+    private func copyMarkdownRecap() {
+        let markdown = SessionSummaryText.markdownRecap(session: session, priority: priority, notes: notesText)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(markdown, forType: .string)
+        copiedMarkdown = true
+        ToastCenter.shared.show("Markdown recap copied to clipboard")
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            copiedMarkdown = false
+        }
+    }
+
     private func copyDiscordRecap() {
         let name = model.displayName
         let text: String
@@ -321,6 +392,11 @@ struct SessionSummaryView: View {
         }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        copiedDiscord = true
         ToastCenter.shared.show("Discord message copied to clipboard")
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            copiedDiscord = false
+        }
     }
 }
