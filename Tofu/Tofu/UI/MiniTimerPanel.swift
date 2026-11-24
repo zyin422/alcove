@@ -68,6 +68,12 @@ enum MiniTimerLayout {
         soundHitRect(in: size).contains(point)
     }
 
+    /// Number of completed 25-minute focus cycles in an open-ended session.
+    static func completedFlowCycles(elapsed: TimeInterval, cycleLength: TimeInterval = 25 * 60) -> Int {
+        guard elapsed >= cycleLength, cycleLength > 0 else { return 0 }
+        return Int(elapsed / cycleLength)
+    }
+
     /// Clickable area of the trailing Lock In button shown between blocks.
     static func lockInHitRect(in size: CGSize) -> CGRect {
         CGRect(x: size.width - 100, y: 0, width: 100, height: size.height)
@@ -80,12 +86,22 @@ enum MiniTimerLayout {
 
     /// Clickable area of the trailing Resume button shown during breaks.
     static func resumeHitRect(in size: CGSize) -> CGRect {
-        CGRect(x: size.width - 100, y: 0, width: 100, height: size.height)
+        CGRect(x: size.width - 66, y: 0, width: 66, height: size.height)
     }
 
     /// True when `point` (view coordinates) lands on the trailing Resume button.
     static func isResumeHit(_ point: CGPoint, in size: CGSize) -> Bool {
         resumeHitRect(in: size).contains(point)
+    }
+
+    /// Clickable area of the trailing +2m break extend button shown during breaks.
+    static func extendBreakHitRect(in size: CGSize) -> CGRect {
+        CGRect(x: size.width - 114, y: 0, width: 46, height: size.height)
+    }
+
+    /// True when `point` (view coordinates) lands on the +2m break extend button.
+    static func isExtendBreakHit(_ point: CGPoint, in size: CGSize) -> Bool {
+        extendBreakHitRect(in: size).contains(point)
     }
 
     /// True once the pointer is at least `dragThreshold` points away from where the press began.
@@ -293,6 +309,27 @@ struct MiniTimerView: View {
         return Theme.indigo
     }
 
+    @ViewBuilder private var openSessionMilestones: some View {
+        if engine.isLocked && engine.session?.mode == .open && !engine.isOnBreak && !engine.isOnGracePass {
+            let completedCycles = MiniTimerLayout.completedFlowCycles(elapsed: engine.elapsed)
+            if completedCycles > 0 {
+                HStack(spacing: 3) {
+                    ForEach(0..<min(completedCycles, 4), id: \.self) { _ in
+                        Circle()
+                            .fill(subjectColor)
+                            .frame(width: 4, height: 4)
+                    }
+                    if completedCycles > 4 {
+                        Text("+\(completedCycles - 4)")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(subjectColor)
+                    }
+                }
+                .help("\(completedCycles) × 25m focus blocks completed")
+            }
+        }
+    }
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0)) { context in
             content(now: context.date)
@@ -352,10 +389,14 @@ struct MiniTimerView: View {
                                 .help(engine.deflectionsSummary)
                             }
                         }
-                        Text(clock(now: now))
-                            .font(Theme.timerFont(size: 28))
-                            .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.primary)
-                            .lineLimit(1)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(clock(now: now))
+                                .font(Theme.timerFont(size: 28))
+                                .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.primary)
+                                .lineLimit(1)
+
+                            openSessionMilestones
+                        }
                     }
                     Spacer(minLength: Theme.Space.s)
                     if isBetweenBlocks {
@@ -385,16 +426,31 @@ struct MiniTimerView: View {
                         .help("Emergency grace pass active (click to resume lock-in)")
                     } else if engine.isOnBreak {
                         HStack(spacing: 5) {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 10, weight: .bold))
-                            Text("RESUME")
-                                .font(.system(size: 10, weight: .bold))
+                            Text("+2m")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .monospacedDigit()
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 5)
+                                .background(RoundedRectangle(cornerRadius: 6).fill(Theme.coral.opacity(0.18)))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Theme.coral.opacity(0.4), lineWidth: 1)
+                                )
+                                .foregroundStyle(Theme.coral)
+                                .help("Extend break by 2 minutes (up to 15m)")
+
+                            HStack(spacing: 4) {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 9, weight: .bold))
+                                Text("RESUME")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5.5)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(Theme.coral))
+                            .foregroundStyle(Color.white)
+                            .help("End break and resume focus")
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.coral))
-                        .foregroundStyle(Color.white)
-                        .help("End break and resume focus")
                     } else {
                         HStack(spacing: 8) {
                             let sound = model?.data.settings.focusSound ?? .off
@@ -715,7 +771,9 @@ struct MiniTimerView: View {
                     onOpen()
                 }
             } else if engine.isOnBreak {
-                if MiniTimerLayout.isResumeHit(point, in: frame.size) {
+                if MiniTimerLayout.isExtendBreakHit(point, in: frame.size) {
+                    engine.extendBreak(minutes: 2)
+                } else if MiniTimerLayout.isResumeHit(point, in: frame.size) {
                     engine.endBreak()
                 } else {
                     onOpen()
@@ -783,6 +841,14 @@ struct MiniTimerView: View {
         if !engine.isLocked && model?.nextForceBlockDeadline != nil {
             if MiniTimerLayout.isLockInHit(point, in: frame.size) || MiniTimerLayout.isCloseHit(point, in: frame.size) {
                 onLockIn?()
+            } else {
+                onOpen()
+            }
+        } else if engine.isOnBreak {
+            if MiniTimerLayout.isExtendBreakHit(point, in: frame.size) {
+                engine.extendBreak(minutes: 2)
+            } else if MiniTimerLayout.isResumeHit(point, in: frame.size) {
+                engine.endBreak()
             } else {
                 onOpen()
             }

@@ -244,10 +244,14 @@ final class MiniTimerLayoutTests: XCTestCase {
         XCTAssertTrue(MiniTimerLayout.isLockInHit(CGPoint(x: 160, y: 20), in: panelSize))
         XCTAssertFalse(MiniTimerLayout.isLockInHit(CGPoint(x: 100, y: 32), in: panelSize))
 
-        // Resume button occupies trailing region during break
+        // Resume and Extend break buttons during break
         XCTAssertTrue(MiniTimerLayout.isResumeHit(CGPoint(x: 200, y: 32), in: panelSize))
-        XCTAssertTrue(MiniTimerLayout.isResumeHit(CGPoint(x: 160, y: 20), in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isResumeHit(CGPoint(x: 150, y: 32), in: panelSize))
         XCTAssertFalse(MiniTimerLayout.isResumeHit(CGPoint(x: 100, y: 32), in: panelSize))
+
+        XCTAssertTrue(MiniTimerLayout.isExtendBreakHit(CGPoint(x: 150, y: 32), in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isExtendBreakHit(CGPoint(x: 200, y: 32), in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isExtendBreakHit(CGPoint(x: 100, y: 32), in: panelSize))
     }
 
     func testIsNearTopWithGenerousThreshold() {
@@ -293,5 +297,24 @@ final class MiniTimerLayoutTests: XCTestCase {
         // Outside both displays (e.g. disconnected monitor coordinates)
         XCTAssertFalse(MiniTimerLayout.isPositionOnAnyScreen(CGPoint(x: -500, y: 200), in: screens))
         XCTAssertFalse(MiniTimerLayout.isPositionOnAnyScreen(CGPoint(x: 5000, y: 500), in: screens))
+    }
+
+    func testCompletedFlowCyclesCalculatesPacedIntervals() {
+        XCTAssertEqual(MiniTimerLayout.completedFlowCycles(elapsed: 0), 0)
+        XCTAssertEqual(MiniTimerLayout.completedFlowCycles(elapsed: 14 * 60), 0)
+        XCTAssertEqual(MiniTimerLayout.completedFlowCycles(elapsed: 24 * 60 + 59), 0)
+
+        // 1 cycle at 25m
+        XCTAssertEqual(MiniTimerLayout.completedFlowCycles(elapsed: 25 * 60), 1)
+        XCTAssertEqual(MiniTimerLayout.completedFlowCycles(elapsed: 35 * 60), 1)
+
+        // 2 cycles at 50m
+        XCTAssertEqual(MiniTimerLayout.completedFlowCycles(elapsed: 50 * 60), 2)
+
+        // 3 cycles at 75m
+        XCTAssertEqual(MiniTimerLayout.completedFlowCycles(elapsed: 75 * 60), 3)
+
+        // 5 cycles at 125m
+        XCTAssertEqual(MiniTimerLayout.completedFlowCycles(elapsed: 125 * 60), 5)
     }
 }

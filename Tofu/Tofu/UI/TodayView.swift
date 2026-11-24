@@ -351,6 +351,18 @@ struct TodayView: View {
                     .padding(.horizontal, 2)
                 }
 
+                if !priority.isDone {
+                    Button {
+                        model.deferPriorityToTomorrow(priority.id, from: plan.day)
+                    } label: {
+                        Image(systemName: "arrow.right.to.line")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.secondary)
+                    .help("Defer priority to tomorrow")
+                }
+
                 Button {
                     model.updatePlan(day: plan.day) { $0.priorities.removeAll { $0.id == priority.id } }
                 } label: {

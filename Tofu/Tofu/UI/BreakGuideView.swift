@@ -255,18 +255,35 @@ struct BreakGuideView: View {
     }
 
     private var endBreakButton: some View {
-        Button {
-            engine.endBreak()
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle.fill")
-                Text("End Break & Lock Back In")
+        HStack(spacing: Theme.Space.m) {
+            Button {
+                engine.extendBreak(minutes: 2)
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "plus.circle")
+                    Text("+2m Rest")
+                }
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, Theme.Space.m)
+                .padding(.vertical, Theme.Space.s)
             }
-            .font(.subheadline.weight(.medium))
-            .padding(.horizontal, Theme.Space.l)
-            .padding(.vertical, Theme.Space.s)
+            .buttonStyle(.bordered)
+            .tint(Theme.coral)
+            .help("Extend break by 2 minutes (max 15m)")
+
+            Button {
+                engine.endBreak()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("End Break & Lock Back In")
+                }
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, Theme.Space.l)
+                .padding(.vertical, Theme.Space.s)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Theme.coral)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(Theme.coral)
     }
 }

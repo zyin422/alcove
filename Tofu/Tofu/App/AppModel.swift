@@ -554,6 +554,24 @@ enum TokenSource: Equatable {
         }
     }
 
+    /// Defers an uncompleted priority from `day` to tomorrow (`DayKey.next(day)`).
+    func deferPriorityToTomorrow(_ id: UUID, from day: String) {
+        var deferredItem: Priority?
+        updatePlan(day: day) { plan in
+            if let index = plan.priorities.firstIndex(where: { $0.id == id }) {
+                deferredItem = plan.priorities.remove(at: index)
+            }
+        }
+        guard let item = deferredItem else { return }
+        let nextDay = DayKey.next(day)
+        updatePlan(day: nextDay) { nextPlan in
+            if !nextPlan.priorities.contains(where: { $0.id == item.id || $0.title == item.title }) {
+                nextPlan.priorities.append(item)
+            }
+        }
+        ToastCenter.shared.show("Deferred “\(item.title)” to tomorrow.")
+    }
+
     /// True when the user has completed all study priorities or subjects planned for the given day.
     func isStudyCompleted(day: String? = nil, now: Date = Date()) -> Bool {
         let targetDay = day ?? DayKey.key(for: now)

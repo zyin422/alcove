@@ -562,4 +562,36 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(again?.extraDomains, ["piazza.com", "stackoverflow.com"])
         XCTAssertEqual(again?.allowedApps.map(\.bundleID), ["com.apple.calculator"])
     }
+
+    func testDeferPriorityToTomorrowTransfersPriorityToNextDay() throws {
+        let store = try makeStore()
+        let harness = EngineHarness()
+        let model = AppModel(store: store, engine: harness.engine)
+        let subject = makeSubject()
+        model.addSubject(subject)
+
+        let today = "2026-11-24"
+        let tomorrow = DayKey.next(today)
+        let p1 = Priority(title: "Complete lab 4", subjectID: subject.id, estimatedMinutes: 45)
+        let p2 = Priority(title: "Read chapter 3", subjectID: subject.id, estimatedMinutes: 30)
+
+        model.updatePlan(day: today) { plan in
+            plan.priorities = [p1, p2]
+        }
+
+        XCTAssertEqual(model.plan(for: today)?.priorities.count, 2)
+        XCTAssertNil(model.plan(for: tomorrow))
+
+        // Defer p1 to tomorrow
+        model.deferPriorityToTomorrow(p1.id, from: today)
+
+        // Today now only has p2
+        let todayPlan = model.plan(for: today)
+        XCTAssertEqual(todayPlan?.priorities.map(\.id), [p2.id])
+
+        // Tomorrow now has p1
+        let tomorrowPlan = model.plan(for: tomorrow)
+        XCTAssertEqual(tomorrowPlan?.priorities.map(\.id), [p1.id])
+        XCTAssertEqual(tomorrowPlan?.priorities.first?.title, "Complete lab 4")
+    }
 }

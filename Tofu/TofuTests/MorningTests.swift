@@ -81,7 +81,7 @@ final class MorningTests: XCTestCase {
         let now = Date()
         var shown = 0
         model.onShowMorning = { shown += 1 }
-        model.updateSettings { $0.dayEndMinutes = 24 * 60 + 3 * 60 }   // never "too late" during the test
+        model.updateSettings { $0.dayEndMinutes = 28 * 60 }   // never "too late" during the test (full 4 AM - 4 AM cycle)
         model.checkMorning(now: now)
         XCTAssertEqual(shown, 1)
         XCTAssertTrue(model.isShowingMorning)
@@ -231,7 +231,7 @@ final class MorningTests: XCTestCase {
         let model = try makeModel(EngineHarness())
         let now = Date()
         model.updatePlan(day: DayKey.previous(DayKey.key(for: now))) { $0.priorities = [Priority(title: "Lab")] }
-        model.updateSettings { $0.dayEndMinutes = 24 * 60 + 3 * 60 }
+        model.updateSettings { $0.dayEndMinutes = 28 * 60 }
         var shown = 0
         model.onShowMorning = { shown += 1 }
 

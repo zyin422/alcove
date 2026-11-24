@@ -593,6 +593,23 @@ extension WindowPresenting {
         resumeMonitoring()
     }
 
+    /// Extends the active break by `minutes` (e.g. 2 minutes), up to a maximum duration of 15 minutes.
+    func extendBreak(minutes: Int = 2) {
+        guard isOnBreak, let currentEndsAt = breakEndsAt, minutes > 0 else { return }
+        let addedSeconds = TimeInterval(minutes * 60)
+        let maxBreakDuration: TimeInterval = 15 * 60
+        let currentTotal = breakTotal ?? currentEndsAt.timeIntervalSince(pauseStartedAt ?? now)
+        let allowedSeconds = min(addedSeconds, max(0, maxBreakDuration - currentTotal))
+        guard allowedSeconds > 0 else {
+            toaster.show("Break reached maximum duration (15m).")
+            return
+        }
+        breakEndsAt = currentEndsAt.addingTimeInterval(allowedSeconds)
+        breakTotal = currentTotal + allowedSeconds
+        VoiceOutput.shared.speak("Break extended by \(Int(allowedSeconds / 60)) minutes.")
+        toaster.show("Break extended +\(Int(allowedSeconds / 60))m ☕️")
+    }
+
     /// Extends the active goal session by `minutes` (default 10).
     func extendSession(minutes: Int = 10) {
         guard isLocked, var current = session, minutes > 0 else { return }

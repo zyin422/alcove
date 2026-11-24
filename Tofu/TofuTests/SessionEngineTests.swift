@@ -965,6 +965,29 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(h.presenter.showMainWindowCount, 1)
     }
 
+    func testExtendBreakIncreasesBreakDurationAndCapsAtMaximum() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 50), displayName: "Alex")
+        h.clock.advance(25 * 60)
+        XCTAssertTrue(h.engine.beginBreak(minutes: 5))
+        XCTAssertEqual(h.engine.breakRemaining ?? 0, 5 * 60, accuracy: 1)
+
+        // Extend by 2 minutes
+        h.engine.extendBreak(minutes: 2)
+        XCTAssertEqual(h.engine.breakRemaining ?? 0, 7 * 60, accuracy: 1)
+        XCTAssertEqual(h.engine.breakTotal, 7 * 60)
+
+        // Extend beyond cap (15 minutes total). Currently at 7m, attempting +10m -> clamped to +8m
+        h.engine.extendBreak(minutes: 10)
+        XCTAssertEqual(h.engine.breakRemaining ?? 0, 15 * 60, accuracy: 1)
+        XCTAssertEqual(h.engine.breakTotal, 15 * 60)
+
+        // Further extension when at cap -> no-op and shows toast
+        h.engine.extendBreak(minutes: 2)
+        XCTAssertEqual(h.engine.breakRemaining ?? 0, 15 * 60, accuracy: 1)
+        XCTAssertTrue(h.toaster.messages.contains("Break reached maximum duration (15m)."))
+    }
+
     func testExtendGoalSessionIncreasesRemainingAndGoalMinutes() async {
         let h = EngineHarness()
         await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 50), displayName: "Alex")
