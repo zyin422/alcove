@@ -531,6 +531,20 @@ extension WindowPresenting {
         onSessionChanged?(current)
     }
 
+    /// Running total of distraction interventions (blocked app launches + closed distraction tabs) this session.
+    var deflectionsCount: Int {
+        guard let session else { return 0 }
+        return session.blockedAttempts + session.closedTabs
+    }
+
+    /// Human-readable deflection summary.
+    var deflectionsSummary: String {
+        guard let session else { return "0 deflected" }
+        let total = session.blockedAttempts + session.closedTabs
+        if total == 0 { return "Clean focus: 0 deflected" }
+        return "\(total) deflected (\(session.blockedAttempts) app\(session.blockedAttempts == 1 ? "" : "s"), \(session.closedTabs) tab\(session.closedTabs == 1 ? "" : "s"))"
+    }
+
     // MARK: Break
 
     /// Pauses the countdown for `minutes` (1...15). App blocking and the tab check keep running unless

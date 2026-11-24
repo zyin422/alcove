@@ -332,6 +332,20 @@ struct MiniTimerView: View {
                                 .font(Theme.captionFont)
                                 .lineLimit(1)
                                 .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.secondary)
+
+                            if engine.deflectionsCount > 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "shield.fill")
+                                        .font(.system(size: 7, weight: .bold))
+                                    Text("\(engine.deflectionsCount)")
+                                        .font(.system(size: 8, weight: .bold))
+                                }
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Theme.amber.opacity(0.2)))
+                                .foregroundStyle(Theme.amber)
+                                .help(engine.deflectionsSummary)
+                            }
                         }
                         Text(clock(now: now))
                             .font(Theme.timerFont(size: 28))

@@ -324,6 +324,21 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(changes.last?.closedTabs, 1)
     }
 
+    func testDeflectionsCountAndSummaryTracksInterventions() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        XCTAssertEqual(h.engine.deflectionsCount, 0)
+        XCTAssertEqual(h.engine.deflectionsSummary, "Clean focus: 0 deflected")
+
+        h.blocker.simulateBlocked("com.hnc.Discord", name: "Discord")
+        XCTAssertEqual(h.engine.deflectionsCount, 1)
+        XCTAssertEqual(h.engine.deflectionsSummary, "1 deflected (1 app, 0 tabs)")
+
+        h.chrome.simulateTabClosed("reddit.com")
+        XCTAssertEqual(h.engine.deflectionsCount, 2)
+        XCTAssertEqual(h.engine.deflectionsSummary, "2 deflected (1 app, 1 tab)")
+    }
+
     func testSpiritHearsAClosedTabAndAHiddenAppWithoutASecondToast() async {
         let h = EngineHarness()
         await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
