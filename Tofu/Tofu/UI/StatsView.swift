@@ -3,15 +3,7 @@ import SwiftUI
 
 /// Stats screen. Day is one day's subjects. Week and month are one period at a time. Year is that year's months.
 struct StatsView: View {
-    enum StatsTab: String, CaseIterable, Identifiable {
-        case log = "Activity"
-        case tree = "Mastery Map"
-
-        var id: String { rawValue }
-    }
-
     let model: AppModel
-    @State private var currentTab: StatsTab = .log
     @State private var span: StatsSpan = .day
     @State private var anchor = Date()
 
@@ -25,18 +17,9 @@ struct StatsView: View {
         let summary = stats.summary(period)
         let shares = stats.shares(period)
 
-        Group {
-            if currentTab == .tree {
-                VStack(spacing: 0) {
-                    tabHeader(summary: summary)
-                        .padding(.horizontal, Theme.Space.l)
-                        .padding(.top, Theme.Space.l)
-                    TechTreeView(model: model)
-                }
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: Theme.Space.l) {
-                        tabHeader(summary: summary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Space.l) {
+                tabHeader(summary: summary)
                         if StatsFormatting.hasTrackedSessions(sessions) {
                             periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
                             if span == .day {
@@ -63,45 +46,34 @@ struct StatsView: View {
                     }
                     .padding(Theme.Space.l)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                }
             }
+            .navigationTitle("Stats")
         }
-        .navigationTitle("Stats")
-    }
 
     private func tabHeader(summary: StatsSummary) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Stats").font(Theme.titleFont)
             Spacer()
-            Picker("View", selection: $currentTab) {
-                ForEach(StatsTab.allCases) { tab in
-                    Text(tab.rawValue).tag(tab)
+
+            Button {
+                copyRecap(summary: summary, span: span)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "doc.on.doc")
+                    Text("Copy Recap")
+                }
+                .font(.caption.weight(.medium))
+            }
+            .buttonStyle(.bordered)
+
+            Picker("Range", selection: $span) {
+                ForEach(StatsSpan.allCases) { option in
+                    Text(option.title).tag(option)
                 }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 220)
-
-            if currentTab == .log {
-                Button {
-                    copyRecap(summary: summary, span: span)
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "doc.on.doc")
-                        Text("Copy Recap")
-                    }
-                    .font(.caption.weight(.medium))
-                }
-                .buttonStyle(.bordered)
-                Picker("Range", selection: $span) {
-                    ForEach(StatsSpan.allCases) { option in
-                        Text(option.title).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 240)
-            }
+            .frame(width: 240)
         }
     }
 
