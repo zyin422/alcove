@@ -37,6 +37,15 @@ enum LockInOption: Hashable, CaseIterable, Identifiable {
         case .custom: return .goal(minutes: Self.clampedMinutes(customMinutes))
         }
     }
+
+    /// Suggests the matching option and custom duration for a given estimated minutes count.
+    static func suggestedOption(for estimatedMinutes: Int?) -> (option: LockInOption, customMinutes: Int)? {
+        guard let minutes = estimatedMinutes, minutes > 0 else { return nil }
+        if minutes == 25 { return (.minutes25, 25) }
+        if minutes == 50 { return (.minutes50, 50) }
+        if minutes == 90 { return (.minutes90, 90) }
+        return (.custom, clampedMinutes(minutes))
+    }
 }
 
 /// Mode choice before locking in: open-ended or a goal, then LOCK IN.
@@ -59,6 +68,10 @@ struct LockInSheet: View {
                         .lineLimit(4)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+
+            if let priority = activePriority {
+                targetPriorityBanner(priority)
             }
 
             Picker("Length", selection: $option) {
@@ -100,6 +113,66 @@ struct LockInSheet: View {
         }
         .padding(Theme.Space.xl)
         .frame(width: 480)
+        .onAppear {
+            if let est = activePriority?.estimatedMinutes {
+                applyEstimated(est)
+            }
+        }
+    }
+
+    private var activePriority: Priority? {
+        model.todayPlan().activePriority(for: subject.id)
+    }
+
+    private func targetPriorityBanner(_ priority: Priority) -> some View {
+        HStack(spacing: Theme.Space.m) {
+            Image(systemName: priority.isAnchor ? "star.fill" : "target")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(priority.isAnchor ? Theme.amber : Theme.subjectColor(subject.colorHex))
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(priority.isAnchor ? "FOCUS ANCHOR" : "TARGET PRIORITY")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(priority.isAnchor ? Theme.amber : Theme.subjectColor(subject.colorHex))
+                    if let est = priority.estimatedMinutes {
+                        Text("· \(est)m planned")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(priority.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            if let est = priority.estimatedMinutes, est > 0 {
+                Button("Match \(est)m") {
+                    applyEstimated(est)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(Theme.Space.m)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(priority.isAnchor ? Theme.amber.opacity(0.35) : Theme.subjectColor(subject.colorHex).opacity(0.25), lineWidth: 1)
+                )
+        )
+    }
+
+    private func applyEstimated(_ est: Int) {
+        if let suggestion = LockInOption.suggestedOption(for: est) {
+            option = suggestion.option
+            customMinutes = suggestion.customMinutes
+        }
     }
 
     private func note(_ text: String) -> some View {

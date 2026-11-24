@@ -109,10 +109,11 @@ struct SettingsView: View {
                     }
                 }
             }
+            Toggle("Acoustic audio cues", isOn: soundCuesBinding)
         } header: {
-            Text("Focus Soundscape")
+            Text("Focus Soundscape & Audio Cues")
         } footer: {
-            Text("Continuous ambient background audio (Brown Noise, Pink Noise, Binaural Beats) synthesized live on your Mac to mask distractions during focus blocks.")
+            Text("Continuous ambient background audio synthesized live to mask distractions, plus crisp tactile audio cues on session start, finish, breaks, and distraction intercepts.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -137,6 +138,13 @@ struct SettingsView: View {
                 model.updateSettings { $0.focusSoundVolume = newVol }
                 FocusAudioEngine.shared.volume = Float(newVol)
             }
+        )
+    }
+
+    private var soundCuesBinding: Binding<Bool> {
+        Binding(
+            get: { model.data.settings.soundCuesEnabled },
+            set: { val in model.updateSettings { $0.soundCuesEnabled = val } }
         )
     }
 

@@ -1,5 +1,53 @@
 import SwiftUI
 
+/// Pure metrics calculation for a subject's historical telemetry.
+struct SubjectTelemetry: Equatable {
+    var totalSeconds: TimeInterval
+    var completedCount: Int
+    var averageDurationSeconds: TimeInterval
+    var longestDurationSeconds: TimeInterval
+    var totalDeflections: Int
+    var activePrioritiesCount: Int
+
+    var totalTimeLabel: String {
+        let hours = Int(totalSeconds) / 3600
+        let mins = (Int(totalSeconds) % 3600) / 60
+        return hours > 0 ? "\(hours)h \(mins)m" : "\(mins)m"
+    }
+
+    var avgDurationLabel: String {
+        let mins = Int(averageDurationSeconds) / 60
+        return mins > 0 ? "\(mins)m" : "<1m"
+    }
+
+    var longestDurationLabel: String {
+        let hours = Int(longestDurationSeconds) / 3600
+        let mins = (Int(longestDurationSeconds) % 3600) / 60
+        return hours > 0 ? "\(hours)h \(mins)m" : "\(mins)m"
+    }
+
+    static func calculate(subjectID: UUID, sessions: [Session], dayPlans: [DayPlan], now: Date = Date()) -> SubjectTelemetry {
+        let matching = sessions.filter { $0.subjectID == subjectID && $0.outcome == .completed && !$0.isDemo }
+        let total = matching.reduce(0.0) { $0 + $1.duration }
+        let count = matching.count
+        let avg = count > 0 ? total / Double(count) : 0
+        let longest = matching.map(\.duration).max() ?? 0
+        let deflections = matching.reduce(0) { $0 + $1.blockedAttempts + $1.closedTabs }
+        let currentDay = DayPlanner.workingDay(now: now, plans: dayPlans)
+        let todayPlan = dayPlans.first { $0.day == currentDay }
+        let active = todayPlan?.priorities.filter { $0.subjectID == subjectID && !$0.isDone }.count ?? 0
+
+        return SubjectTelemetry(
+            totalSeconds: total,
+            completedCount: count,
+            averageDurationSeconds: avg,
+            longestDurationSeconds: longest,
+            totalDeflections: deflections,
+            activePrioritiesCount: active
+        )
+    }
+}
+
 /// One subject's page: its name, the LOCK IN button, and the whole setup edited in place.
 /// There is no separate edit sheet; valid changes save as they are made.
 struct SubjectDetailView: View {
@@ -19,11 +67,11 @@ struct SubjectDetailView: View {
     }
 
     var body: some View {
-        let matchingSessions = model.data.sessions.filter { $0.subjectID == subject.id && $0.outcome == .completed }
-        let totalSeconds = matchingSessions.reduce(0) { $0 + $1.duration }
-        let hours = Int(totalSeconds) / 3600
-        let mins = (Int(totalSeconds) % 3600) / 60
-        let timeLabel = hours > 0 ? "\(hours)h \(mins)m" : "\(mins)m"
+        let telemetry = SubjectTelemetry.calculate(
+            subjectID: subject.id,
+            sessions: model.data.sessions,
+            dayPlans: model.data.dayPlans
+        )
 
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.l) {
@@ -40,27 +88,7 @@ struct SubjectDetailView: View {
                 .buttonStyle(PrimaryButtonStyle())
                 .keyboardShortcut(.return, modifiers: .command)
                 
-                HStack(spacing: Theme.Space.m) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Total Focus: \(timeLabel)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.subjectColor(subject.colorHex))
-                        Text("\(matchingSessions.count) completed session\(matchingSessions.count == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, Theme.Space.m)
-                .padding(.vertical, Theme.Space.s)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.primary.opacity(0.03))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                        )
-                )
+                telemetryBentoGrid(telemetry)
 
                 SubjectForm(form: $form, showsName: false)
                 if !form.errors.isEmpty {
@@ -94,5 +122,149 @@ struct SubjectDetailView: View {
         guard updated != lastSaved else { return }
         lastSaved = updated
         model.updateSubject(updated)
+    }
+
+    private func telemetryBentoGrid(_ telemetry: SubjectTelemetry) -> some View {
+        VStack(spacing: Theme.Space.s) {
+            HStack(spacing: Theme.Space.s) {
+                // Hero card (Total Focus)
+                VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                    HStack {
+                        Text("TOTAL FOCUS")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Theme.subjectColor(subject.colorHex))
+                        Spacer()
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.subjectColor(subject.colorHex).opacity(0.8))
+                    }
+                    Text(telemetry.totalTimeLabel)
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                    Text("\(telemetry.completedCount) completed session\(telemetry.completedCount == 1 ? "" : "s")")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Theme.subjectColor(subject.colorHex).opacity(0.08))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Theme.subjectColor(subject.colorHex).opacity(0.2), lineWidth: 1)
+                        )
+                )
+
+                // Companion card 1: Average Session
+                VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                    HStack {
+                        Text("AVG SESSION")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Image(systemName: "timer")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(telemetry.avgDurationLabel)
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                    Text("Deep work cadence")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+                        )
+                )
+            }
+
+            HStack(spacing: Theme.Space.s) {
+                // Companion card 2: Longest Block
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text("LONGEST BLOCK")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Image(systemName: "trophy")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(telemetry.longestDurationLabel)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+                        )
+                )
+
+                // Companion card 3: Distraction Shield Deflections
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text("SHIELD DEFLECTIONS")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Image(systemName: "shield.checkered")
+                            .font(.system(size: 11))
+                            .foregroundStyle(telemetry.totalDeflections > 0 ? Theme.amber : .secondary)
+                    }
+                    Text("\(telemetry.totalDeflections) intercepted")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(telemetry.totalDeflections > 0 ? Theme.amber : .primary)
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+                        )
+                )
+
+                // Companion card 4: Active Priorities
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text("TASKS REMAINING")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Image(systemName: "checklist")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.indigo)
+                    }
+                    Text("\(telemetry.activePrioritiesCount) today")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.indigo)
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+                        )
+                )
+            }
+        }
     }
 }

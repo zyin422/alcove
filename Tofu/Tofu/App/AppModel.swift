@@ -207,6 +207,9 @@ enum TokenSource: Equatable {
         engine.allowsOffTaskDuringBreak = { [weak self] in
             self?.data.settings.allowOffTaskDuringBreak ?? false
         }
+        engine.soundCuesEnabled = { [weak self] in
+            self?.data.settings.soundCuesEnabled ?? true
+        }
         engine.onBreakStarted = { FocusAudioEngine.shared.pause() }
         engine.onBreakEnded = { FocusAudioEngine.shared.resume() }
         assistant.apps = engine

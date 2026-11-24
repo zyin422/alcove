@@ -32,4 +32,34 @@ final class LockInOptionTests: XCTestCase {
         XCTAssertEqual(LockInOption.clampedMinutes(90), 90)
         XCTAssertEqual(LockInOption.clampedMinutes(999), 240)
     }
+
+    func testSuggestedOptionFromEstimatedMinutes() {
+        XCTAssertNil(LockInOption.suggestedOption(for: nil))
+        XCTAssertNil(LockInOption.suggestedOption(for: 0))
+        XCTAssertNil(LockInOption.suggestedOption(for: -10))
+
+        let est25 = LockInOption.suggestedOption(for: 25)
+        XCTAssertEqual(est25?.option, .minutes25)
+        XCTAssertEqual(est25?.customMinutes, 25)
+
+        let est50 = LockInOption.suggestedOption(for: 50)
+        XCTAssertEqual(est50?.option, .minutes50)
+        XCTAssertEqual(est50?.customMinutes, 50)
+
+        let est90 = LockInOption.suggestedOption(for: 90)
+        XCTAssertEqual(est90?.option, .minutes90)
+        XCTAssertEqual(est90?.customMinutes, 90)
+
+        let est40 = LockInOption.suggestedOption(for: 40)
+        XCTAssertEqual(est40?.option, .custom)
+        XCTAssertEqual(est40?.customMinutes, 40)
+
+        let estLow = LockInOption.suggestedOption(for: 2)
+        XCTAssertEqual(estLow?.option, .custom)
+        XCTAssertEqual(estLow?.customMinutes, 5) // clamped to floor
+
+        let estHigh = LockInOption.suggestedOption(for: 300)
+        XCTAssertEqual(estHigh?.option, .custom)
+        XCTAssertEqual(estHigh?.customMinutes, 240) // clamped to ceiling
+    }
 }

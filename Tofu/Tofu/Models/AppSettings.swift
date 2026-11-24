@@ -1,4 +1,30 @@
+import AppKit
 import Foundation
+
+/// Discrete acoustic cues for tactile feedback during session and break transitions.
+enum SoundCue: String, CaseIterable {
+    case sessionStart
+    case sessionCompleted
+    case breakStart
+    case breakEnd
+    case distractionIntercepted
+
+    var soundName: String {
+        switch self {
+        case .sessionStart: return "Pop"
+        case .sessionCompleted: return "Hero"
+        case .breakStart: return "Glass"
+        case .breakEnd: return "Ping"
+        case .distractionIntercepted: return "Basso"
+        }
+    }
+
+    @MainActor
+    func play(enabled: Bool = true) {
+        guard enabled else { return }
+        NSSound(named: soundName)?.play()
+    }
+}
 
 /// Ambient soundscape to mask background distractions during lock-in sessions.
 enum FocusSound: String, Codable, CaseIterable, Identifiable {
@@ -79,6 +105,8 @@ struct AppSettings: Codable, Equatable {
     var voiceVolume: Double
     /// Target focused minutes per day (e.g. 240 for 4 hours).
     var dailyTargetMinutes: Int
+    /// Discrete acoustic cues on block start, finish, breaks, and distraction intercepts.
+    var soundCuesEnabled: Bool
 
     init(displayName: String = NSFullUserName(), discordEnabled: Bool = false,
          giveUpTemplate: String = "I give up on {subject}", channelCache: [String: String] = [:],
@@ -100,7 +128,8 @@ struct AppSettings: Codable, Equatable {
          dayGuardianEnabled: Bool = true,
          kokoroVoice: KokoroVoice = .heart,
          voiceVolume: Double = 1.0,
-         dailyTargetMinutes: Int = 4 * 60) {
+         dailyTargetMinutes: Int = 4 * 60,
+         soundCuesEnabled: Bool = true) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
         self.giveUpTemplate = giveUpTemplate
@@ -133,6 +162,7 @@ struct AppSettings: Codable, Equatable {
         self.kokoroVoice = kokoroVoice
         self.voiceVolume = voiceVolume
         self.dailyTargetMinutes = dailyTargetMinutes
+        self.soundCuesEnabled = soundCuesEnabled
     }
 }
 
@@ -190,7 +220,9 @@ extension AppSettings {
             voiceVolume: try container.decodeIfPresent(Double.self, forKey: .voiceVolume)
                 ?? defaults.voiceVolume,
             dailyTargetMinutes: try container.decodeIfPresent(Int.self, forKey: .dailyTargetMinutes)
-                ?? defaults.dailyTargetMinutes)
+                ?? defaults.dailyTargetMinutes,
+            soundCuesEnabled: try container.decodeIfPresent(Bool.self, forKey: .soundCuesEnabled)
+                ?? defaults.soundCuesEnabled)
     }
 }
 

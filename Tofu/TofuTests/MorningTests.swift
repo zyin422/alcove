@@ -441,7 +441,7 @@ final class MorningTests: XCTestCase {
 
     @MainActor func testStudyCompletedWhenAllActiveSubjectsStudiedWithoutPriorities() throws {
         let model = try makeModel(EngineHarness())
-        let now = Date()
+        let now = date(11, 14)
         let today = DayKey.key(for: now)
         let s1 = Subject(name: "CS128")
         let s2 = Subject(name: "MATH241")

@@ -120,6 +120,8 @@ extension WindowPresenting {
     @ObservationIgnored var lookupApp: (String) -> AllowedApp? = { _ in nil }
     /// When true, a break stops app blocking and the tab check. Default is false: the break only pauses the timer.
     @ObservationIgnored var allowsOffTaskDuringBreak: () -> Bool = { false }
+    /// When true, discrete acoustic cues play on session and break transitions.
+    @ObservationIgnored var soundCuesEnabled: () -> Bool = { true }
     /// Called when a break begins (e.g. to pause focus audio).
     @ObservationIgnored var onBreakStarted: (() -> Void)?
     /// Called when a break finishes (e.g. to resume focus audio).
@@ -310,6 +312,7 @@ extension WindowPresenting {
         if startsTimers { startTimer() }
         if announce {
             announcer.announce(DiscordMessages.start(name: displayName, subject: subject.name, mode: saved.mode))
+            SoundCue.sessionStart.play(enabled: soundCuesEnabled())
         } else {
             toaster.show("Still locked in on \(subject.name).")
         }
@@ -521,6 +524,7 @@ extension WindowPresenting {
         } else {
             toaster.show("🔒 \(name) is blocked during \(current.subjectName)")
         }
+        SoundCue.distractionIntercepted.play(enabled: soundCuesEnabled())
         companion?.violationOccurred(.app(name: name), subject: current.subjectName,
                                      violations: current.blockedAttempts + current.closedTabs)
         checkDistractionSpike(subjectName: current.subjectName)
@@ -537,6 +541,7 @@ extension WindowPresenting {
         } else {
             toaster.show("Closed \(host) — not relevant to \(current.subjectName)")
         }
+        SoundCue.distractionIntercepted.play(enabled: soundCuesEnabled())
         companion?.violationOccurred(.tab(host: host), subject: current.subjectName,
                                      violations: current.blockedAttempts + current.closedTabs)
         checkDistractionSpike(subjectName: current.subjectName)
@@ -582,6 +587,7 @@ extension WindowPresenting {
         breakEndsAt = now.addingTimeInterval(TimeInterval(clamped * 60))
         breakTotal = TimeInterval(clamped * 60)
         onBreakStarted?()
+        SoundCue.breakStart.play(enabled: soundCuesEnabled())
         VoiceOutput.shared.speak("Break started. Step away from the screen.")
         return true
     }
@@ -682,6 +688,7 @@ extension WindowPresenting {
         breakTotal = nil
         nextBreakElapsed = elapsed + Self.breakCooldown
         onBreakEnded?()
+        SoundCue.breakEnd.play(enabled: soundCuesEnabled())
         VoiceOutput.shared.speak("Break is over. Time to lock back in.")
         presenter?.showMainWindow()
         let opened = breakOpenedTheLock
@@ -754,6 +761,7 @@ extension WindowPresenting {
         presenter?.exitLocked()
         toaster.show("Saved: \(TimeFormat.short(final.duration)) on \(final.subjectName)")
         if outcome == .completed {
+            SoundCue.sessionCompleted.play(enabled: soundCuesEnabled())
             VoiceOutput.shared.speak("Focus session completed. Great work on \(final.subjectName).")
         }
         if outcome == .bailed, let goalMinutes = final.mode.goalMinutes {

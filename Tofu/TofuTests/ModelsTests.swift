@@ -133,4 +133,69 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(AllowedApp(bundleID: "com.apple.Notes", name: "Notes").id, "com.apple.Notes")
     }
 
+    func testSoundCueValues() {
+        XCTAssertEqual(SoundCue.sessionStart.soundName, "Pop")
+        XCTAssertEqual(SoundCue.sessionCompleted.soundName, "Hero")
+        XCTAssertEqual(SoundCue.breakStart.soundName, "Glass")
+        XCTAssertEqual(SoundCue.breakEnd.soundName, "Ping")
+        XCTAssertEqual(SoundCue.distractionIntercepted.soundName, "Basso")
+    }
+
+    func testAppSettingsSoundCuesCodableBackwardsCompatibility() throws {
+        // Legacy JSON without soundCuesEnabled
+        let legacyJSON = """
+        {"displayName":"User","discordEnabled":false,"giveUpTemplate":"I give up"}
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: legacyJSON)
+        XCTAssertEqual(decoded.displayName, "User")
+        XCTAssertTrue(decoded.soundCuesEnabled) // Defaults to true
+
+        // Explicit false
+        var settings = AppSettings()
+        settings.soundCuesEnabled = false
+        let encoded = try JSONEncoder().encode(settings)
+        let roundtrip = try JSONDecoder().decode(AppSettings.self, from: encoded)
+        XCTAssertFalse(roundtrip.soundCuesEnabled)
+    }
+
+    func testSubjectTelemetryCalculation() {
+        let subjectID = UUID()
+        let now = Date(timeIntervalSince1970: 1_760_000_000)
+        let day = DayKey.key(for: now)
+
+        var s1 = Session(subjectID: subjectID, subjectName: "Physics", mode: .open,
+                         start: now.addingTimeInterval(-7200), end: now.addingTimeInterval(-3600), outcome: .completed)
+        s1.blockedAttempts = 2
+        s1.closedTabs = 1
+
+        var s2 = Session(subjectID: subjectID, subjectName: "Physics", mode: .open,
+                         start: now.addingTimeInterval(-3000), end: now.addingTimeInterval(-1200), outcome: .completed)
+        s2.blockedAttempts = 1
+
+        let sOther = Session(subjectID: UUID(), subjectName: "Chemistry", mode: .open,
+                             start: now.addingTimeInterval(-1000), end: now, outcome: .completed)
+
+        let plan = DayPlan(day: day, priorities: [
+            Priority(title: "Problem set 3", subjectID: subjectID, isDone: false),
+            Priority(title: "Problem set 2", subjectID: subjectID, isDone: true),
+            Priority(title: "Lab report", subjectID: UUID(), isDone: false)
+        ])
+
+        let telemetry = SubjectTelemetry.calculate(
+            subjectID: subjectID,
+            sessions: [s1, s2, sOther],
+            dayPlans: [plan],
+            now: now
+        )
+
+        XCTAssertEqual(telemetry.completedCount, 2)
+        XCTAssertEqual(telemetry.totalSeconds, 3600 + 1800) // 5400s = 1h 30m
+        XCTAssertEqual(telemetry.totalTimeLabel, "1h 30m")
+        XCTAssertEqual(telemetry.averageDurationSeconds, 2700) // 45m
+        XCTAssertEqual(telemetry.avgDurationLabel, "45m")
+        XCTAssertEqual(telemetry.longestDurationSeconds, 3600) // 60m = 1h 0m
+        XCTAssertEqual(telemetry.longestDurationLabel, "1h 0m")
+        XCTAssertEqual(telemetry.totalDeflections, 4) // 2+1 + 1
+        XCTAssertEqual(telemetry.activePrioritiesCount, 1) // Only Problem set 3 is undone for Physics
+    }
 }
