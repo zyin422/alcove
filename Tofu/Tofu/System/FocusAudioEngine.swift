@@ -81,6 +81,26 @@ enum FocusAudioMath {
         Store.defaultURL().deletingLastPathComponent().appendingPathComponent("Audio")
     }
 
+    /// Cycles to the next soundscape in the quick-cycle rotation.
+    nonisolated static func nextSound(after current: FocusSound) -> FocusSound {
+        let rotation: [FocusSound] = [.off, .rain, .stream, .lofiDrone, .brownNoise]
+        guard let idx = rotation.firstIndex(of: current) else { return .rain }
+        let nextIdx = (idx + 1) % rotation.count
+        return rotation[nextIdx]
+    }
+
+    /// System image icon representing the soundscape.
+    nonisolated static func iconName(for sound: FocusSound) -> String {
+        switch sound {
+        case .off: return "speaker.slash"
+        case .rain: return "cloud.rain.fill"
+        case .stream: return "water.waves"
+        case .lofiDrone: return "waveform.badge.magnifyingglass"
+        case .brownNoise, .pinkNoise, .whiteNoise: return "waveform"
+        case .gammaBinaural, .alphaBinaural, .thetaBinaural: return "brain.head.profile"
+        }
+    }
+
     private(set) var isPlaying = false
     private(set) var isPaused = false
     private(set) var activeSound: FocusSound = .off

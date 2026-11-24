@@ -200,6 +200,15 @@ enum MainWindowPolicy {
                                        QuickThoughtPanelController.shared.present(engine: self.model.engine) { [weak self] thought in
                                            self?.panel?.showNotice("Parked: “\(thought)”")
                                        }
+                                   },
+                                   onCycleSound: { [weak self] in
+                                       guard let self else { return }
+                                       let current = self.model.data.settings.focusSound
+                                       let next = FocusAudioEngine.nextSound(after: current)
+                                       self.model.updateSettings { $0.focusSound = next }
+                                       FocusAudioEngine.shared.play(next)
+                                       let notice = next == .off ? "Sound: Off 🔇" : "Sound: \(next.rawValue) 🎧"
+                                       self.panel?.showNotice(notice)
                                    })
         panel.show()
         self.panel = panel

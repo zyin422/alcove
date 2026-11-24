@@ -266,9 +266,19 @@ struct LockedView: View {
                         }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 1.5))
-                Text(LockedLayout.goalCaption(goalSeconds: goal))
-                    .font(Theme.captionFont)
-                    .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(LockedLayout.goalCaption(goalSeconds: goal))
+                        .font(Theme.captionFont)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Button("+5m") { engine.extendSession(minutes: 5) }
+                        Button("+10m") { engine.extendSession(minutes: 10) }
+                        Button("+15m") { engine.extendSession(minutes: 15) }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                }
             }
         }
     }

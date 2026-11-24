@@ -947,4 +947,32 @@ final class SessionEngineTests: XCTestCase {
         h.engine.endBreak()
         XCTAssertEqual(h.presenter.showMainWindowCount, 1)
     }
+
+    func testExtendGoalSessionIncreasesRemainingAndGoalMinutes() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 50), displayName: "Alex")
+        h.clock.advance(45 * 60)
+        h.engine.tick()
+        XCTAssertEqual(h.engine.remaining, 5 * 60)
+        XCTAssertEqual(h.engine.session?.mode.goalMinutes, 50)
+
+        var notifiedSession: Session?
+        h.engine.onSessionChanged = { s in notifiedSession = s }
+
+        h.engine.extendSession(minutes: 10)
+        XCTAssertEqual(h.engine.session?.mode.goalMinutes, 60)
+        XCTAssertEqual(h.engine.remaining, 15 * 60)
+        XCTAssertEqual(notifiedSession?.mode.goalMinutes, 60)
+    }
+
+    func testExtendOpenSessionDoesNotAlterMode() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        h.clock.advance(10 * 60)
+        XCTAssertNil(h.engine.remaining)
+
+        h.engine.extendSession(minutes: 15)
+        XCTAssertEqual(h.engine.session?.mode, .open)
+        XCTAssertNil(h.engine.remaining)
+    }
 }

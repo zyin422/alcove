@@ -567,6 +567,24 @@ extension WindowPresenting {
         resumeMonitoring()
     }
 
+    /// Extends the active goal session by `minutes` (default 10).
+    func extendSession(minutes: Int = 10) {
+        guard isLocked, var current = session, minutes > 0 else { return }
+        switch current.mode {
+        case .goal(let currentMinutes):
+            let newMinutes = currentMinutes + minutes
+            current.mode = .goal(minutes: newMinutes)
+            session = current
+            if let rem = remaining, rem > 10 * 60 {
+                announcedTenMinutes = false
+            }
+            onSessionChanged?(current)
+            VoiceOutput.shared.speak("Session extended by \(minutes) minutes.")
+        case .open:
+            break
+        }
+    }
+
     private func resumeMonitoring() {
         if let started = pauseStartedAt {
             pausedAccumulated += max(0, now.timeIntervalSince(started))

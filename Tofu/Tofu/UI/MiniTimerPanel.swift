@@ -56,6 +56,18 @@ enum MiniTimerLayout {
         thoughtHitRect(in: size).contains(point)
     }
 
+    /// Clickable area of the soundscape button immediately to the left of thought button.
+    static func soundHitRect(in size: CGSize) -> CGRect {
+        let side = closeButtonSize + 2 * closeHitSlop
+        let thoughtRect = thoughtHitRect(in: size)
+        return CGRect(x: thoughtRect.minX - side, y: thoughtRect.minY, width: side, height: side)
+    }
+
+    /// True when `point` (view coordinates) lands on the soundscape quick-cycle button.
+    static func isSoundHit(_ point: CGPoint, in size: CGSize) -> Bool {
+        soundHitRect(in: size).contains(point)
+    }
+
     /// Clickable area of the trailing Lock In button shown between blocks.
     static func lockInHitRect(in size: CGSize) -> CGRect {
         CGRect(x: size.width - 100, y: 0, width: 100, height: size.height)
@@ -64,6 +76,16 @@ enum MiniTimerLayout {
     /// True when `point` (view coordinates) lands on the trailing Lock In button.
     static func isLockInHit(_ point: CGPoint, in size: CGSize) -> Bool {
         lockInHitRect(in: size).contains(point)
+    }
+
+    /// Clickable area of the trailing Resume button shown during breaks.
+    static func resumeHitRect(in size: CGSize) -> CGRect {
+        CGRect(x: size.width - 100, y: 0, width: 100, height: size.height)
+    }
+
+    /// True when `point` (view coordinates) lands on the trailing Resume button.
+    static func isResumeHit(_ point: CGPoint, in size: CGSize) -> Bool {
+        resumeHitRect(in: size).contains(point)
     }
 
     /// True once the pointer is at least `dragThreshold` points away from where the press began.
@@ -329,8 +351,29 @@ struct MiniTimerView: View {
                         .background(RoundedRectangle(cornerRadius: 6).fill(Theme.amber))
                         .foregroundStyle(Color(red: 0.1, green: 0.07, blue: 0.01))
                         .help("Lock in now")
+                    } else if engine.isOnBreak {
+                        HStack(spacing: 5) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("RESUME")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.coral))
+                        .foregroundStyle(Color.white)
+                        .help("End break and resume focus")
                     } else {
                         HStack(spacing: 8) {
+                            let sound = model?.data.settings.focusSound ?? .off
+                            let isSoundActive = sound != .off
+                            Image(systemName: FocusAudioEngine.iconName(for: sound))
+                                .font(.system(size: 11))
+                                .foregroundStyle(isSoundActive ? Theme.indigo : Color.secondary)
+                                .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
+                                .background(Circle().fill(isSoundActive ? Theme.indigo.opacity(0.18) : Color.primary.opacity(0.08)))
+                                .help(isSoundActive ? "Soundscape: \(sound.rawValue) (click to cycle)" : "Focus soundscape: Off (click to cycle)")
+
                             Image(systemName: "lightbulb.fill")
                                 .font(.system(size: 11))
                                 .foregroundStyle(Color.secondary)
@@ -422,6 +465,7 @@ struct MiniTimerView: View {
     private let onEnd: () -> Void
     private let onLockIn: (() -> Void)?
     private let onParkThought: (() -> Void)?
+    private let onCycleSound: (() -> Void)?
     private let engine: SessionEngine
     private let model: AppModel?
     /// True when the press began on the tucked tab. A drag that starts open can cross the top without this.
@@ -437,13 +481,20 @@ struct MiniTimerView: View {
     private var tuckAfterRelease = false
     private var hideTimer: Timer?
 
-    init(engine: SessionEngine, model: AppModel? = nil, onOpen: @escaping () -> Void, onEnd: @escaping () -> Void, onLockIn: (() -> Void)? = nil, onParkThought: (() -> Void)? = nil) {
+    init(engine: SessionEngine,
+         model: AppModel? = nil,
+         onOpen: @escaping () -> Void,
+         onEnd: @escaping () -> Void,
+         onLockIn: (() -> Void)? = nil,
+         onParkThought: (() -> Void)? = nil,
+         onCycleSound: (() -> Void)? = nil) {
         self.engine = engine
         self.model = model
         self.onOpen = onOpen
         self.onEnd = onEnd
         self.onLockIn = onLockIn
         self.onParkThought = onParkThought
+        self.onCycleSound = onCycleSound
         let size = MiniTimerLayout.panelSize
         super.init(contentRect: NSRect(origin: .zero, size: size),
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -600,9 +651,17 @@ struct MiniTimerView: View {
                 } else {
                     onOpen()
                 }
+            } else if engine.isOnBreak {
+                if MiniTimerLayout.isResumeHit(point, in: frame.size) {
+                    engine.endBreak()
+                } else {
+                    onOpen()
+                }
             } else {
                 if MiniTimerLayout.isThoughtHit(point, in: frame.size) {
                     onParkThought?()
+                } else if MiniTimerLayout.isSoundHit(point, in: frame.size) {
+                    onCycleSound?()
                 } else {
                     onOpen()
                 }

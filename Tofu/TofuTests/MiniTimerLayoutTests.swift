@@ -223,17 +223,31 @@ final class MiniTimerLayoutTests: XCTestCase {
         // Close hit is near x: 213 (width - 16 - 11)
         XCTAssertTrue(MiniTimerLayout.isCloseHit(CGPoint(x: 213, y: 32), in: panelSize))
         XCTAssertFalse(MiniTimerLayout.isThoughtHit(CGPoint(x: 213, y: 32), in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isSoundHit(CGPoint(x: 213, y: 32), in: panelSize))
 
         // Thought button sits immediately to the left of close hit
         let thoughtRect = MiniTimerLayout.thoughtHitRect(in: panelSize)
         let thoughtPoint = CGPoint(x: thoughtRect.midX, y: thoughtRect.midY)
         XCTAssertTrue(MiniTimerLayout.isThoughtHit(thoughtPoint, in: panelSize))
         XCTAssertFalse(MiniTimerLayout.isCloseHit(thoughtPoint, in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isSoundHit(thoughtPoint, in: panelSize))
+
+        // Soundscape button sits immediately to the left of thought button
+        let soundRect = MiniTimerLayout.soundHitRect(in: panelSize)
+        let soundPoint = CGPoint(x: soundRect.midX, y: soundRect.midY)
+        XCTAssertTrue(MiniTimerLayout.isSoundHit(soundPoint, in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isThoughtHit(soundPoint, in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isCloseHit(soundPoint, in: panelSize))
 
         // Lock in button occupies trailing region
         XCTAssertTrue(MiniTimerLayout.isLockInHit(CGPoint(x: 200, y: 32), in: panelSize))
         XCTAssertTrue(MiniTimerLayout.isLockInHit(CGPoint(x: 160, y: 20), in: panelSize))
         XCTAssertFalse(MiniTimerLayout.isLockInHit(CGPoint(x: 100, y: 32), in: panelSize))
+
+        // Resume button occupies trailing region during break
+        XCTAssertTrue(MiniTimerLayout.isResumeHit(CGPoint(x: 200, y: 32), in: panelSize))
+        XCTAssertTrue(MiniTimerLayout.isResumeHit(CGPoint(x: 160, y: 20), in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isResumeHit(CGPoint(x: 100, y: 32), in: panelSize))
     }
 
     func testIsNearTopWithGenerousThreshold() {
