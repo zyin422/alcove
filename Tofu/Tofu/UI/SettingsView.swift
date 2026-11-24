@@ -24,6 +24,7 @@ struct SettingsView: View {
             profileSection
             voiceSection
             focusSoundSection
+            shortcutsSection
             discordSection
             discordSetupSection
             googleSection
@@ -137,6 +138,53 @@ struct SettingsView: View {
                 FocusAudioEngine.shared.volume = Float(newVol)
             }
         )
+    }
+
+    private var shortcutsSection: some View {
+        Section {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Spotlight Quick-Thought")
+                        .font(.body)
+                    Text("Summon the thought capture bar from any app across macOS.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                HStack(spacing: 4) {
+                    Text("⌃")
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.18)))
+                    Text("⌥")
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.18)))
+                    Text("Space")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.18)))
+                }
+            }
+
+            Button {
+                GlobalHotKeyManager.shared.trigger()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                    Text("Test Shortcut Now")
+                }
+            }
+        } header: {
+            Text("Global Shortcuts")
+        } footer: {
+            Text("Works globally in all spaces without requiring Accessibility permissions. Type your stray thought, press Return to park, or Esc to cancel.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var discordSection: some View {
