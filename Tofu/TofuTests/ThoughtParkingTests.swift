@@ -69,4 +69,30 @@ final class ThoughtParkingTests: XCTestCase {
         XCTAssertFalse(priorities[0].isDone)
         XCTAssertEqual(priorities[1].title, "Schedule team meeting")
     }
+
+    func testPromoteThoughtToPriorityWithParsedDetails() {
+        let mathID = UUID()
+        let mathSub = Subject(id: mathID, name: "Math", details: "Calculus")
+        let csID = UUID()
+        let csSub = Subject(id: csID, name: "CS128", details: "C++")
+
+        // Thought with time and duration matching a subject
+        let thought1 = "9am CS128 lab 45m"
+        let priority1 = ThoughtParkingEngine.promoteThoughtToPriority(thought: thought1, subjects: [mathSub, csSub], fallbackSubjectID: mathID)
+
+        XCTAssertEqual(priority1.title, "CS128 lab")
+        XCTAssertEqual(priority1.subjectID, csID)
+        XCTAssertEqual(priority1.estimatedMinutes, 45)
+        XCTAssertEqual(priority1.scheduledMinutesFromMidnight, 9 * 60)
+        XCTAssertFalse(priority1.isDone)
+
+        // Thought without subject matching -> uses fallbackSubjectID
+        let thought2 = "Draft lab report 30m"
+        let priority2 = ThoughtParkingEngine.promoteThoughtToPriority(thought: thought2, subjects: [mathSub, csSub], fallbackSubjectID: mathID)
+
+        XCTAssertEqual(priority2.title, "Draft lab report")
+        XCTAssertEqual(priority2.subjectID, mathID)
+        XCTAssertEqual(priority2.estimatedMinutes, 30)
+        XCTAssertNil(priority2.scheduledMinutesFromMidnight)
+    }
 }

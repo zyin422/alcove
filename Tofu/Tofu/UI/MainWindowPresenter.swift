@@ -197,9 +197,16 @@ enum MainWindowPolicy {
                                    onEnd: { [weak self] in self?.requestEnd() },
                                    onParkThought: { [weak self] in
                                        guard let self else { return }
-                                       QuickThoughtPanelController.shared.toggle(engine: self.model.engine) { [weak self] thought in
-                                           self?.showThoughtNotice(thought)
-                                       }
+                                       QuickThoughtPanelController.shared.toggle(
+                                           engine: self.model.engine,
+                                           model: self.model,
+                                           onParked: { [weak self] thought in
+                                               self?.showThoughtNotice(thought)
+                                           },
+                                           onPromoted: { [weak self] thought in
+                                               self?.showThoughtNotice("Priority: \(thought) 🎯")
+                                           }
+                                       )
                                    },
                                    onCycleSound: { [weak self] in
                                        guard let self else { return }

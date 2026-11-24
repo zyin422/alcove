@@ -398,12 +398,15 @@ struct MiniTimerView: View {
                     } else {
                         HStack(spacing: 8) {
                             let sound = model?.data.settings.focusSound ?? .off
-                            let isSoundActive = sound != .off
+                            let isSoundActive = sound != .off && FocusAudioEngine.shared.isPlaying
                             Image(systemName: FocusAudioEngine.iconName(for: sound))
                                 .font(.system(size: 11))
                                 .foregroundStyle(isSoundActive ? Theme.indigo : Color.secondary)
                                 .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
                                 .background(Circle().fill(isSoundActive ? Theme.indigo.opacity(0.18) : Color.primary.opacity(0.08)))
+                                .overlay(
+                                    isSoundActive ? Circle().stroke(Theme.indigo.opacity(0.4), lineWidth: 1) : nil
+                                )
                                 .help(isSoundActive ? "Soundscape: \(sound.rawValue) (click to cycle)" : "Focus soundscape: Off (click to cycle)")
 
                             Image(systemName: "lightbulb.fill")

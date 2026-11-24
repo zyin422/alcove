@@ -47,6 +47,9 @@ struct TodayView: View {
                                   onShiftMonth: { shiftMonth($0) }, onSelect: { showDay($0) })
                 }
 
+                let momentum = FocusMomentumEngine.compute7DayMomentum(sessions: model.data.sessions)
+                FocusMomentumBarView(summary: momentum, selectedDayKey: shownDay, onSelectDay: { showDay($0) })
+
                 forceBlockCountdownBanner
 
                 let todaySessions = model.data.sessions.filter {
@@ -62,7 +65,11 @@ struct TodayView: View {
                 }
 
                 if plan.priorities.isEmpty {
-                    Text(emptyMessage).foregroundStyle(.secondary)
+                    if canEdit {
+                        dayKickoffHeroCard
+                    } else {
+                        Text(emptyMessage).foregroundStyle(.secondary)
+                    }
                 } else {
                     VStack(spacing: 0) {
                         ForEach(plan.priorities) { priority in
@@ -73,7 +80,7 @@ struct TodayView: View {
                     .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
                 }
 
-                if canEdit { addRow }
+                if canEdit && !plan.priorities.isEmpty { addRow }
 
                 Spacer(minLength: Theme.Space.m)
 
@@ -304,14 +311,17 @@ struct TodayView: View {
             }
             Spacer()
             if canEdit {
-                if !priority.isDone, let subject = priority.subjectID.flatMap(model.subject(id:)) {
-                    Button("Lock in") { lockInSubject = subject }
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, Theme.Space.m)
-                        .padding(.vertical, 4)
-                        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.indigo))
-                        .foregroundStyle(Color.white)
-                        .buttonStyle(.plain)
+                if !priority.isDone {
+                    let subject = priority.subjectID.flatMap(model.subject(id:)) ?? model.data.subjects.first
+                    if let subject {
+                        Button("Lock in") { lockInSubject = subject }
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, Theme.Space.m)
+                            .padding(.vertical, 4)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(Theme.indigo))
+                            .foregroundStyle(Color.white)
+                            .buttonStyle(.plain)
+                    }
                 }
                 Button {
                     model.updatePlan(day: plan.day) { $0.priorities.removeAll { $0.id == priority.id } }
@@ -345,6 +355,79 @@ struct TodayView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var dayKickoffHeroCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "target")
+                        .foregroundStyle(Theme.indigo)
+                        .font(.system(size: 15, weight: .bold))
+                    Text("What is your #1 focus today?")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                Text("Set your primary priority to focus your energy and start your day.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: Theme.Space.s) {
+                TextField("Add a priority (e.g. 9am CS128 lab 45m)", text: $newTitle)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(add)
+                SetupPicker(subjects: model.data.subjects, selection: $newSubjectID)
+                    .frame(width: 160)
+                Button("Set Priority", action: add)
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+
+            if !model.data.subjects.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        Text("Quick subjects:")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        ForEach(model.data.subjects) { subject in
+                            let color = Theme.subjectColor(subject.colorHex)
+                            Button {
+                                newSubjectID = subject.id
+                                if newTitle.isEmpty {
+                                    newTitle = "Focus block: \(subject.name)"
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Circle().fill(color).frame(width: 6, height: 6)
+                                    Text(subject.name)
+                                        .font(.caption2.weight(.medium))
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(newSubjectID == subject.id ? color.opacity(0.2) : Color.primary.opacity(0.06))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(newSubjectID == subject.id ? color : Color.clear, lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(Theme.Space.l)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.radius)
+                .fill(Color.primary.opacity(0.03))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.radius)
+                .stroke(Theme.indigo.opacity(0.2), lineWidth: 1)
+        )
     }
 
     private var addRow: some View {

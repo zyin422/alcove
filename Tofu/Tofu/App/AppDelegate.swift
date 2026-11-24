@@ -73,9 +73,16 @@ enum QuitPolicy {
         #endif
         GlobalHotKeyManager.shared.onTrigger = { [weak self] in
             guard let self else { return }
-            QuickThoughtPanelController.shared.toggle(engine: self.model.engine) { [weak self] thought in
-                self?.presenter?.showThoughtNotice(thought)
-            }
+            QuickThoughtPanelController.shared.toggle(
+                engine: self.model.engine,
+                model: self.model,
+                onParked: { [weak self] thought in
+                    self?.presenter?.showThoughtNotice(thought)
+                },
+                onPromoted: { [weak self] thought in
+                    self?.presenter?.showThoughtNotice("Priority: \(thought) 🎯")
+                }
+            )
         }
         GlobalHotKeyManager.shared.register()
         endOfDayTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in

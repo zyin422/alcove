@@ -17,18 +17,28 @@ private final class QuickThoughtPanel: NSPanel {
         panel != nil && panel?.isVisible == true
     }
 
-    func toggle(engine: SessionEngine, onParked: ((String) -> Void)? = nil) {
+    func toggle(
+        engine: SessionEngine,
+        model: AppModel? = nil,
+        onParked: ((String) -> Void)? = nil,
+        onPromoted: ((String) -> Void)? = nil
+    ) {
         if isPresented {
             close()
         } else {
-            present(engine: engine, onParked: onParked)
+            present(engine: engine, model: model, onParked: onParked, onPromoted: onPromoted)
         }
     }
 
-    func present(engine: SessionEngine, onParked: ((String) -> Void)? = nil) {
+    func present(
+        engine: SessionEngine,
+        model: AppModel? = nil,
+        onParked: ((String) -> Void)? = nil,
+        onPromoted: ((String) -> Void)? = nil
+    ) {
         panel?.close()
 
-        let size = CGSize(width: 480, height: 52)
+        let size = CGSize(width: 530, height: 52)
         guard let screen = NSScreen.main else { return }
         let visible = screen.visibleFrame
         let x = visible.midX - (size.width / 2)
@@ -56,6 +66,26 @@ private final class QuickThoughtPanel: NSPanel {
                 window?.close()
                 self?.panel = nil
             },
+            onPromote: { [weak self, weak window] thought in
+                let cleaned = thought.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !cleaned.isEmpty {
+                    engine.addParkedThought(cleaned)
+                    if let model {
+                        let todayKey = DayKey.key(for: Date())
+                        let priority = ThoughtParkingEngine.promoteThoughtToPriority(
+                            thought: cleaned,
+                            subjects: model.data.subjects,
+                            fallbackSubjectID: engine.subject?.id
+                        )
+                        model.updatePlan(day: todayKey) { plan in
+                            plan.priorities.append(priority)
+                        }
+                    }
+                    onPromoted?(cleaned)
+                }
+                window?.close()
+                self?.panel = nil
+            },
             onCancel: { [weak self, weak window] in
                 window?.close()
                 self?.panel = nil
@@ -77,6 +107,7 @@ private final class QuickThoughtPanel: NSPanel {
 /// The visual SwiftUI entry field for Quick Thought Capture.
 struct QuickThoughtView: View {
     var onCommit: (String) -> Void
+    var onPromote: ((String) -> Void)? = nil
     var onCancel: () -> Void
 
     @State private var text = ""
@@ -88,7 +119,7 @@ struct QuickThoughtView: View {
                 .foregroundStyle(Theme.amber)
                 .font(.system(size: 15))
 
-            TextField("Park stray thought… (Return to park, Esc to cancel)", text: $text)
+            TextField("Park stray thought… (⏎ park, ⌘⏎ add to today)", text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .medium))
                 .focused($isFocused)
@@ -110,6 +141,26 @@ struct QuickThoughtView: View {
                 .buttonStyle(.plain)
             }
 
+            if onPromote != nil {
+                Button {
+                    onPromote?(text)
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Today")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.emerald)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Theme.emerald.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.return, modifiers: [.command])
+                .help("Park and add to Today's Plan (⌘⏎)")
+                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
             Button {
                 onCommit(text)
             } label: {
@@ -119,6 +170,7 @@ struct QuickThoughtView: View {
                     .background(Circle().fill(Color.primary.opacity(0.1)))
             }
             .buttonStyle(.plain)
+            .help("Park thought for later review (⏎)")
             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(.horizontal, Theme.Space.m)

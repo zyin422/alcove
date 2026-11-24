@@ -22,4 +22,17 @@ enum ThoughtParkingEngine {
             .filter { !$0.isEmpty }
             .map { Priority(title: $0, subjectID: subjectID) }
     }
+
+    /// Promotes a single parked thought into a scheduled priority, parsing estimated time and matching subjects.
+    static func promoteThoughtToPriority(thought: String, subjects: [Subject] = [], fallbackSubjectID: UUID? = nil) -> Priority {
+        let trimmed = thought.trimmingCharacters(in: .whitespacesAndNewlines)
+        let (title, estimatedMinutes, scheduledMinutes) = DayPlanner.parsePriorityDetails(from: trimmed)
+        let matchedSubjectID = DayPlanner.matchSubject(title, subjects: subjects) ?? fallbackSubjectID
+        return Priority(
+            title: title.isEmpty ? trimmed : title,
+            subjectID: matchedSubjectID,
+            estimatedMinutes: estimatedMinutes,
+            scheduledMinutesFromMidnight: scheduledMinutes
+        )
+    }
 }
