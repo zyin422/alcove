@@ -187,6 +187,7 @@ struct LockedView: View {
                 planningBadge()
             }
             breakLine(engine: engine)
+            gracePassLine(engine: engine)
             goalBlock(engine: engine, barWidth: nil)
             focusSoundControl
             countersText(engine: engine)
@@ -208,6 +209,7 @@ struct LockedView: View {
                     planningBadge()
                 }
                 breakLine(engine: engine)
+                gracePassLine(engine: engine)
                 goalBlock(engine: engine, barWidth: 160)
             }
             Spacer(minLength: Theme.Space.s)
@@ -326,6 +328,26 @@ struct LockedView: View {
         } else if engine.canTakeBreak {
             Button("Take a break") { _ = engine.beginBreak(minutes: MirrorTurn.breakDefault) }
                 .buttonStyle(SecondaryButtonStyle())
+        }
+    }
+
+    @ViewBuilder private func gracePassLine(engine: SessionEngine) -> some View {
+        if engine.isOnGracePass, let remaining = engine.gracePassRemaining {
+            HStack(spacing: 6) {
+                Image(systemName: "shield.lefthalf.filled")
+                    .foregroundStyle(Theme.amber)
+                    .font(.system(size: 11, weight: .bold))
+                Text("Pass \(TimeFormat.clockFull(remaining))")
+                    .font(Theme.captionFont.weight(.semibold))
+                    .foregroundStyle(Theme.amber)
+                    .monospacedDigit()
+                Button("End") { engine.endGracePass() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Theme.amber.opacity(0.12)))
         }
     }
 

@@ -365,6 +365,19 @@ struct MiniTimerView: View {
                         .background(RoundedRectangle(cornerRadius: 6).fill(Theme.amber))
                         .foregroundStyle(Color(red: 0.1, green: 0.07, blue: 0.01))
                         .help("Lock in now")
+                    } else if engine.isOnGracePass, let remaining = engine.gracePassRemaining {
+                        HStack(spacing: 4) {
+                            Image(systemName: "shield.lefthalf.filled")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("PASS \(TimeFormat.clock(remaining))")
+                                .font(.system(size: 9, weight: .bold))
+                                .monospacedDigit()
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.amber))
+                        .foregroundStyle(Color(red: 0.1, green: 0.07, blue: 0.01))
+                        .help("Emergency grace pass active (click to resume lock-in)")
                     } else if engine.isOnBreak {
                         HStack(spacing: 5) {
                             Image(systemName: "play.fill")
@@ -662,6 +675,12 @@ struct MiniTimerView: View {
             if !engine.isLocked && model?.nextForceBlockDeadline != nil {
                 if MiniTimerLayout.isLockInHit(point, in: frame.size) {
                     onLockIn?()
+                } else {
+                    onOpen()
+                }
+            } else if engine.isOnGracePass {
+                if MiniTimerLayout.isResumeHit(point, in: frame.size) {
+                    engine.endGracePass()
                 } else {
                     onOpen()
                 }

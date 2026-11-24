@@ -173,6 +173,13 @@ extension WindowPresenting {
     @ObservationIgnored private var timer: Timer?
     /// Set synchronously when the goal auto-finish is scheduled so it is scheduled only once.
     @ObservationIgnored private var isEnding = false
+    @ObservationIgnored private(set) var gracePassEndsAt: Date?
+    var gracePassUsed: Bool { session?.gracePassUsed ?? false }
+    var isOnGracePass: Bool { gracePassEndsAt != nil }
+    var gracePassRemaining: TimeInterval? {
+        guard let ends = gracePassEndsAt else { return nil }
+        return max(0, ends.timeIntervalSince(now))
+    }
 
     init(workspace: WorkspaceControlling, blocker: AppBlocking, chrome: ChromeControlling,
          toaster: Toasting, announcer: Announcing, launcher: SetupLaunching? = nil, ownBundleID: String,
@@ -235,6 +242,7 @@ extension WindowPresenting {
         breakOpenedTheLock = false
         announcedHalfway = false
         announcedTenMinutes = false
+        gracePassEndsAt = nil
         nextBreakElapsed = Self.breakCooldown
         if subject.id == Subject.planningID {
             discordBudgetRemaining = Self.discordPlanningBudget
@@ -430,6 +438,9 @@ extension WindowPresenting {
         if let breakEndsAt, now >= breakEndsAt {
             resumeMonitoring()
         }
+        if let gracePassEndsAt, now >= gracePassEndsAt {
+            endGracePass()
+        }
         checkMilestones(session: currentSession)
         updateDiscordBudget()
         if goalReached && !isEnding {
@@ -599,6 +610,51 @@ extension WindowPresenting {
         }
     }
 
+    // MARK: Grace Pass
+
+    /// Grants a 2-minute emergency grace pass unhiding apps for essential 2FA or urgent system tasks.
+    /// Strictly limited to 1 pass per session to prevent procrastination loops.
+    @discardableResult
+    func requestGracePass(durationSeconds: TimeInterval = 120) -> Bool {
+        now = clock()
+        guard isLocked, !isOnBreak, var current = session, !current.gracePassUsed else {
+            if session?.gracePassUsed == true {
+                toaster.show("Grace pass already used for this session.")
+            }
+            return false
+        }
+        current.gracePassUsed = true
+        session = current
+        gracePassEndsAt = now.addingTimeInterval(durationSeconds)
+        blocker.stop()
+        chrome.pauseTabWatch()
+        workspace.unhide(hiddenByUs)
+        VoiceOutput.shared.speak("Emergency grace pass active for two minutes.")
+        toaster.show("🛡️ Grace pass active: 2 minutes to complete your task.")
+        onSessionChanged?(current)
+        return true
+    }
+
+    /// Ends the grace pass immediately and re-locks apps and tabs.
+    func endGracePass() {
+        guard isOnGracePass else { return }
+        now = clock()
+        gracePassEndsAt = nil
+        VoiceOutput.shared.speak("Grace pass ended. Lock-in re-engaged.")
+        toaster.show("🔒 Lock-in resumed. Apps re-hidden.")
+        presenter?.showMainWindow()
+        guard session != nil else { return }
+        for id in workspace.hideOthers(allowed: sessionAllowed) where !hiddenByUs.contains(id) {
+            hiddenByUs.append(id)
+        }
+        blocker.start(allowed: sessionAllowed)
+        if resumesTabWatch, let subject {
+            chrome.closeUnrelatedTabs()
+            let tools = (subject.allowedApps + subject.slotApps).map(\.name)
+            chrome.startTabWatch(subject: subject.name, details: subject.details, studySites: studySites(of: subject), allowedTools: tools)
+        }
+    }
+
     private func resumeMonitoring() {
         if let started = pauseStartedAt {
             pausedAccumulated += max(0, now.timeIntervalSince(started))
@@ -711,6 +767,7 @@ extension WindowPresenting {
         pausedAccumulated = 0
         breakOpenedTheLock = false
         nextBreakElapsed = Self.breakCooldown
+        gracePassEndsAt = nil
         blocker.stop()
         if silencing {
             doNotDisturb.endBlock()

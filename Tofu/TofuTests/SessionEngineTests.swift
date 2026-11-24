@@ -988,6 +988,52 @@ final class SessionEngineTests: XCTestCase {
 
         h.engine.extendSession(minutes: 15)
         XCTAssertEqual(h.engine.session?.mode, .open)
-        XCTAssertNil(h.engine.remaining)
+    }
+
+    func testEmergencyGracePassFlow() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 50), displayName: "Alex")
+        XCTAssertFalse(h.engine.isOnGracePass)
+        XCTAssertFalse(h.engine.gracePassUsed)
+        XCTAssertNil(h.engine.gracePassRemaining)
+
+        let initialStops = h.blocker.stopCount
+        // Request 2-minute grace pass
+        let granted = h.engine.requestGracePass(durationSeconds: 120)
+        XCTAssertTrue(granted)
+        XCTAssertTrue(h.engine.isOnGracePass)
+        XCTAssertTrue(h.engine.gracePassUsed)
+        XCTAssertEqual(h.engine.gracePassRemaining, 120)
+        XCTAssertEqual(h.blocker.stopCount, initialStops + 1)
+
+        // Second request in same session is rejected
+        let second = h.engine.requestGracePass(durationSeconds: 120)
+        XCTAssertFalse(second)
+
+        // Advancing 60 seconds
+        h.clock.advance(60)
+        h.engine.tick()
+        XCTAssertTrue(h.engine.isOnGracePass)
+        XCTAssertEqual(h.engine.gracePassRemaining, 60)
+
+        // Advancing past 120 seconds auto-ends pass and re-locks
+        h.clock.advance(61)
+        h.engine.tick()
+        XCTAssertFalse(h.engine.isOnGracePass)
+        XCTAssertNil(h.engine.gracePassRemaining)
+        XCTAssertNotNil(h.blocker.startedWith)
+    }
+
+    func testManualEndGracePassReEngagesLockInEarly() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+        XCTAssertTrue(h.engine.requestGracePass(durationSeconds: 120))
+        XCTAssertTrue(h.engine.isOnGracePass)
+
+        h.engine.endGracePass()
+        XCTAssertFalse(h.engine.isOnGracePass)
+        XCTAssertNil(h.engine.gracePassRemaining)
+        XCTAssertTrue(h.engine.gracePassUsed)
+        XCTAssertNotNil(h.blocker.startedWith)
     }
 }
