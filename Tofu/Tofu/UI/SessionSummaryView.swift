@@ -32,6 +32,7 @@ struct SessionSummaryView: View {
     /// The priority this lock-in worked on, asked about once ("Did you finish …?").
     @State private var priority: Priority?
     @State private var answered = false
+    @State private var addedThoughtsToPlan = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
@@ -71,6 +72,10 @@ struct SessionSummaryView: View {
             }
             .buttonStyle(.borderless)
 
+            if !session.parkedThoughts.isEmpty {
+                parkedThoughtsSection
+            }
+
             if !model.engine.relaunchOffer.isEmpty {
                 relaunchList
             }
@@ -87,6 +92,69 @@ struct SessionSummaryView: View {
         .frame(width: 460)
         .onAppear { priority = model.priorityToConfirm(after: session) }
         .onDisappear { model.engine.applyRelaunch() }
+    }
+
+    private var parkedThoughtsSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            HStack {
+                Text("Parked Thoughts (\(session.parkedThoughts.count))")
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Button {
+                    let dateStr = DayKey.key(for: session.start)
+                    let md = ThoughtParkingEngine.exportMarkdown(thoughts: session.parkedThoughts, subjectName: session.subjectName, dateString: dateStr)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(md, forType: .string)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc")
+                        Text("Copy")
+                    }
+                    .font(.caption2)
+                }
+                .buttonStyle(.bordered)
+            }
+            ForEach(session.parkedThoughts.prefix(3), id: \.self) { thought in
+                Text("• \(thought)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            if session.parkedThoughts.count > 3 {
+                Text("+ \(session.parkedThoughts.count - 3) more")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if !addedThoughtsToPlan {
+                Button {
+                    let todayKey = DayKey.key(for: Date())
+                    let priorities = ThoughtParkingEngine.formatAsPriorities(thoughts: session.parkedThoughts, subjectID: session.subjectID)
+                    model.updatePlan(day: todayKey) { plan in
+                        plan.priorities.append(contentsOf: priorities)
+                    }
+                    addedThoughtsToPlan = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle")
+                        Text("Add to Today's Plan")
+                    }
+                    .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.borderless)
+                .padding(.top, 2)
+            } else {
+                Text("Added to Today's Plan ✓")
+                    .font(.caption)
+                    .foregroundStyle(Theme.emerald)
+                    .padding(.top, 2)
+            }
+        }
+        .padding(Theme.Space.s)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.primary.opacity(0.03))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.06), lineWidth: 1))
+        )
     }
 
     private var relaunchList: some View {

@@ -53,7 +53,7 @@ extension ChromeControlling {
 /// through `SiteVerdictReceiving` (`allowHost` / `closeHost`).
 @MainActor final class ChromeController: ChromeControlling, SiteVerdictReceiving {
     /// AppleScript error number for "Not authorized to send Apple events" (Automation denied).
-    static let automationDeniedErrorNumber = -1743
+    nonisolated static let automationDeniedErrorNumber = -1743
     static let tabPollInterval: TimeInterval = 2
     /// Front-space polls between readings of Arc's other spaces. 30 × 2 s is about a minute.
     static let arcFullSweepEvery = 30
@@ -156,7 +156,7 @@ extension ChromeControlling {
     }
 
     /// Only one AppleScript runs at a time. NSAppleScript is not safe to call concurrently.
-    private static let scriptLock = NSLock()
+    nonisolated private static let scriptLock = NSLock()
 
     /// Compiles and runs `source`. Error -1743 maps to .automationDenied, every other error to .scriptFailed(message).
     /// Safe to call off the main thread. Callers share one lock so two scripts never run at once.

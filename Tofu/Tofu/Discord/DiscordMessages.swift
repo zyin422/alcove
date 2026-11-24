@@ -2,17 +2,19 @@ import Foundation
 
 /// Exact Discord message texts (spec §9). Durations always go through `TimeFormat.short`.
 enum DiscordMessages {
-    /// "🔒 **{name}** is locked in on **{subject}**" + " (goal {TimeFormat.short(goal)})" in goal mode.
-    static func start(name: String, subject: String, mode: SessionMode) -> String {
-        let base = "🔒 **\(name)** is locked in on **\(subject)**"
+    /// "🔒 **{name}** is locked in on **{subject}**" + " [{tierName}]" + " (goal {TimeFormat.short(goal)})" in goal mode.
+    static func start(name: String, subject: String, mode: SessionMode, tierName: String? = nil) -> String {
+        let tierSuffix = (tierName?.isEmpty == false) ? " [\(tierName!)]" : ""
+        let base = "🔒 **\(name)** is locked in on **\(subject)**\(tierSuffix)"
         guard let goal = mode.goalSeconds else { return base }
         return base + " (goal \(TimeFormat.short(goal)))"
     }
 
-    /// "✅ **{name}** locked in on **{subject}** for **{dur}** · tried other apps **{attempts}×** · closed **{tabs}** tabs"
+    /// "✅ **{name}** locked in on **{subject}** [{tierName}] for **{dur}** · tried other apps **{attempts}×** · closed **{tabs}** tabs"
     /// When streakDays > 1, appends streak badge to encourage consistency.
-    static func completed(name: String, subject: String, duration: TimeInterval, attempts: Int, tabs: Int, streakDays: Int = 0) -> String {
-        var msg = "✅ **\(name)** locked in on **\(subject)** for **\(TimeFormat.short(duration))**"
+    static func completed(name: String, subject: String, duration: TimeInterval, attempts: Int, tabs: Int, streakDays: Int = 0, tierName: String? = nil) -> String {
+        let tierSuffix = (tierName?.isEmpty == false) ? " [\(tierName!)]" : ""
+        var msg = "✅ **\(name)** locked in on **\(subject)**\(tierSuffix) for **\(TimeFormat.short(duration))**"
             + " · tried other apps **\(attempts)×** · closed **\(tabs)** tabs"
         if streakDays > 1 {
             msg += " · 🔥 \(streakDays)d streak"
@@ -43,7 +45,7 @@ enum DiscordMessages {
 
     /// Rich Discord embed for focus session completion or bail notification.
     static func sessionEmbed(subject: String, isCompleted: Bool, duration: TimeInterval,
-                             attempts: Int, tabs: Int, streakDays: Int = 0) -> DiscordEmbed {
+                             attempts: Int, tabs: Int, streakDays: Int = 0, tierName: String? = nil) -> DiscordEmbed {
         let color = isCompleted ? 0x059669 : 0xE11D48
         let title = isCompleted ? "✅ Focus Block Completed" : "🏳️ Focus Block Bailed"
         var fields: [DiscordEmbed.Field] = [
@@ -52,6 +54,9 @@ enum DiscordMessages {
             .init(name: "Distraction Attempts", value: "\(attempts)", inline: true),
             .init(name: "Tabs Closed", value: "\(tabs)", inline: true)
         ]
+        if let tier = tierName, !tier.isEmpty {
+            fields.append(.init(name: "Tier", value: tier, inline: true))
+        }
         if streakDays > 1 {
             fields.append(.init(name: "Streak", value: "🔥 \(streakDays) days", inline: true))
         }

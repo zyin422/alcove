@@ -5,11 +5,11 @@ import Observation
 /// and allows/closes sites through tool calls. All local texts (greetings, site questions) cost no API call.
 @Observable @MainActor final class ChatAssistant: SiteAsking {
     /// How long an unsure site waits for the user's answer before it is closed.
-    static let defaultSiteTimeout: TimeInterval = 60
+    nonisolated static let defaultSiteTimeout: TimeInterval = 60
     /// Tool-call rounds per user message; after that the model is asked for plain text only.
-    static let maxToolRounds = 3
+    nonisolated static let maxToolRounds = 3
     /// Newest history messages sent to the model with each request.
-    static let maxHistoryMessages = 30
+    nonisolated static let maxHistoryMessages = 30
 
     /// Conversation shown in ChatView, oldest first.
     private(set) var messages: [ChatMessage] = []

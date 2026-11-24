@@ -39,4 +39,34 @@ final class ThoughtParkingTests: XCTestCase {
 
         XCTAssertEqual(decoded.parkedThoughts, ["[Task] Fix memory leak", "[Idea] Vector acceleration"])
     }
+
+    func testExportMarkdownFormatting() {
+        let thoughts = ["Review lecture slides", "Fix segmentation fault in parser"]
+        let markdown = ThoughtParkingEngine.exportMarkdown(
+            thoughts: thoughts,
+            subjectName: "Operating Systems",
+            dateString: "2026-11-24"
+        )
+
+        XCTAssertTrue(markdown.contains("### Parked Thoughts - Operating Systems (2026-11-24)"))
+        XCTAssertTrue(markdown.contains("- [ ] Review lecture slides"))
+        XCTAssertTrue(markdown.contains("- [ ] Fix segmentation fault in parser"))
+    }
+
+    func testExportMarkdownWithEmptyList() {
+        let markdown = ThoughtParkingEngine.exportMarkdown(thoughts: [], subjectName: "Math", dateString: "2026-11-24")
+        XCTAssertEqual(markdown, "")
+    }
+
+    func testFormatAsPriorities() {
+        let subID = UUID()
+        let thoughts = ["Order textbooks", "Schedule team meeting"]
+        let priorities = ThoughtParkingEngine.formatAsPriorities(thoughts: thoughts, subjectID: subID)
+
+        XCTAssertEqual(priorities.count, 2)
+        XCTAssertEqual(priorities[0].title, "Order textbooks")
+        XCTAssertEqual(priorities[0].subjectID, subID)
+        XCTAssertFalse(priorities[0].isDone)
+        XCTAssertEqual(priorities[1].title, "Schedule team meeting")
+    }
 }

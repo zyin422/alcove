@@ -6,9 +6,9 @@ import Foundation
 @MainActor final class RelevanceJudge: RelevanceJudging {
     /// Close the tab when the off-task probability is at least this.
     /// relevance = 1 − off-task probability. Below this the tab is closed.
-    static let closeBelow = 0.4
+    nonisolated static let closeBelow = 0.4
     /// Above this the tab is kept. In between, the verdict is `.unsure` and the assistant asks the user.
-    static let keepAbove = 0.7
+    nonisolated static let keepAbove = 0.7
 
     /// Maps the Decisions API's off-task probability to a verdict (see `closeBelow` / `keepAbove`).
     nonisolated static func verdict(offTaskProbability probability: Double) -> RelevanceVerdict {

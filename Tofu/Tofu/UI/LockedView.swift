@@ -502,12 +502,31 @@ private struct ParkedThoughtsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                Text("Parked Thoughts")
-                    .font(.headline)
-                Text("Jot down intrusive ideas or tasks here to preserve your focus. You can review them when the session ends.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                    Text(engine.parkedThoughts.isEmpty ? "Parked Thoughts" : "Parked Thoughts (\(engine.parkedThoughts.count))")
+                        .font(.headline)
+                    Text("Jot down intrusive ideas or tasks here to preserve your focus. You can review them when the session ends.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if !engine.parkedThoughts.isEmpty {
+                    Button {
+                        let subName = engine.session?.subjectName ?? "Focus"
+                        let dateStr = DayKey.key(for: Date())
+                        let md = ThoughtParkingEngine.exportMarkdown(thoughts: engine.parkedThoughts, subjectName: subName, dateString: dateStr)
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(md, forType: .string)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.on.doc")
+                            Text("Copy Markdown")
+                        }
+                        .font(.caption.weight(.medium))
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
             .padding(Theme.Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)

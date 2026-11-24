@@ -230,7 +230,15 @@ struct MiniTimerView: View {
         if isBetweenBlocks {
             return model?.nextForceBlockReason ?? "Force Lock-In"
         }
-        return engine.isOnBreak ? "Break" : (engine.session?.subjectName ?? "")
+        if engine.isOnBreak { return "Break" }
+        let subName = engine.session?.subjectName ?? ""
+        if let model, let session = engine.session {
+            let todayKey = DayKey.key(for: Date())
+            if let p = model.plan(for: todayKey)?.priorities.first(where: { $0.subjectID == session.subjectID && !$0.isDone }) {
+                return "\(subName) · \(p.title)"
+            }
+        }
+        return subName
     }
 
     private func progress(now: Date) -> Double {

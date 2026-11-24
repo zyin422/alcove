@@ -74,7 +74,7 @@ private final class MorningWindow: NSWindow {
         for window in windows {
             window.orderFrontRegardless()
         }
-        NSRunningApplication.current.activate(options: .activateIgnoringOtherApps)
+        NSRunningApplication.current.activate()
         windows.first { $0.contentView is NSHostingView<MorningView> }?.makeKey()
     }
 

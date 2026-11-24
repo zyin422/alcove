@@ -88,4 +88,35 @@ final class DiscordMessagesTests: XCTestCase {
         XCTAssertEqual(bailedEmbed.color, 0xE11D48)
         XCTAssertEqual(bailedEmbed.fields?.count, 4)
     }
+
+    func testStartAndCompletedWithMasteryTier() {
+        let startText = DiscordMessages.start(name: "Zixuan", subject: "Algorithms", mode: .goal(minutes: 60), tierName: "Specialist")
+        XCTAssertEqual(startText, "🔒 **Zixuan** is locked in on **Algorithms** [Specialist] (goal 1h 0m)")
+
+        let completedText = DiscordMessages.completed(
+            name: "Zixuan",
+            subject: "Algorithms",
+            duration: 3600,
+            attempts: 0,
+            tabs: 0,
+            streakDays: 3,
+            tierName: "Specialist"
+        )
+        XCTAssertEqual(
+            completedText,
+            "✅ **Zixuan** locked in on **Algorithms** [Specialist] for **1h 0m** · tried other apps **0×** · closed **0** tabs · 🔥 3d streak"
+        )
+
+        let embed = DiscordMessages.sessionEmbed(
+            subject: "Algorithms",
+            isCompleted: true,
+            duration: 3600,
+            attempts: 0,
+            tabs: 0,
+            streakDays: 3,
+            tierName: "Specialist"
+        )
+        XCTAssertEqual(embed.fields?.count, 6)
+        XCTAssertEqual(embed.fields?.first { $0.name == "Tier" }?.value, "Specialist")
+    }
 }

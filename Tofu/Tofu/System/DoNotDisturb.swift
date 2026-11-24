@@ -142,7 +142,7 @@ enum DoNotDisturbShortcuts {
                 didOpen = NSWorkspace.shared.open(url) && didOpen
             }
             NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.shortcuts")
-                .first?.activate(options: [.activateIgnoringOtherApps])
+                .first?.activate()
         }
         return didOpen
     }

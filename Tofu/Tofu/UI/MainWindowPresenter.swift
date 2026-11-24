@@ -196,8 +196,10 @@ enum MainWindowPolicy {
                                    onOpen: { [weak self] in self?.showMainWindow() },
                                    onEnd: { [weak self] in self?.requestEnd() },
                                    onParkThought: { [weak self] in
-                                       self?.showMainWindow()
-                                       NotificationCenter.default.post(name: .tofuShowThoughts, object: nil)
+                                       guard let self else { return }
+                                       QuickThoughtPanelController.shared.present(engine: self.model.engine) { [weak self] thought in
+                                           self?.panel?.showNotice("Parked: “\(thought)”")
+                                       }
                                    })
         panel.show()
         self.panel = panel
