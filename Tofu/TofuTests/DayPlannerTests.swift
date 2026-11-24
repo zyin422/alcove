@@ -684,4 +684,18 @@ final class DayPlanModelTests: XCTestCase {
         XCTAssertEqual(roundtrip.title, "Task with time")
         XCTAssertEqual(roundtrip.estimatedMinutes, 45)
     }
+
+    func testActivePriorityFindsFirstIncompletePriorityForSubject() {
+        let subA = UUID()
+        let subB = UUID()
+        let p1 = Priority(title: "Done Task", subjectID: subA, isDone: true)
+        let p2 = Priority(title: "Active Task", subjectID: subA, isDone: false)
+        let p3 = Priority(title: "Later Task", subjectID: subA, isDone: false)
+        let p4 = Priority(title: "Other Subject", subjectID: subB, isDone: false)
+
+        let plan = DayPlan(day: "2026-11-24", priorities: [p1, p2, p3, p4])
+        XCTAssertEqual(plan.activePriority(for: subA)?.id, p2.id)
+        XCTAssertEqual(plan.activePriority(for: subB)?.id, p4.id)
+        XCTAssertNil(plan.activePriority(for: UUID()))
+    }
 }

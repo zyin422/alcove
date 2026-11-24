@@ -67,6 +67,11 @@ struct DayPlan: Codable, Identifiable, Hashable {
         let item = priorities.remove(at: sourceIndex)
         priorities.insert(item, at: destinationIndex)
     }
+
+    /// First pending (uncompleted) priority for a given subject ID, if any.
+    func activePriority(for subjectID: UUID) -> Priority? {
+        priorities.first(where: { $0.subjectID == subjectID && !$0.isDone })
+    }
 }
 
 /// "2026-10-10"-style keys for days. A day runs from 4 AM to 4 AM, so wrapping up after midnight

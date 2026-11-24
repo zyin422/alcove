@@ -183,6 +183,7 @@ struct LockedView: View {
         return VStack(alignment: .leading, spacing: Theme.Space.m) {
             subjectCaption(engine: engine)
             timerText(engine: engine, width: contentWidth)
+            activePriorityCard(engine: engine)
             if engine.isPlanningMode {
                 planningBadge()
             }
@@ -205,6 +206,7 @@ struct LockedView: View {
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 subjectCaption(engine: engine)
                 timerText(engine: engine, width: max(0, width / 2 - Theme.Space.m))
+                activePriorityCard(engine: engine)
                 if engine.isPlanningMode {
                     planningBadge()
                 }
@@ -246,15 +248,62 @@ struct LockedView: View {
             .minimumScaleFactor(0.5)
     }
 
+    @ViewBuilder private func activePriorityCard(engine: SessionEngine) -> some View {
+        if let session = engine.session {
+            let todayKey = DayKey.key(for: Date())
+            if let priority = model.plan(for: todayKey)?.activePriority(for: session.subjectID) {
+                let color = Theme.subjectColor(SubjectColor.hex(for: session.subjectName))
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("ACTIVE FOCUS")
+                            .font(.system(size: 8.5, weight: .bold))
+                            .foregroundStyle(color)
+                            .tracking(0.8)
+                        Spacer()
+                        Button {
+                            Task {
+                                model.setPriority(priority.id, done: true, day: todayKey)
+                                await engine.finish()
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 8, weight: .bold))
+                                Text("Done")
+                                    .font(.system(size: 9.5, weight: .semibold))
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2.5)
+                            .background(Capsule().fill(Theme.emerald.opacity(0.18)))
+                            .foregroundStyle(Theme.emerald)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Mark “\(priority.title)” completed and finish focus block")
+                    }
+
+                    Text(priority.title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.04)))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(color.opacity(0.25), lineWidth: 1))
+            }
+        }
+    }
+
     /// Goal progress line and "goal 50m" caption, only in goal mode. `barWidth` nil = as wide as the pane.
     @ViewBuilder private func goalBlock(engine: SessionEngine, barWidth: CGFloat?) -> some View {
+        let color: Color = {
+            if let name = engine.session?.subjectName {
+                return Theme.subjectColor(SubjectColor.hex(for: name))
+            }
+            return Theme.indigo
+        }()
         if let goal = engine.session?.mode.goalSeconds {
-            let color: Color = {
-                if let name = engine.session?.subjectName {
-                    return Theme.subjectColor(SubjectColor.hex(for: name))
-                }
-                return Theme.indigo
-            }()
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 Rectangle()
                     .fill(Color.primary.opacity(0.15))
@@ -280,6 +329,40 @@ struct LockedView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
+                }
+            }
+        } else if engine.session?.mode == .open {
+            let cycle: TimeInterval = 25 * 60
+            let cycleProgress = (engine.elapsed.truncatingRemainder(dividingBy: cycle)) / cycle
+            let completedCycles = Int(engine.elapsed / cycle)
+            VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.15))
+                    .frame(width: barWidth, height: 3)
+                    .frame(maxWidth: barWidth == nil ? .infinity : nil)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { bar in
+                            Rectangle()
+                                .fill(color)
+                                .frame(width: bar.size.width * CGFloat(cycleProgress))
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 1.5))
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    HStack(spacing: 3) {
+                        Text("Open flow")
+                            .font(Theme.captionFont)
+                            .foregroundStyle(.secondary)
+                        if completedCycles > 0 {
+                            Text("· \(completedCycles) × 25m done")
+                                .font(Theme.captionFont)
+                                .foregroundStyle(color)
+                        }
+                    }
+                    Spacer()
+                    Text("\(Int(cycleProgress * 100))% of 25m")
+                        .font(.system(size: 10, weight: .medium).monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
         }
