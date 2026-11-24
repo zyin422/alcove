@@ -493,6 +493,14 @@ struct MiniTimerView: View {
             RoundedRectangle(cornerRadius: chrome.isTucked ? 8 : Theme.radius)
                 .stroke(subjectColor.opacity(chrome.isTucked ? 0.35 : 0.5), lineWidth: 1)
         )
+        .overlay(alignment: .top) {
+            if !chrome.isTucked && chrome.noticeText == nil {
+                Rectangle()
+                    .fill(subjectColor)
+                    .frame(height: 2.5)
+                    .clipShape(RoundedRectangle(cornerRadius: 1.25))
+            }
+        }
         .overlay(alignment: .bottom) {
             if !chrome.isTucked && chrome.noticeText == nil {
                 GeometryReader { geo in

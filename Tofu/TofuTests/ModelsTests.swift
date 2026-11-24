@@ -73,6 +73,21 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(settings.giveUpTemplate, "I give up on {subject}")
         XCTAssertEqual(settings.channelCache, [:])
         XCTAssertFalse(settings.allowOffTaskDuringBreak)
+        XCTAssertEqual(settings.dailyTargetMinutes, 4 * 60)
+    }
+
+    func testAppSettingsDailyTargetMinutesCodableWithFallback() throws {
+        // Legacy JSON without dailyTargetMinutes
+        let legacyJSON = Data(#"{"displayName":"Alex"}"#.utf8)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: legacyJSON)
+        XCTAssertEqual(decoded.dailyTargetMinutes, 240)
+
+        // Custom daily target (6 hours = 360m)
+        var custom = AppSettings()
+        custom.dailyTargetMinutes = 360
+        let encoded = try JSONEncoder().encode(custom)
+        let roundtrip = try JSONDecoder().decode(AppSettings.self, from: encoded)
+        XCTAssertEqual(roundtrip.dailyTargetMinutes, 360)
     }
 
     func testEmptyStoreData() {

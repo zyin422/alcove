@@ -337,6 +337,14 @@ struct SettingsView: View {
 
     private var endOfDaySection: some View {
         Section {
+            Stepper(
+                "Daily focus target: \(model.data.settings.dailyTargetMinutes / 60)h",
+                value: Binding(
+                    get: { model.data.settings.dailyTargetMinutes / 60 },
+                    set: { hours in model.updateSettings { $0.dailyTargetMinutes = max(1, min(16, hours)) * 60 } }
+                ),
+                in: 1...16
+            )
             Toggle("Show the morning screen", isOn: Binding(
                 get: { model.data.settings.morningScreenEnabled },
                 set: { value in model.updateSettings { $0.morningScreenEnabled = value } }))

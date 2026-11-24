@@ -171,10 +171,84 @@ struct TodayView: View {
             dayButton("chevron.left", help: "Previous day") { stepDay(-1) }
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 Text(heading).font(Theme.titleFont)
-                Text(summary).foregroundStyle(.secondary)
+                HStack(spacing: Theme.Space.m) {
+                    Text(summary).foregroundStyle(.secondary)
+                    dailyTargetDialView
+                }
             }
             dayButton("chevron.right", help: "Next day", enabled: canGoForward) { stepDay(1) }
         }
+    }
+
+    private var totalFocusedSecondsForDay: TimeInterval {
+        model.data.sessions.filter {
+            DayKey.key(for: $0.start) == shownDay && !$0.isDemo && $0.outcome == .completed
+        }.reduce(0) { $0 + $1.duration }
+    }
+
+    private var dailyTargetSeconds: TimeInterval {
+        TimeInterval(model.data.settings.dailyTargetMinutes * 60)
+    }
+
+    private var focusProgressSummary: String {
+        let focusedHours = totalFocusedSecondsForDay / 3600
+        let targetHours = dailyTargetSeconds / 3600
+        let percent = dailyTargetSeconds > 0 ? Int((totalFocusedSecondsForDay / dailyTargetSeconds) * 100) : 0
+        if totalFocusedSecondsForDay >= dailyTargetSeconds && dailyTargetSeconds > 0 {
+            return String(format: "%.1fh / %.0fh target (%d%%) · Met! 🎉", focusedHours, targetHours, percent)
+        }
+        let remainingSeconds = max(0, dailyTargetSeconds - totalFocusedSecondsForDay)
+        let remainingHours = remainingSeconds / 3600
+        return String(format: "%.1fh / %.0fh target (%d%%) · %.1fh left", focusedHours, targetHours, percent, remainingHours)
+    }
+
+    @ViewBuilder private var dailyTargetDialView: some View {
+        let isMet = totalFocusedSecondsForDay >= dailyTargetSeconds && dailyTargetSeconds > 0
+        let fraction = dailyTargetSeconds > 0 ? min(1.0, totalFocusedSecondsForDay / dailyTargetSeconds) : 0
+        HStack(spacing: 7) {
+            ZStack {
+                Circle()
+                    .stroke(Color.primary.opacity(0.1), lineWidth: 2.5)
+                    .frame(width: 18, height: 18)
+                Circle()
+                    .trim(from: 0, to: CGFloat(fraction))
+                    .stroke(isMet ? Theme.emerald : Theme.indigo, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .frame(width: 18, height: 18)
+                    .rotationEffect(.degrees(-90))
+                if isMet {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Theme.emerald)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 0.5) {
+                HStack(spacing: 3) {
+                    Text(isMet ? "TARGET MET" : "DAILY TARGET")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(isMet ? Theme.emerald : Color.secondary)
+                        .tracking(0.8)
+                    if isMet {
+                        Text("🎉")
+                            .font(.system(size: 8.5))
+                    }
+                }
+                Text(focusProgressSummary)
+                    .font(.system(size: 10.5).monospacedDigit())
+                    .foregroundStyle(Color.secondary)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isMet ? Theme.emerald.opacity(0.08) : Color.primary.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isMet ? Theme.emerald.opacity(0.28) : Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .help("Target: \(model.data.settings.dailyTargetMinutes / 60) hours of focused work per day (configurable in Settings)")
     }
 
     private func dayButton(_ symbol: String, help: String, enabled: Bool = true, action: @escaping () -> Void) -> some View {
@@ -213,39 +287,82 @@ struct TodayView: View {
     }
 
     @ViewBuilder private var dayActions: some View {
-        if currentDayIsBlocked || canEdit {
-            HStack {
-                if showsWrappedUp {
-                    Label("Day wrapped up", systemImage: "moon.fill").foregroundStyle(.secondary)
-                } else if model.isStudyCompleted(day: shownDay) {
-                    Label("All study subjects completed 🎉", systemImage: "checkmark.seal.fill")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Theme.emerald)
-                }
-                Spacer()
-                if currentDayIsBlocked || pendingDay != nil {
-                    Button(currentDayIsBlocked ? "Wrap up the previous day" : "Wrap up this day") {
-                        model.startMyDay()
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                } else {
-                    if model.canPlanToday {
-                        Button("15m Planning") { Task { await model.startPlanningMode() } }
-                            .buttonStyle(SecondaryButtonStyle())
-                    }
-                    Button("Start my day") { model.startMyDay() }
-                        .buttonStyle(SecondaryButtonStyle())
-                    Button(wrapUpButtonTitle) { model.isWrappingUpDay = true }
-                        .buttonStyle(SecondaryButtonStyle())
+        HStack {
+            if showsWrappedUp {
+                Label("Day wrapped up", systemImage: "moon.fill").foregroundStyle(.secondary)
+            } else if model.isStudyCompleted(day: shownDay) {
+                Label("All study subjects completed 🎉", systemImage: "checkmark.seal.fill")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.emerald)
+            }
+            Spacer()
+
+            Button {
+                copyDailyRecap()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "doc.on.doc")
+                    Text("Copy Recap")
                 }
             }
-        } else if showsWrappedUp {
-            Label("Day wrapped up", systemImage: "moon.fill").foregroundStyle(.secondary)
-        } else if model.isStudyCompleted(day: shownDay) {
-            Label("All study subjects completed 🎉", systemImage: "checkmark.seal.fill")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Theme.emerald)
+            .buttonStyle(SecondaryButtonStyle())
+            .help("Copy markdown summary of this day's focus time and priorities to clipboard")
+
+            if currentDayIsBlocked || pendingDay != nil {
+                Button(currentDayIsBlocked ? "Wrap up the previous day" : "Wrap up this day") {
+                    model.startMyDay()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+            } else if canEdit {
+                if model.canPlanToday {
+                    Button("15m Planning") { Task { await model.startPlanningMode() } }
+                        .buttonStyle(SecondaryButtonStyle())
+                }
+                Button("Start my day") { model.startMyDay() }
+                    .buttonStyle(SecondaryButtonStyle())
+                Button(wrapUpButtonTitle) { model.isWrappingUpDay = true }
+                    .buttonStyle(SecondaryButtonStyle())
+            }
         }
+    }
+
+    private func copyDailyRecap() {
+        let dateString = DayKey.date(for: shownDay)?.formatted(.dateTime.weekday(.wide).month(.wide).day().year()) ?? shownDay
+        let todaySessions = model.data.sessions.filter {
+            DayKey.key(for: $0.start) == shownDay && !$0.isDemo && $0.outcome == .completed
+        }
+        let totalSeconds = todaySessions.reduce(0) { $0 + $1.duration }
+        let hours = Int(totalSeconds / 3600)
+        let minutes = Int((totalSeconds.truncatingRemainder(dividingBy: 3600)) / 60)
+        let timeString = hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
+
+        var lines: [String] = []
+        lines.append("## Focus Recap: \(dateString)")
+        lines.append("- **Focused Time**: \(timeString) (\(todaySessions.count) session\(todaySessions.count == 1 ? "" : "s"))")
+
+        if !plan.priorities.isEmpty {
+            lines.append("- **Priorities**:")
+            for p in plan.priorities {
+                let check = p.isDone ? "✓" : "○"
+                let subName = p.subjectID.flatMap(model.subject(id:))?.name
+                let subTag = subName.map { " [\($0)]" } ?? ""
+                lines.append("  \(check)\(subTag) \(p.title)")
+            }
+        }
+
+        let thoughts = model.data.sessions.filter { DayKey.key(for: $0.start) == shownDay }
+            .flatMap(\.parkedThoughts)
+        if !thoughts.isEmpty {
+            lines.append("- **Parked Thoughts** (\(thoughts.count)):")
+            for t in thoughts {
+                lines.append("  - \(t)")
+            }
+        }
+
+        let recapMarkdown = lines.joined(separator: "\n")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(recapMarkdown, forType: .string)
+        ToastCenter.shared.show("Daily recap copied to clipboard 📋")
     }
 
     private func stepDay(_ delta: Int) {

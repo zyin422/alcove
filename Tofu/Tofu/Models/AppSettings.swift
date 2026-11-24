@@ -77,6 +77,8 @@ struct AppSettings: Codable, Equatable {
     var kokoroVoice: KokoroVoice
     /// Volume of voice coaching announcements (0.0 to 1.0).
     var voiceVolume: Double
+    /// Target focused minutes per day (e.g. 240 for 4 hours).
+    var dailyTargetMinutes: Int
 
     init(displayName: String = NSFullUserName(), discordEnabled: Bool = false,
          giveUpTemplate: String = "I give up on {subject}", channelCache: [String: String] = [:],
@@ -97,7 +99,8 @@ struct AppSettings: Codable, Equatable {
          autoLaunchAtLogin: Bool = true,
          dayGuardianEnabled: Bool = true,
          kokoroVoice: KokoroVoice = .heart,
-         voiceVolume: Double = 1.0) {
+         voiceVolume: Double = 1.0,
+         dailyTargetMinutes: Int = 4 * 60) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
         self.giveUpTemplate = giveUpTemplate
@@ -129,6 +132,7 @@ struct AppSettings: Codable, Equatable {
         self.dayGuardianEnabled = dayGuardianEnabled
         self.kokoroVoice = kokoroVoice
         self.voiceVolume = voiceVolume
+        self.dailyTargetMinutes = dailyTargetMinutes
     }
 }
 
@@ -184,7 +188,9 @@ extension AppSettings {
             kokoroVoice: try container.decodeIfPresent(KokoroVoice.self, forKey: .kokoroVoice)
                 ?? defaults.kokoroVoice,
             voiceVolume: try container.decodeIfPresent(Double.self, forKey: .voiceVolume)
-                ?? defaults.voiceVolume)
+                ?? defaults.voiceVolume,
+            dailyTargetMinutes: try container.decodeIfPresent(Int.self, forKey: .dailyTargetMinutes)
+                ?? defaults.dailyTargetMinutes)
     }
 }
 
