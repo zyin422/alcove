@@ -279,4 +279,19 @@ final class MiniTimerLayoutTests: XCTestCase {
         let aboveScreen1 = CGPoint(x: 500, y: 920)
         XCTAssertEqual(MiniTimerLayout.targetScreenVisible(point: aboveScreen1, screens: screens, visibleFrames: visFrames, fallback: fallback), visible1)
     }
+
+    func testIsPositionOnAnyScreenValidatesScreenContainment() {
+        let screens = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 1440, y: 0, width: 1920, height: 1080)
+        ]
+
+        // Inside primary display
+        XCTAssertTrue(MiniTimerLayout.isPositionOnAnyScreen(CGPoint(x: 100, y: 200), in: screens))
+        // Inside secondary display
+        XCTAssertTrue(MiniTimerLayout.isPositionOnAnyScreen(CGPoint(x: 1600, y: 500), in: screens))
+        // Outside both displays (e.g. disconnected monitor coordinates)
+        XCTAssertFalse(MiniTimerLayout.isPositionOnAnyScreen(CGPoint(x: -500, y: 200), in: screens))
+        XCTAssertFalse(MiniTimerLayout.isPositionOnAnyScreen(CGPoint(x: 5000, y: 500), in: screens))
+    }
 }

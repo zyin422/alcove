@@ -122,6 +122,11 @@ enum MiniTimerLayout {
         origin.y + height >= visible.maxY - topMargin - topSnapThreshold
     }
 
+    /// True when `origin` lies within any connected screen frame.
+    static func isPositionOnAnyScreen(_ origin: CGPoint, in screenFrames: [CGRect]) -> Bool {
+        screenFrames.contains { $0.contains(origin) }
+    }
+
     /// Keeps a bar of `width` inside `visible`. A bar wider than the screen stays on the left edge.
     static func clampedX(_ x: CGFloat, width: CGFloat, visible: CGRect) -> CGFloat {
         let minX = visible.minX
@@ -576,9 +581,25 @@ struct MiniTimerView: View {
     /// Places the panel top-center on the main screen and shows it without activating the app.
     /// The full pill stays up for `visibleBeforeTuck`, then tucks to the top unless it has been dragged away.
     func show() {
-        staysOpen = false
         tuckAfterRelease = false
         chrome.isTucked = false
+
+        if UserDefaults.standard.bool(forKey: "miniTimerHasCustomOrigin") {
+            let x = CGFloat(UserDefaults.standard.double(forKey: "miniTimerCustomOriginX"))
+            let y = CGFloat(UserDefaults.standard.double(forKey: "miniTimerCustomOriginY"))
+            let savedOrigin = CGPoint(x: x, y: y)
+            let screens = NSScreen.screens.map(\.frame)
+            if MiniTimerLayout.isPositionOnAnyScreen(savedOrigin, in: screens) {
+                staysOpen = true
+                setFrameOrigin(savedOrigin)
+                orderFrontRegardless()
+                return
+            } else {
+                clearCustomOrigin()
+            }
+        }
+
+        staysOpen = false
         if let visible = ScreenGeometry.mainVisibleFrame() {
             setFrame(MiniTimerLayout.frame(size: MiniTimerLayout.panelSize, visible: visible), display: true)
         } else {
@@ -614,8 +635,10 @@ struct MiniTimerView: View {
         guard let visible = screen?.visibleFrame ?? ScreenGeometry.mainVisibleFrame() else { return }
         if MiniTimerLayout.isAwayFromTop(frame: frame, visible: visible) {
             staysOpen = true
+            saveCustomOrigin(frame.origin)
             return
         }
+        clearCustomOrigin()
         settle(tucked: true, frame: MiniTimerLayout.tuckedFrame(centerX: frame.midX, visible: visible))
     }
 
@@ -715,6 +738,19 @@ struct MiniTimerView: View {
         tuckAfterRelease = false
         hideTimer?.invalidate()
         hideTimer = nil
+        saveCustomOrigin(frame.origin)
+    }
+
+    private func saveCustomOrigin(_ origin: CGPoint) {
+        UserDefaults.standard.set(Double(origin.x), forKey: "miniTimerCustomOriginX")
+        UserDefaults.standard.set(Double(origin.y), forKey: "miniTimerCustomOriginY")
+        UserDefaults.standard.set(true, forKey: "miniTimerHasCustomOrigin")
+    }
+
+    private func clearCustomOrigin() {
+        UserDefaults.standard.removeObject(forKey: "miniTimerHasCustomOrigin")
+        UserDefaults.standard.removeObject(forKey: "miniTimerCustomOriginX")
+        UserDefaults.standard.removeObject(forKey: "miniTimerCustomOriginY")
     }
 
     /// Hides the pill if the stay already elapsed while it was being held and it was not dragged away.
