@@ -197,8 +197,8 @@ enum MainWindowPolicy {
                                    onEnd: { [weak self] in self?.requestEnd() },
                                    onParkThought: { [weak self] in
                                        guard let self else { return }
-                                       QuickThoughtPanelController.shared.present(engine: self.model.engine) { [weak self] thought in
-                                           self?.panel?.showNotice("Parked: “\(thought)”")
+                                       QuickThoughtPanelController.shared.toggle(engine: self.model.engine) { [weak self] thought in
+                                           self?.showThoughtNotice(thought)
                                        }
                                    },
                                    onCycleSound: { [weak self] in
@@ -246,6 +246,15 @@ enum MainWindowPolicy {
     private func closePanel() {
         panel?.orderOut(nil)
         panel = nil
+    }
+
+    /// Flashes confirmation of a parked stray thought on the active HUD or toast banner.
+    func showThoughtNotice(_ thought: String) {
+        if let panel {
+            panel.showNotice("Parked: “\(thought)”")
+        } else {
+            ToastCenter.shared.show("Parked thought: “\(thought)”")
+        }
     }
 
     /// Intervention notices (e.g. off-task tab closed or app hidden) are shown in the mini timer tab.

@@ -71,6 +71,13 @@ enum QuitPolicy {
         // Only builds made by scripts/release.sh check for updates; a build from source must not replace itself.
         model.updates.driver = SparkleUpdater(center: model.updates)
         #endif
+        GlobalHotKeyManager.shared.onTrigger = { [weak self] in
+            guard let self else { return }
+            QuickThoughtPanelController.shared.toggle(engine: self.model.engine) { [weak self] thought in
+                self?.presenter?.showThoughtNotice(thought)
+            }
+        }
+        GlobalHotKeyManager.shared.register()
         endOfDayTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.storedModel?.checkMorning()
@@ -120,6 +127,7 @@ enum QuitPolicy {
     /// Unhides the apps we hid and records the session as interrupted (no Discord post).
     func applicationWillTerminate(_ notification: Notification) {
         guard !Self.isRunningTests, let storedModel else { return }
+        GlobalHotKeyManager.shared.unregister()
         storedModel.engine.terminateNow()
         storedModel.save()
     }

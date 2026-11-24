@@ -1,12 +1,29 @@
 import AppKit
 import SwiftUI
 
+private final class QuickThoughtPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 /// Floating, focused spotlight-style quick capture bar for intrusive stray thoughts during lock-in.
 /// Allows zero-friction thought parking without bringing up the full locked window over the user's workspace.
 @MainActor final class QuickThoughtPanelController {
     static let shared = QuickThoughtPanelController()
 
     private var panel: NSPanel?
+
+    var isPresented: Bool {
+        panel != nil && panel?.isVisible == true
+    }
+
+    func toggle(engine: SessionEngine, onParked: ((String) -> Void)? = nil) {
+        if isPresented {
+            close()
+        } else {
+            present(engine: engine, onParked: onParked)
+        }
+    }
 
     func present(engine: SessionEngine, onParked: ((String) -> Void)? = nil) {
         panel?.close()
@@ -17,7 +34,7 @@ import SwiftUI
         let x = visible.midX - (size.width / 2)
         let y = visible.maxY - 140
 
-        let window = NSPanel(
+        let window = QuickThoughtPanel(
             contentRect: NSRect(x: x, y: y, width: size.width, height: size.height),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -96,7 +113,7 @@ struct QuickThoughtView: View {
             Button {
                 onCommit(text)
             } label: {
-                Image(systemName: "arrow.return")
+                Image(systemName: "return")
                     .font(.system(size: 11, weight: .bold))
                     .padding(5)
                     .background(Circle().fill(Color.primary.opacity(0.1)))
