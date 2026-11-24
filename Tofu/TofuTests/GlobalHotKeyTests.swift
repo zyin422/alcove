@@ -31,6 +31,35 @@ final class GlobalHotKeyTests: XCTestCase {
     }
 
     @MainActor
+    func testGlobalHotKeyDispatchMultiAction() {
+        let manager = GlobalHotKeyManager()
+        var thoughtTriggered = false
+        var muteTriggered = false
+        var hudTriggered = false
+
+        manager.onTrigger = { thoughtTriggered = true }
+        manager.onToggleMute = { muteTriggered = true }
+        manager.onToggleHUD = { hudTriggered = true }
+
+        manager.dispatch(action: .quickThought)
+        XCTAssertTrue(thoughtTriggered)
+        XCTAssertFalse(muteTriggered)
+        XCTAssertFalse(hudTriggered)
+
+        manager.dispatch(action: .toggleMute)
+        XCTAssertTrue(muteTriggered)
+        XCTAssertFalse(hudTriggered)
+
+        manager.dispatch(action: .toggleHUD)
+        XCTAssertTrue(hudTriggered)
+
+        // Verify key codes
+        XCTAssertEqual(GlobalHotKeyAction.quickThought.keyCode, UInt32(kVK_Space))
+        XCTAssertEqual(GlobalHotKeyAction.toggleMute.keyCode, UInt32(kVK_ANSI_M))
+        XCTAssertEqual(GlobalHotKeyAction.toggleHUD.keyCode, UInt32(kVK_ANSI_H))
+    }
+
+    @MainActor
     func testQuickThoughtPanelControllerIsPresentedInitialState() {
         let controller = QuickThoughtPanelController.shared
         XCTAssertFalse(controller.isPresented)

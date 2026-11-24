@@ -218,13 +218,7 @@ enum MainWindowPolicy {
                                        self.panel?.showNotice(notice)
                                    },
                                    onToggleMute: { [weak self] in
-                                       guard let self else { return }
-                                       let current = self.model.data.settings.focusSound
-                                       let toggled = FocusAudioEngine.toggleMute(current: current)
-                                       self.model.updateSettings { $0.focusSound = toggled }
-                                       FocusAudioEngine.shared.play(toggled)
-                                       let notice = toggled == .off ? "Sound: Muted 🔇" : "Sound: \(toggled.rawValue) 🎧"
-                                       self.panel?.showNotice(notice)
+                                       self?.toggleFocusAudioMute()
                                    })
         panel.show()
         self.panel = panel
@@ -286,6 +280,22 @@ enum MainWindowPolicy {
             message = SpiritLines.question(host: host, title: title)
         }
         panel?.showNotice(message)
+    }
+
+    /// Toggles ambient focus audio mute/unmute and shows telemetry notice.
+    func toggleFocusAudioMute() {
+        let current = model.data.settings.focusSound
+        let toggled = FocusAudioEngine.toggleMute(current: current)
+        model.updateSettings { $0.focusSound = toggled }
+        FocusAudioEngine.shared.play(toggled)
+        let notice = toggled == .off ? "Sound: Muted 🔇" : "Sound: \(toggled.rawValue) 🎧"
+        panel?.showNotice(notice)
+        ToastCenter.shared.show(notice)
+    }
+
+    /// Toggles the floating mini timer between revealed pill and tucked tab.
+    func toggleMiniTimerTuck() {
+        panel?.toggleTuck()
     }
 
     /// RootView swaps to LockedView on SwiftUI's next update. Until then the previous content's minimum

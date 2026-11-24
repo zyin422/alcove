@@ -84,6 +84,12 @@ enum QuitPolicy {
                 }
             )
         }
+        GlobalHotKeyManager.shared.onToggleMute = { [weak self] in
+            self?.presenter?.toggleFocusAudioMute()
+        }
+        GlobalHotKeyManager.shared.onToggleHUD = { [weak self] in
+            self?.presenter?.toggleMiniTimerTuck()
+        }
         GlobalHotKeyManager.shared.register()
         endOfDayTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {

@@ -50,6 +50,8 @@ struct TodayView: View {
                 let momentum = FocusMomentumEngine.compute7DayMomentum(sessions: model.data.sessions)
                 FocusMomentumBarView(summary: momentum, selectedDayKey: shownDay, onSelectDay: { showDay($0) })
 
+                subjectDistributionStripView
+
                 forceBlockCountdownBanner
 
                 let todaySessions = model.data.sessions.filter {
@@ -249,6 +251,88 @@ struct TodayView: View {
                 .stroke(isMet ? Theme.emerald.opacity(0.28) : Color.primary.opacity(0.08), lineWidth: 1)
         )
         .help("Target: \(model.data.settings.dailyTargetMinutes / 60) hours of focused work per day (configurable in Settings)")
+    }
+
+    struct SubjectFocusShare: Identifiable {
+        let id: String
+        let name: String
+        let seconds: TimeInterval
+        let fraction: Double
+        let color: Color
+    }
+
+    private var subjectFocusDistribution: [SubjectFocusShare] {
+        let daySessions = model.data.sessions.filter {
+            DayKey.key(for: $0.start) == shownDay && !$0.isDemo && $0.outcome == .completed
+        }
+        guard totalFocusedSecondsForDay > 0 else { return [] }
+        var map: [String: TimeInterval] = [:]
+        for s in daySessions {
+            map[s.subjectName, default: 0] += s.duration
+        }
+        return map.map { name, seconds in
+            let colorHex = model.data.subjects.first(where: { $0.name == name })?.colorHex ?? SubjectColor.hex(for: name)
+            return SubjectFocusShare(
+                id: name,
+                name: name,
+                seconds: seconds,
+                fraction: seconds / totalFocusedSecondsForDay,
+                color: Theme.subjectColor(colorHex)
+            )
+        }.sorted { $0.seconds > $1.seconds }
+    }
+
+    @ViewBuilder private var subjectDistributionStripView: some View {
+        let shares = subjectFocusDistribution
+        if !shares.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Subject Distribution")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(TimeFormat.short(totalFocusedSecondsForDay) + " focused")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
+                GeometryReader { geo in
+                    let width = geo.size.width
+                    let totalSpacing = CGFloat(max(0, shares.count - 1)) * 2
+                    let usableWidth = max(0, width - totalSpacing)
+                    HStack(spacing: 2) {
+                        ForEach(shares) { share in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(share.color)
+                                .frame(width: max(4, usableWidth * CGFloat(share.fraction)))
+                                .help("\(share.name): \(TimeFormat.short(share.seconds)) (\(Int(share.fraction * 100))%)")
+                        }
+                    }
+                }
+                .frame(height: 7)
+                .clipShape(RoundedRectangle(cornerRadius: 3.5))
+
+                HStack(spacing: Theme.Space.m) {
+                    ForEach(shares) { share in
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(share.color)
+                                .frame(width: 6, height: 6)
+                            Text("\(share.name) (\(Int(share.fraction * 100))%)")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                }
+            }
+            .padding(Theme.Space.m)
+            .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Color.primary.opacity(0.03)))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.radius)
+                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+            )
+        }
     }
 
     private func dayButton(_ symbol: String, help: String, enabled: Bool = true, action: @escaping () -> Void) -> some View {
@@ -588,15 +672,48 @@ struct TodayView: View {
     }
 
     private var addRow: some View {
-        HStack(spacing: Theme.Space.s) {
-            TextField("Add a priority (e.g. 8am CS128 lab 45m)", text: $newTitle)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit(add)
-            SetupPicker(subjects: model.data.subjects, selection: $newSubjectID)
-                .frame(width: 160)
-            Button("Add", action: add)
-                .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: Theme.Space.s) {
+                TextField("Add a priority (e.g. 8am CS128 lab 45m)", text: $newTitle)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(add)
+                SetupPicker(subjects: model.data.subjects, selection: $newSubjectID)
+                    .frame(width: 160)
+                Button("Add", action: add)
+                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+
+            HStack(spacing: 5) {
+                Text("Duration:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
+                    Button("\(mins)m") {
+                        appendOrSetDuration(mins)
+                    }
+                    .font(.system(size: 10.5, weight: .medium))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+                    .foregroundStyle(Color.primary)
+                    .buttonStyle(.plain)
+                    .help("Set duration to \(mins) minutes")
+                }
+            }
         }
+    }
+
+    private func appendOrSetDuration(_ minutes: Int) {
+        let pattern = #"\b\d+m\b"#
+        if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+            let range = NSRange(newTitle.startIndex..., in: newTitle)
+            if regex.firstMatch(in: newTitle, options: [], range: range) != nil {
+                newTitle = regex.stringByReplacingMatches(in: newTitle, options: [], range: range, withTemplate: "\(minutes)m")
+                return
+            }
+        }
+        let trimmed = newTitle.trimmingCharacters(in: .whitespaces)
+        newTitle = trimmed.isEmpty ? "\(minutes)m" : "\(trimmed) \(minutes)m"
     }
 
     private func add() {
