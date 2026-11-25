@@ -102,6 +102,13 @@ final class SettingsStatusTests: XCTestCase {
         XCTAssertEqual(SettingsStatus.demoSummary(count: 43), "43 demo sessions loaded")
     }
 
+    func testDataSummaryFormatsSingularAndPluralCounts() {
+        XCTAssertEqual(SettingsStatus.dataSummary(sessions: 1, subjects: 1, plans: 1),
+                       "1 session · 1 subject · 1 planned day")
+        XCTAssertEqual(SettingsStatus.dataSummary(sessions: 12, subjects: 4, plans: 7),
+                       "12 sessions · 4 subjects · 7 planned days")
+    }
+
     func testCleanedTokenTrimsWhitespaceAndBotPrefix() {
         XCTAssertEqual(SettingsStatus.cleanedToken("  abc.def.ghi \n"), "abc.def.ghi")
         XCTAssertEqual(SettingsStatus.cleanedToken("Bot abc.def.ghi"), "abc.def.ghi")

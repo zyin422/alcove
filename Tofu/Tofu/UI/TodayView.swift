@@ -478,13 +478,25 @@ struct TodayView: View {
 
                 HStack(spacing: Theme.Space.m) {
                     ForEach(shares) { share in
-                        HStack(spacing: 4) {
+                        let subID = model.data.subjects.first(where: { $0.name == share.name })?.id
+                        let chip = HStack(spacing: 4) {
                             Circle()
                                 .fill(share.color)
                                 .frame(width: 6, height: 6)
                             Text("\(share.name) (\(Int(share.fraction * 100))%)")
                                 .font(.system(size: 10.5))
                                 .foregroundStyle(.secondary)
+                        }
+                        if let subID {
+                            Button {
+                                model.selection = .subject(subID)
+                            } label: {
+                                chip
+                            }
+                            .buttonStyle(.plain)
+                            .help("Open \(share.name)")
+                        } else {
+                            chip
                         }
                     }
                     Spacer()

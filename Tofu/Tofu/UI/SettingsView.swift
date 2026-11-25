@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Settings (spec §11): profile, Discord bot, give-up phrase, relevance check (OpenAI key), Chrome automation, demo data.
 /// Used both as the sidebar's Settings detail and in the app's Settings scene.
@@ -37,6 +38,7 @@ struct SettingsView: View {
             relevanceSection
             chromeSection
             accessibilitySection
+            dataBackupSection
             demoSection
         }
         .formStyle(.grouped)
@@ -524,6 +526,47 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             hasAccessibility = WindowPlacer.isTrusted
+        }
+    }
+
+    private var dataBackupSection: some View {
+        let realSessionsCount = model.data.sessions.filter { !$0.isDemo }.count
+        return Section {
+            LabeledContent("Saved locally") {
+                Text(SettingsStatus.dataSummary(
+                    sessions: realSessionsCount,
+                    subjects: model.data.subjects.count,
+                    plans: model.data.dayPlans.count
+                ))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+            }
+            HStack {
+                Button("Export JSON Backup…") { exportBackup() }
+                Button("Show store.json in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([model.store.fileURL])
+                }
+            }
+        } header: {
+            Text("Data & Backup")
+        } footer: {
+            Text("All sessions, setups, and daily plans live in one local JSON file on your Mac. Export a snapshot anytime.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func exportBackup() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "tofu-backup-\(DayKey.key(for: Date())).json"
+        panel.title = "Export Tofu Backup"
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        do {
+            try Store.exportBackup(model.data, to: destination)
+            ToastCenter.shared.show("Exported Tofu backup ✓")
+        } catch {
+            ToastCenter.shared.show("Backup failed: \(error.localizedDescription)")
         }
     }
 

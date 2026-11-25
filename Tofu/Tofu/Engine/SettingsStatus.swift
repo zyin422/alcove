@@ -62,6 +62,14 @@ enum SettingsStatus {
         }
     }
 
+    /// Summary of saved user data shown in Settings › Data & Backup.
+    static func dataSummary(sessions: Int, subjects: Int, plans: Int) -> String {
+        let sWord = sessions == 1 ? "session" : "sessions"
+        let subWord = subjects == 1 ? "subject" : "subjects"
+        let pWord = plans == 1 ? "planned day" : "planned days"
+        return "\(sessions) \(sWord) · \(subjects) \(subWord) · \(plans) \(pWord)"
+    }
+
     /// Token as typed/pasted: trims whitespace and a leading "Bot " prefix. nil when nothing is left.
     static func cleanedToken(_ raw: String) -> String? {
         var token = raw.trimmingCharacters(in: .whitespacesAndNewlines)

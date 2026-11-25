@@ -60,6 +60,12 @@ final class Store {
         try encoded.write(to: fileURL, options: .atomic)
     }
 
+    /// Writes an external JSON snapshot of `data` cleanly without disturbing the live store file.
+    static func exportBackup(_ data: StoreData, to destination: URL) throws {
+        let encoded = try makeEncoder().encode(data)
+        try encoded.write(to: destination, options: .atomic)
+    }
+
     /// Sessions left open by a killed process stay open, so the next launch continues the block.
     /// A demo session with no end is closed: demo data must not lock the Mac.
     /// A finished block shorter than a real one is dropped, so it never lands in stats.

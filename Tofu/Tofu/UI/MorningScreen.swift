@@ -216,6 +216,24 @@ struct MorningView: View {
                 Text((DayKey.date(for: plan.day) ?? Date()).formatted(.dateTime.weekday(.wide).month(.wide).day()))
                     .font(.title3)
                     .foregroundStyle(.secondary)
+
+                let streak = StatsEngine(now: Date()).summary(model.data.sessions).currentStreak
+                let targetHours = model.data.settings.dailyTargetMinutes / 60
+                HStack(spacing: 6) {
+                    if streak > 0 {
+                        Image(systemName: "flame.fill")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Theme.amber)
+                        Text("\(streak)-day streak ·")
+                            .font(.caption.weight(.semibold))
+                    }
+                    Text("Daily goal: \(targetHours)h")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
             }
 
             if model.data.settings.googleShowEventsEnabled,
