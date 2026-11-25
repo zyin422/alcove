@@ -18,6 +18,7 @@ struct TodayView: View {
     @State private var lockInTarget: LockInTarget?
     @State private var editingPriorityID: UUID?
     @State private var editingPriorityTitle = ""
+    @State private var hideCompletedPriorities = false
     /// Nil shows the current day. Set when the user steps or jumps to a day.
     @State private var selectedDay: String?
     /// Nil follows the shown day's month. Set when the user pages the calendar or chooses a day.
@@ -112,13 +113,83 @@ struct TodayView: View {
                         Text(emptyMessage).foregroundStyle(.secondary)
                     }
                 } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(plan.priorities.enumerated()), id: \.element.id) { index, priority in
-                            row(priority, index: index, count: plan.priorities.count)
-                            if priority.id != plan.priorities.last?.id { Divider() }
+                    let openCount = plan.priorities.filter { !$0.isDone }.count
+                    let doneCount = plan.priorities.count - openCount
+                    let estimatedTotal = plan.priorities.filter { !$0.isDone }.compactMap(\.estimatedMinutes).reduce(0, +)
+                    let visibleEntries = plan.priorities.enumerated().filter { !(hideCompletedPriorities && $0.element.isDone) }
+
+                    VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                        HStack(spacing: Theme.Space.s) {
+                            Text("PRIORITIES")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.secondary)
+                                .tracking(0.6)
+                            Text("· \(openCount) open")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                            if estimatedTotal > 0 {
+                                Text("· ~\(TimeFormat.short(TimeInterval(estimatedTotal * 60)))")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if doneCount > 0 {
+                                Button {
+                                    hideCompletedPriorities.toggle()
+                                } label: {
+                                    Text(hideCompletedPriorities ? "Show done (\(doneCount))" : "Hide done")
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(hideCompletedPriorities ? Theme.indigo : .secondary)
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3)
+                                        .background(Capsule().fill(Color.primary.opacity(0.06)))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            if canEdit && plan.priorities.count > 1 {
+                                Menu {
+                                    Button("Sort anchors & open first") {
+                                        model.sortPrioritiesAnchorsFirst(day: plan.day)
+                                    }
+                                    if openCount > 0 {
+                                        Button("Defer \(openCount) open to tomorrow") {
+                                            _ = model.deferAllOpenPrioritiesToTomorrow(from: plan.day)
+                                        }
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis.circle")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
+                                .help("Priority actions")
+                            }
+                        }
+
+                        if visibleEntries.isEmpty {
+                            HStack {
+                                Text("All \(doneCount) priorities done for this view.")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Show done") { hideCompletedPriorities = false }
+                                    .buttonStyle(.borderless)
+                                    .font(.caption)
+                            }
+                            .padding(Theme.Space.m)
+                            .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Color.primary.opacity(0.02)))
+                            .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(visibleEntries, id: \.element.id) { index, priority in
+                                    row(priority, index: index, count: plan.priorities.count)
+                                    if priority.id != visibleEntries.last?.element.id { Divider() }
+                                }
+                            }
+                            .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
                         }
                     }
-                    .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
                 }
 
                 if canEdit && !plan.priorities.isEmpty { addRow }

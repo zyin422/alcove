@@ -26,32 +26,8 @@ struct MirrorSheet: View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
             Text("The Mirror").font(Theme.captionFont).foregroundStyle(.secondary)
 
-            if !model.engine.gracePassUsed && !model.engine.isOnGracePass {
-                HStack(spacing: Theme.Space.m) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "shield.lefthalf.filled")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(Theme.amber)
-                            Text("Need to handle an urgent 2FA or task?")
-                                .font(.caption.weight(.semibold))
-                        }
-                        Text("Take a 2-minute Grace Pass instead of bailing.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("2m Grace Pass") {
-                        dismiss()
-                        model.engine.requestGracePass()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.amber)
-                    .controlSize(.small)
-                }
-                .padding(Theme.Space.s)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.amber.opacity(0.12)))
-            }
+            SessionStakeBanner(model: model)
+            SessionGracePassBanner(model: model) { dismiss() }
 
             if let turn {
                 Text(turn.message)

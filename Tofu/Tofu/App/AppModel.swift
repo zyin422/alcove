@@ -657,6 +657,40 @@ enum TokenSource: Equatable {
         ToastCenter.shared.show("Deferred “\(item.title)” to tomorrow.")
     }
 
+    /// Reorders priorities in `day` so open items precede done ones, with anchored tasks floated first within each group.
+    func sortPrioritiesAnchorsFirst(day: String) {
+        updatePlan(day: day) { plan in
+            let indexed = plan.priorities.enumerated().map { ($0.offset, $0.element) }
+            plan.priorities = indexed.sorted { lhs, rhs in
+                if lhs.1.isDone != rhs.1.isDone { return !lhs.1.isDone }
+                if lhs.1.isAnchor != rhs.1.isAnchor { return lhs.1.isAnchor }
+                return lhs.0 < rhs.0
+            }.map(\.1)
+        }
+        ToastCenter.shared.show("Sorted open anchors first")
+    }
+
+    /// Defers every unfinished priority from `day` to tomorrow (`DayKey.next(day)`), returning the moved count.
+    @discardableResult
+    func deferAllOpenPrioritiesToTomorrow(from day: String) -> Int {
+        var moved: [Priority] = []
+        updatePlan(day: day) { plan in
+            moved = plan.priorities.filter { !$0.isDone }
+            plan.priorities.removeAll { !$0.isDone }
+        }
+        guard !moved.isEmpty else { return 0 }
+        let nextDay = DayKey.next(day)
+        updatePlan(day: nextDay) { nextPlan in
+            for item in moved {
+                if !nextPlan.priorities.contains(where: { $0.id == item.id || $0.title == item.title }) {
+                    nextPlan.priorities.append(item)
+                }
+            }
+        }
+        ToastCenter.shared.show("Deferred \(moved.count) open \(moved.count == 1 ? "priority" : "priorities") to tomorrow.")
+        return moved.count
+    }
+
     /// Toggles a priority's focus anchor status (⭐ primary target). Un-anchors sibling tasks under the same subject.
     func togglePriorityAnchor(_ id: UUID, day: String) {
         var anchorTitle: String?

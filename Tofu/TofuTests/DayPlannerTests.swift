@@ -912,4 +912,26 @@ final class DayPlanModelTests: XCTestCase {
         XCTAssertTrue(telemetry.isTargetMet)
         XCTAssertEqual(telemetry.subjects.map(\.name), ["CS128", "MATH241"])
     }
+
+    @MainActor func testSortPrioritiesAnchorsFirstAndDeferAllOpenPriorities() throws {
+        let model = try makeModel(announcer: FakeAnnouncer())
+        let day = DayKey.key(for: Date())
+        let next = DayKey.next(day)
+
+        model.updatePlan(day: day) { plan in
+            plan.priorities = [
+                Priority(title: "Done 1", isDone: true, isAnchor: true),
+                Priority(title: "Open Regular", isDone: false, isAnchor: false),
+                Priority(title: "Open Anchor", isDone: false, isAnchor: true),
+            ]
+        }
+
+        model.sortPrioritiesAnchorsFirst(day: day)
+        XCTAssertEqual(model.plan(for: day)?.priorities.map(\.title), ["Open Anchor", "Open Regular", "Done 1"])
+
+        let deferred = model.deferAllOpenPrioritiesToTomorrow(from: day)
+        XCTAssertEqual(deferred, 2)
+        XCTAssertEqual(model.plan(for: day)?.priorities.map(\.title), ["Done 1"])
+        XCTAssertEqual(model.plan(for: next)?.priorities.map(\.title), ["Open Anchor", "Open Regular"])
+    }
 }
