@@ -205,7 +205,8 @@ struct EndOfDayView: View {
             HStack {
                 if !pendingRolloverPriorities.isEmpty {
                     Button("Skip to review (\(pendingRolloverPriorities.count))") {
-                        tomorrow = DayPlanner.prepareRollover(from: today, selectedIDs: pendingRolloverPriorities)
+                        let rollover = DayPlanner.prepareRollover(from: today, selectedIDs: pendingRolloverPriorities)
+                        tomorrow = DayPlanner.fillingUnassignedSetups(rollover, subjects: model.data.subjects)
                         step = .review
                     }
                     .buttonStyle(SecondaryButtonStyle())
@@ -362,7 +363,8 @@ struct EndOfDayView: View {
     private func apply(_ turn: PlannerTurn) {
         if turn.ready {
             let rollover = DayPlanner.prepareRollover(from: today, selectedIDs: pendingRolloverPriorities)
-            tomorrow = DayPlanner.appendNew(rollover, to: turn.priorities)
+            let merged = DayPlanner.appendNew(rollover, to: turn.priorities)
+            tomorrow = DayPlanner.fillingUnassignedSetups(merged, subjects: model.data.subjects)
             step = .review
             return
         }
@@ -387,7 +389,10 @@ struct EndOfDayView: View {
                 }
             }
             let rollover = DayPlanner.prepareRollover(from: today, selectedIDs: pendingRolloverPriorities)
-            tomorrow = DayPlanner.appendNew(rollover, to: result)
+            tomorrow = DayPlanner.fillingUnassignedSetups(
+                DayPlanner.appendNew(rollover, to: result),
+                subjects: model.data.subjects
+            )
             isMakingList = false
             step = .review
         }
@@ -400,18 +405,8 @@ struct EndOfDayView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Space.s) {
                     ForEach($tomorrow) { $priority in
-                        HStack(spacing: Theme.Space.s) {
-                            TextField("Priority", text: $priority.title)
-                                .textFieldStyle(.roundedBorder)
-                            SetupPicker(subjects: model.data.subjects, selection: $priority.subjectID)
-                                .frame(width: 150)
-                            Button {
-                                tomorrow.removeAll { $0.id == priority.id }
-                            } label: {
-                                Image(systemName: "minus.circle")
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
+                        ReviewPriorityRow(priority: $priority, subjects: model.data.subjects) {
+                            tomorrow.removeAll { $0.id == priority.id }
                         }
                     }
                     Button {
@@ -439,12 +434,63 @@ struct EndOfDayView: View {
                     // Sync may have changed the plan while the sheet was open: tick the fresh plan, not the copy.
                     let fresh = DayPlanner.applyingTicks(edited: today, original: original,
                                                          to: model.todayPlan().priorities)
-                    model.wrapUpDay(today: fresh, tomorrow: tomorrow)
+                    let resolvedTomorrow = DayPlanner.fillingUnassignedSetups(tomorrow, subjects: model.data.subjects)
+                    model.wrapUpDay(today: fresh, tomorrow: resolvedTomorrow)
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .frame(width: 180)
                 .keyboardShortcut(.defaultAction)
             }
         }
+    }
+}
+
+/// Editable priority row in Step 3 (`Tomorrow's plan`) that auto-assigns a matching setup as the user types.
+private struct ReviewPriorityRow: View {
+    @Binding var priority: Priority
+    let subjects: [Subject]
+    let onDelete: () -> Void
+
+    @State private var userSelectedSetup = false
+    @State private var lastAutoMatchedID: UUID?
+
+    private var setupSelection: Binding<UUID?> {
+        Binding(
+            get: { priority.subjectID },
+            set: { newValue in
+                userSelectedSetup = true
+                priority.subjectID = newValue
+            }
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: Theme.Space.s) {
+            TextField("Priority", text: $priority.title)
+                .textFieldStyle(.roundedBorder)
+                .onAppear { applyAutoMatch(for: priority.title) }
+                .onChange(of: priority.title) { _, newTitle in
+                    applyAutoMatch(for: newTitle)
+                }
+            SetupPicker(subjects: subjects, selection: setupSelection)
+                .frame(width: 150)
+            Button(action: onDelete) {
+                Image(systemName: "minus.circle")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func applyAutoMatch(for title: String) {
+        let next = DayPlanner.autoAssignedSubject(
+            for: title,
+            currentSubjectID: priority.subjectID,
+            lastAutoMatchedID: lastAutoMatchedID,
+            userOverrode: userSelectedSetup,
+            subjects: subjects
+        )
+        priority.subjectID = next.subjectID
+        lastAutoMatchedID = next.autoMatchedID
     }
 }

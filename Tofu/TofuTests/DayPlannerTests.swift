@@ -178,6 +178,51 @@ final class DayPlannerTests: XCTestCase {
         XCTAssertNil(DayPlanner.matchSubject("Call mom", subjects: subjects))
     }
 
+    func testMatchSubjectUsesCourseDepartmentPrefixesDetailsAndSpacedCodes() {
+        let research = Subject(name: "Research")
+        let ling = Subject(name: "LING100")
+        let cs173 = Subject(name: "CS173", details: "CS173 is a Discrete Structure course where I learn introductory proofs.")
+        let selfStudy = Subject(name: "Self-study", details: "Self-studying neural networks and deep learning")
+        let subjects = [research, ling, cs173, selfStudy]
+
+        XCTAssertEqual(DayPlanner.matchSubject("Research", subjects: subjects), research.id)
+        XCTAssertEqual(DayPlanner.matchSubject("Linguistics observations", subjects: subjects), ling.id)
+        XCTAssertEqual(DayPlanner.matchSubject("LING 100 worksheet", subjects: subjects), ling.id)
+        XCTAssertEqual(DayPlanner.matchSubject("Finish discrete proofs set", subjects: subjects), cs173.id)
+        XCTAssertEqual(DayPlanner.matchSubject("Read neural networks paper", subjects: subjects), selfStudy.id)
+        XCTAssertNil(DayPlanner.matchSubject("Buy groceries", subjects: subjects))
+    }
+
+    func testAutoAssignedSubjectAndFillingUnassignedSetupsRespectOverrides() {
+        let research = Subject(name: "Research")
+        let ling = Subject(name: "LING100")
+        let subjects = [research, ling]
+
+        // Live typing assigns, updates, and clears when unmatched.
+        let step1 = DayPlanner.autoAssignedSubject(for: "Research", currentSubjectID: nil, lastAutoMatchedID: nil, userOverrode: false, subjects: subjects)
+        XCTAssertEqual(step1.subjectID, research.id)
+        let step2 = DayPlanner.autoAssignedSubject(for: "Linguistics observations", currentSubjectID: step1.subjectID, lastAutoMatchedID: step1.autoMatchedID, userOverrode: false, subjects: subjects)
+        XCTAssertEqual(step2.subjectID, ling.id)
+        let cleared = DayPlanner.autoAssignedSubject(for: "Call mom", currentSubjectID: step2.subjectID, lastAutoMatchedID: step2.autoMatchedID, userOverrode: false, subjects: subjects)
+        XCTAssertNil(cleared.subjectID)
+
+        // Manual override (either explicit setup or explicit nil) is preserved while editing title.
+        let manual = DayPlanner.autoAssignedSubject(for: "Research", currentSubjectID: nil, lastAutoMatchedID: step1.autoMatchedID, userOverrode: true, subjects: subjects)
+        XCTAssertNil(manual.subjectID)
+
+        // Pre-existing setup from AI or prior plan is not wiped when editing to a generic title.
+        let preserved = DayPlanner.autoAssignedSubject(for: "Read notes", currentSubjectID: research.id, lastAutoMatchedID: nil, userOverrode: false, subjects: subjects)
+        XCTAssertEqual(preserved.subjectID, research.id)
+
+        // Batch fill leaves assigned setups intact and fills unassigned ones.
+        let filled = DayPlanner.fillingUnassignedSetups([
+            Priority(title: "Research", subjectID: nil),
+            Priority(title: "Linguistics observations", subjectID: nil),
+            Priority(title: "Custom task", subjectID: research.id),
+        ], subjects: subjects)
+        XCTAssertEqual(filled.map(\.subjectID), [research.id, ling.id, research.id])
+    }
+
     // MARK: Recap message
 
     func testDayRecapListsDoneNotDoneAndTomorrow() {
@@ -232,15 +277,20 @@ final class DayPlannerTests: XCTestCase {
 
     func testParsesTheAIReplyAndMatchesSetupsByName() {
         let cs = Subject(name: "CS128")
+        let research = Subject(name: "Research")
+        let ling = Subject(name: "LING100")
         let reply = """
         ```json
-        {"priorities":[{"title":"Finish lab 3","setup":"cs128"},{"title":"Call mom","setup":""},{"title":"  ","setup":"x"}]}
+        {"priorities":[{"title":"Finish lab 3","setup":"cs128"},{"title":"Call mom","setup":""},{"title":"Research","setup":""},{"title":"Linguistics observations","setup":""},{"title":"  ","setup":"x"}]}
         ```
         """
-        let parsed = PriorityExtractor.parse(reply, subjects: [cs])
-        XCTAssertEqual(parsed?.map(\.title), ["Finish lab 3", "Call mom"])
-        XCTAssertEqual(parsed?.map(\.subjectID), [cs.id, nil])
+        let parsed = PriorityExtractor.parse(reply, subjects: [cs, research, ling])
+        XCTAssertEqual(parsed?.map(\.title), ["Finish lab 3", "Call mom", "Research", "Linguistics observations"])
+        XCTAssertEqual(parsed?.map(\.subjectID), [cs.id, nil, research.id, ling.id])
         XCTAssertNil(PriorityExtractor.parse("Sorry, I can't.", subjects: [cs]))
+
+        let prompt = PriorityExtractor.systemPrompt(subjects: [Subject(name: "LING100", details: "Intro to Linguistics")])
+        XCTAssertTrue(prompt.contains("LING100: Intro to Linguistics"))
     }
 
     @MainActor func testExtractorWithoutAKeyFallsBackToLocalSplitting() async {

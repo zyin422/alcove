@@ -528,6 +528,18 @@ private struct PlanningPriorityView: View {
     let model: AppModel
     @State private var newTitle = ""
     @State private var newSubjectID: UUID?
+    @State private var userSelectedSubject = false
+    @State private var lastAutoMatchedSubjectID: UUID?
+
+    private var draftSetupSelection: Binding<UUID?> {
+        Binding(
+            get: { newSubjectID },
+            set: { newValue in
+                userSelectedSubject = true
+                newSubjectID = newValue
+            }
+        )
+    }
 
     private var plan: DayPlan { model.todayPlan() }
 
@@ -564,7 +576,18 @@ private struct PlanningPriorityView: View {
                 TextField("Add a priority", text: $newTitle)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(add)
-                SetupPicker(subjects: model.data.subjects, selection: $newSubjectID)
+                    .onChange(of: newTitle) { _, updated in
+                        let next = DayPlanner.autoAssignedSubject(
+                            for: updated,
+                            currentSubjectID: newSubjectID,
+                            lastAutoMatchedID: lastAutoMatchedSubjectID,
+                            userOverrode: userSelectedSubject,
+                            subjects: model.data.subjects
+                        )
+                        newSubjectID = next.subjectID
+                        lastAutoMatchedSubjectID = next.autoMatchedID
+                    }
+                SetupPicker(subjects: model.data.subjects, selection: draftSetupSelection)
                     .frame(width: 140)
                 Button("Add", action: add)
                     .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -609,10 +632,12 @@ private struct PlanningPriorityView: View {
     private func add() {
         let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
-        let subjectID = newSubjectID ?? DayPlanner.matchSubject(title, subjects: model.data.subjects)
+        let subjectID = userSelectedSubject ? newSubjectID : (newSubjectID ?? DayPlanner.matchSubject(title, subjects: model.data.subjects))
         model.updatePlan(day: plan.day) { $0.priorities.append(Priority(title: title, subjectID: subjectID)) }
         newTitle = ""
         newSubjectID = nil
+        userSelectedSubject = false
+        lastAutoMatchedSubjectID = nil
     }
 }
 

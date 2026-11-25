@@ -6,6 +6,8 @@ struct TodayView: View {
     let model: AppModel
     @State private var newTitle = ""
     @State private var newSubjectID: UUID?
+    @State private var userSelectedSubject = false
+    @State private var lastAutoMatchedSubjectID: UUID?
     @State private var lockInSubject: Subject?
     /// Nil shows the current day. Set when the user steps or jumps to a day.
     @State private var selectedDay: String?
@@ -795,7 +797,10 @@ struct TodayView: View {
                 TextField("Add a priority (e.g. 9am CS128 lab 45m)", text: $newTitle)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(add)
-                SetupPicker(subjects: model.data.subjects, selection: $newSubjectID)
+                    .onChange(of: newTitle) { _, updated in
+                        autoMatchDraftSetup(for: updated)
+                    }
+                SetupPicker(subjects: model.data.subjects, selection: draftSetupSelection)
                     .frame(width: 160)
                 Button("Set Priority", action: add)
                     .buttonStyle(PrimaryButtonStyle())
@@ -811,6 +816,7 @@ struct TodayView: View {
                         ForEach(model.data.subjects) { subject in
                             let color = Theme.subjectColor(subject.colorHex)
                             Button {
+                                userSelectedSubject = true
                                 newSubjectID = subject.id
                                 if newTitle.isEmpty {
                                     newTitle = "Focus block: \(subject.name)"
@@ -855,7 +861,10 @@ struct TodayView: View {
                 TextField("Add a priority (e.g. 8am CS128 lab 45m)", text: $newTitle)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(add)
-                SetupPicker(subjects: model.data.subjects, selection: $newSubjectID)
+                    .onChange(of: newTitle) { _, updated in
+                        autoMatchDraftSetup(for: updated)
+                    }
+                SetupPicker(subjects: model.data.subjects, selection: draftSetupSelection)
                     .frame(width: 160)
                 Button("Add", action: add)
                     .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -894,11 +903,34 @@ struct TodayView: View {
         newTitle = trimmed.isEmpty ? "\(minutes)m" : "\(trimmed) \(minutes)m"
     }
 
+    private var draftSetupSelection: Binding<UUID?> {
+        Binding(
+            get: { newSubjectID },
+            set: { newValue in
+                userSelectedSubject = true
+                newSubjectID = newValue
+            }
+        )
+    }
+
+    private func autoMatchDraftSetup(for raw: String) {
+        let (parsedTitle, _, _) = DayPlanner.parsePriorityDetails(from: raw)
+        let next = DayPlanner.autoAssignedSubject(
+            for: parsedTitle,
+            currentSubjectID: newSubjectID,
+            lastAutoMatchedID: lastAutoMatchedSubjectID,
+            userOverrode: userSelectedSubject,
+            subjects: model.data.subjects
+        )
+        newSubjectID = next.subjectID
+        lastAutoMatchedSubjectID = next.autoMatchedID
+    }
+
     private func add() {
         let raw = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !raw.isEmpty else { return }
         let (title, estimatedMinutes, scheduledMinutes) = DayPlanner.parsePriorityDetails(from: raw)
-        let subjectID = newSubjectID ?? DayPlanner.matchSubject(title, subjects: model.data.subjects)
+        let subjectID = userSelectedSubject ? newSubjectID : (newSubjectID ?? DayPlanner.matchSubject(title, subjects: model.data.subjects))
         model.updatePlan(day: plan.day) {
             $0.priorities.append(Priority(
                 title: title,
@@ -909,6 +941,8 @@ struct TodayView: View {
         }
         newTitle = ""
         newSubjectID = nil
+        userSelectedSubject = false
+        lastAutoMatchedSubjectID = nil
     }
 }
 

@@ -62,12 +62,12 @@ struct PlannerTurn: Equatable {
     }
 
     nonisolated static func systemPrompt(subjects: [Subject]) -> String {
-        let names = subjects.map { "- \($0.name)" }.joined(separator: "\n")
+        let names = subjectLines(subjects)
         return """
         The user is saying their priorities for tomorrow out loud (speech-to-text, so expect filler and typos). \
         Turn it into a list of separate priorities, in the order said. Each title is short (at most 8 words), \
         in the user's own words, without numbering or filler like "I need to".
-        For each priority pick the setup it is worked on in, only when it clearly belongs to one, else "".
+        For each priority pick the setup it is worked on in, only when it clearly belongs to one (matching exact setup names, course codes like LING100 for Linguistics, or setup details), else "".
         Setups:
         \(names.isEmpty ? "(none)" : names)
         Reply with JSON only: {"priorities":[{"title":"...","setup":"<setup name or empty>"}]}
@@ -80,7 +80,7 @@ struct PlannerTurn: Equatable {
             let setup = subjects.first { $0.id == item.subjectID }?.name
             return setup.map { "- \(item.title) (\($0))" } ?? "- \(item.title)"
         }
-        let names = subjects.map { "- \($0.name)" }.joined(separator: "\n")
+        let names = subjectLines(subjects)
         return """
         You help a student decide tomorrow's priorities. Be brief: one or two sentences, no pep talk.
         Unfinished today:
@@ -91,10 +91,17 @@ struct PlannerTurn: Equatable {
         Do not invent a list for them.
         Once they name tasks, stop asking. Set ready to true and return the list, in the order they said. \
         Each title is short (at most 8 words), in their words, without numbering or "I need to". \
-        setup is a setup name only when the task clearly belongs to it, else "".
+        setup is a setup name only when the task clearly belongs to it (matching setup names, course codes, or details), else "".
         Carry an unfinished item into tomorrow only when they keep it.
         Reply with JSON only: {"message":"...","ready":false,"priorities":[{"title":"...","setup":""}]}
         """
+    }
+
+    private nonisolated static func subjectLines(_ subjects: [Subject]) -> String {
+        subjects.map { subject in
+            let details = subject.details.trimmingCharacters(in: .whitespacesAndNewlines)
+            return details.isEmpty ? "- \(subject.name)" : "- \(subject.name): \(details)"
+        }.joined(separator: "\n")
     }
 
     /// Reads a conversation reply. Unusable JSON becomes the raw words as a question, not a list.
@@ -132,8 +139,13 @@ struct PlannerTurn: Equatable {
         return decoded.priorities.compactMap { item in
             guard let title = DayPlanner.cleanTitle(item.title) else { return nil }
             let setup = (item.setup ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-            let subject = subjects.first { $0.name.trimmingCharacters(in: .whitespaces).lowercased() == setup }
-            return Priority(title: title, subjectID: subject?.id)
+            let exactID = subjects.first {
+                $0.name.trimmingCharacters(in: .whitespaces).lowercased() == setup
+            }?.id
+            let subjectID = exactID
+                ?? (setup.isEmpty ? nil : DayPlanner.matchSubject(setup, subjects: subjects))
+                ?? DayPlanner.matchSubject(title, subjects: subjects)
+            return Priority(title: title, subjectID: subjectID)
         }
     }
 }

@@ -276,18 +276,132 @@ enum DayPlanner {
         return title.prefix(1).uppercased() + title.dropFirst()
     }
 
-    /// The setup whose name appears in `title` (case-insensitive, whole words); the longest name wins.
+    /// Matches `title` to the best subject setup:
+    /// 1) exact whole-word setup name match (tolerating optional course-code whitespace like "CS 173" for "CS173"),
+    /// 2) academic course-code department keyword match (e.g. "LING100" <- "Linguistics ..."),
+    /// 3) whole-word keyword overlap against `subject.details`.
     static func matchSubject(_ title: String, subjects: [Subject]) -> UUID? {
         let lowered = title.lowercased()
-        return subjects
+        let exact = subjects
             .filter { subject in
                 let name = subject.name.trimmingCharacters(in: .whitespaces).lowercased()
                 guard !name.isEmpty else { return false }
-                let pattern = #"(?<![\p{L}\p{N}])"# + NSRegularExpression.escapedPattern(for: name) + #"(?![\p{L}\p{N}])"#
+                let escaped = NSRegularExpression.escapedPattern(for: name)
+                // Allow optional whitespace between leading course letters and digits (e.g. "LING100" matches "LING 100").
+                let flexCourse = escaped.replacingOccurrences(
+                    of: #"^([a-z]{2,})(\d+[a-z]?)$"#,
+                    with: #"$1\\s*$2"#,
+                    options: .regularExpression
+                )
+                let pattern = #"(?<![\p{L}\p{N}])"# + flexCourse + #"(?![\p{L}\p{N}])"#
                 return lowered.range(of: pattern, options: .regularExpression) != nil
             }
             .max { $0.name.count < $1.name.count }?
             .id
+        if let exact { return exact }
+
+        let titleWords = tokenSet(in: lowered)
+        guard !titleWords.isEmpty else { return nil }
+
+        // 2) Course-code department prefix keywords (only when name is letters + digits like LING100).
+        if let courseMatch = subjects.compactMap({ subject -> (id: UUID, score: Int)? in
+            let code = subject.name.trimmingCharacters(in: .whitespaces).lowercased()
+            guard let dept = courseDepartmentPrefix(from: code),
+                  let keywords = Self.courseDepartmentKeywords[dept] else { return nil }
+            let hits = keywords.filter { kw in
+                kw.contains(" ") ? lowered.contains(kw) : titleWords.contains(kw)
+            }.count
+            return hits > 0 ? (subject.id, hits) : nil
+        }).max(by: { $0.score < $1.score })?.id {
+            return courseMatch
+        }
+
+        // 3) Subject.details keyword overlap (ignores stopwords and short tokens).
+        return subjects.compactMap { subject -> (id: UUID, score: Int, length: Int)? in
+            let keywords = detailKeywords(in: subject.details)
+            let matched = keywords.filter { titleWords.contains($0) }
+            guard !matched.isEmpty else { return nil }
+            let totalLen = matched.reduce(0) { $0 + $1.count }
+            return (subject.id, matched.count, totalLen)
+        }
+        .max { ($0.score, $0.length) < ($1.score, $1.length) }?
+        .id
+    }
+
+    private static let courseDepartmentKeywords: [String: [String]] = [
+        "ling": ["linguistics", "linguistic", "phonetics", "phonology", "syntax", "morphology", "semantics", "pragmatics"],
+        "cs": ["computer science", "programming", "software", "algorithms", "data structures"],
+        "phys": ["physics", "mechanics", "electromagnetism", "quantum", "thermodynamics"],
+        "chem": ["chemistry", "organic", "inorganic", "stoichiometry", "biochem", "biochemistry"],
+        "bio": ["biology", "biological", "genetics", "cellular", "anatomy", "ecology"],
+        "biol": ["biology", "biological", "genetics", "cellular", "anatomy", "ecology"],
+        "psyc": ["psychology", "psychological", "cognitive", "neuroscience", "behavioral"],
+        "psych": ["psychology", "psychological", "cognitive", "neuroscience", "behavioral"],
+        "econ": ["economics", "economic", "microeconomics", "macroeconomics", "econometrics"],
+        "stat": ["statistics", "statistical", "probability", "regression"],
+        "hist": ["history", "historical"],
+        "phil": ["philosophy", "philosophical", "ethics", "epistemology", "metaphysics"],
+        "anth": ["anthropology", "anthropological"],
+        "soc": ["sociology", "sociological"],
+        "pols": ["political science", "politics", "government"],
+        "engl": ["english", "literature", "rhetoric", "composition"],
+        "geog": ["geography", "geographical"],
+        "astr": ["astronomy", "astrophysics"],
+        "geol": ["geology", "geological"],
+        "neur": ["neuroscience", "neural"],
+        "neuro": ["neuroscience", "neural"],
+        "ece": ["electrical engineering", "computer engineering", "circuits", "signals"],
+    ]
+
+    private static let detailStopwords: Set<String> = [
+        "about", "after", "also", "been", "being", "class", "course", "during", "each", "focus",
+        "from", "have", "here", "into", "introductory", "just", "learn", "learning", "like",
+        "more", "most", "notes", "only", "other", "over", "practice", "review", "self", "some",
+        "study", "studying", "subject", "that", "their", "them", "then", "there", "these", "this",
+        "through", "using", "what", "when", "where", "which", "while", "with", "work", "working", "your",
+    ]
+
+    private static func courseDepartmentPrefix(from code: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: #"^([a-z]{2,6})\s*\d+[a-z]?$"#),
+              let match = regex.firstMatch(in: code, range: NSRange(code.startIndex..., in: code)),
+              let range = Range(match.range(at: 1), in: code) else { return nil }
+        return String(code[range])
+    }
+
+    private static func tokenSet(in lowercased: String) -> Set<String> {
+        let parts = lowercased.components(separatedBy: CharacterSet.alphanumerics.inverted)
+        return Set(parts.filter { !$0.isEmpty })
+    }
+
+    private static func detailKeywords(in details: String) -> Set<String> {
+        let words = tokenSet(in: details.lowercased())
+        return Set(words.filter { $0.count >= 4 && !detailStopwords.contains($0) })
+    }
+
+    /// Auto-assigns a setup as the user types `title`, preserving any manual override or AI-chosen setup.
+    static func autoAssignedSubject(
+        for title: String,
+        currentSubjectID: UUID?,
+        lastAutoMatchedID: UUID?,
+        userOverrode: Bool,
+        subjects: [Subject]
+    ) -> (subjectID: UUID?, autoMatchedID: UUID?) {
+        guard !userOverrode else { return (currentSubjectID, lastAutoMatchedID) }
+        guard currentSubjectID == nil || currentSubjectID == lastAutoMatchedID else {
+            return (currentSubjectID, lastAutoMatchedID)
+        }
+        let matched = matchSubject(title, subjects: subjects)
+        return (matched, matched)
+    }
+
+    /// Fills any missing setup IDs on `priorities` using `matchSubject`.
+    static func fillingUnassignedSetups(_ priorities: [Priority], subjects: [Subject]) -> [Priority] {
+        priorities.map { priority in
+            guard priority.subjectID == nil else { return priority }
+            var copy = priority
+            copy.subjectID = matchSubject(priority.title, subjects: subjects)
+            return copy
+        }
     }
 
     /// Local fallback for `PriorityExtractor`: split the words and match setups by name.
