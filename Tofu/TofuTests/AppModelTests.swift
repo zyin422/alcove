@@ -694,18 +694,20 @@ final class AppModelTests: XCTestCase {
         let p = Priority(title: "Initial draft", subjectID: cs.id, estimatedMinutes: 25)
         model.updatePlan(day: today) { $0.priorities = [p] }
 
-        model.updatePriorityDetails(p.id, day: today, title: "Final proof", subjectID: .some(math.id), estimatedMinutes: .some(60))
+        model.updatePriorityDetails(p.id, day: today, title: "Final proof", subjectID: .some(math.id), estimatedMinutes: .some(60), scheduledMinutesFromMidnight: .some(14 * 60 + 30))
         let updated = model.plan(for: today)?.priorities.first { $0.id == p.id }
         XCTAssertEqual(updated?.title, "Final proof")
         XCTAssertEqual(updated?.subjectID, math.id)
         XCTAssertEqual(updated?.estimatedMinutes, 60)
+        XCTAssertEqual(updated?.scheduledMinutesFromMidnight, 870)
 
-        // Clearing subject and estimate works without clobbering title
-        model.updatePriorityDetails(p.id, day: today, subjectID: .some(nil), estimatedMinutes: .some(nil))
+        // Clearing subject, estimate, and scheduled time works without clobbering title
+        model.updatePriorityDetails(p.id, day: today, subjectID: .some(nil), estimatedMinutes: .some(nil), scheduledMinutesFromMidnight: .some(nil))
         let cleared = model.plan(for: today)?.priorities.first { $0.id == p.id }
         XCTAssertEqual(cleared?.title, "Final proof")
         XCTAssertNil(cleared?.subjectID)
         XCTAssertNil(cleared?.estimatedMinutes)
+        XCTAssertNil(cleared?.scheduledMinutesFromMidnight)
     }
 
     func testPromoteSessionThoughtToTodayParsesHashtagAndRemovesThought() async throws {

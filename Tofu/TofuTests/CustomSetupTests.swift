@@ -457,4 +457,26 @@ final class CustomSetupTests: XCTestCase {
 
         XCTAssertEqual(form.allowedApps, [terminal])
     }
+
+    @MainActor func testCustomSlotsCanAddAndReorderUpToMaxWindows() {
+        var form = SubjectFormState(subject: nil)
+        form.usesCustomLayout = true
+        form.customSlots = [
+            SubjectFormState.editable(SetupSlot.website(["one.com"])),
+            SubjectFormState.editable(SetupSlot.website(["two.com"])),
+        ]
+
+        form.moveCustomSlot(from: 0, to: 1)
+        XCTAssertEqual(form.customSlots.map(\.urls), [["two.com"], ["one.com"]])
+
+        form.addCustomSlot()
+        XCTAssertEqual(form.customSlots.count, 3)
+
+        while form.customSlots.count < SubjectValidator.maxWindows + 2 {
+            let before = form.customSlots.count
+            form.addCustomSlot()
+            if form.customSlots.count == before { break }
+        }
+        XCTAssertEqual(form.customSlots.count, SubjectValidator.maxWindows)
+    }
 }

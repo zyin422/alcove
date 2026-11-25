@@ -724,6 +724,36 @@ struct StatsEngine {
     }
 }
 
+/// Highest single-day completed focus total within a period.
+struct BestFocusDay: Equatable {
+    let date: Date
+    let seconds: TimeInterval
+    let sessionCount: Int
+}
+
+extension StatsEngine {
+    /// Returns the single highest-volume completed focus day across `sessions`, breaking ties toward recent dates.
+    func bestFocusDay(in sessions: [Session]) -> BestFocusDay? {
+        var byDay: [Date: (seconds: TimeInterval, count: Int)] = [:]
+        for session in Self.ended(sessions) where session.outcome == .completed {
+            let day = periodStart(.day, for: session.start)
+            var current = byDay[day] ?? (0, 0)
+            current.seconds += session.duration
+            current.count += 1
+            byDay[day] = current
+        }
+        guard let winner = byDay.max(by: { lhs, rhs in
+            if abs(lhs.value.seconds - rhs.value.seconds) < 0.5 {
+                return lhs.key < rhs.key
+            }
+            return lhs.value.seconds < rhs.value.seconds
+        }), winner.value.seconds > 0 else {
+            return nil
+        }
+        return BestFocusDay(date: winner.key, seconds: winner.value.seconds, sessionCount: winner.value.count)
+    }
+}
+
 private extension StatsSpan {
     var step: Calendar.Component {
         switch self {

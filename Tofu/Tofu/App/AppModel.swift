@@ -754,13 +754,14 @@ enum TokenSource: Equatable {
         return priority
     }
 
-    /// Updates a priority's editable title, assigned subject, or estimated duration inline.
+    /// Updates a priority's editable title, assigned subject, estimated duration, or scheduled time inline.
     func updatePriorityDetails(
         _ id: UUID,
         day: String,
         title: String? = nil,
         subjectID: UUID?? = nil,
-        estimatedMinutes: Int?? = nil
+        estimatedMinutes: Int?? = nil,
+        scheduledMinutesFromMidnight: Int?? = nil
     ) {
         updatePlan(day: day) { plan in
             guard let index = plan.priorities.firstIndex(where: { $0.id == id }) else { return }
@@ -778,6 +779,13 @@ enum TokenSource: Equatable {
                     plan.priorities[index].estimatedMinutes = mins
                 } else {
                     plan.priorities[index].estimatedMinutes = nil
+                }
+            }
+            if let scheduledMinutesFromMidnight {
+                if let mins = scheduledMinutesFromMidnight, (0..<1440).contains(mins) {
+                    plan.priorities[index].scheduledMinutesFromMidnight = mins
+                } else {
+                    plan.priorities[index].scheduledMinutesFromMidnight = nil
                 }
             }
         }

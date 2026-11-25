@@ -122,6 +122,21 @@ struct SubjectFormState: Equatable {
             }
         }
     }
+
+    /// Reorders a custom-layout window slot (`back to front`), keeping indices clamped within bounds.
+    mutating func moveCustomSlot(from sourceIndex: Int, to destinationIndex: Int) {
+        guard customSlots.indices.contains(sourceIndex),
+              customSlots.indices.contains(destinationIndex),
+              sourceIndex != destinationIndex else { return }
+        let slot = customSlots.remove(at: sourceIndex)
+        customSlots.insert(slot, at: destinationIndex)
+    }
+
+    /// Appends a new centered website window slot up to `SubjectValidator.maxWindows` in Custom layout mode.
+    mutating func addCustomSlot() {
+        guard customSlots.count < SubjectValidator.maxWindows else { return }
+        customSlots.append(SetupSlot.website([""], frame: UnitRect(x: 0.08, y: 0.08, width: 0.84, height: 0.84)))
+    }
 }
 
 /// The subject form itself: windows (websites or apps), their layout (a preset or a custom layout
@@ -311,6 +326,13 @@ struct SubjectForm: View {
             ForEach(Array(form.visibleSlots.enumerated()), id: \.element.id) { index, slot in
                 slotEditor(slot, number: index + 1)
             }
+            if form.usesCustomLayout && form.customSlots.count < SubjectValidator.maxWindows {
+                Button("+ Add Window") {
+                    form.addCustomSlot()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .font(.caption)
+            }
             Text(form.usesCustomLayout
                  ? "Each window opens where it was captured; a mini timer floats on top."
                  : (form.preset.appHasZone
@@ -349,6 +371,30 @@ struct SubjectForm: View {
                 .frame(width: 160)
                 Spacer()
                 if form.usesCustomLayout {
+                    if form.customSlots.count > 1 {
+                        let idx = number - 1
+                        HStack(spacing: 4) {
+                            Button {
+                                form.moveCustomSlot(from: idx, to: idx - 1)
+                            } label: {
+                                Image(systemName: "chevron.up")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(idx == 0)
+                            .help("Move window earlier (back)")
+
+                            Button {
+                                form.moveCustomSlot(from: idx, to: idx + 1)
+                            } label: {
+                                Image(systemName: "chevron.down")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(idx >= form.customSlots.count - 1)
+                            .help("Move window later (front)")
+                        }
+                    }
                     Button {
                         form.customSlots.removeAll { $0.id == slot.id }
                     } label: {

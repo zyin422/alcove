@@ -883,7 +883,7 @@ struct OpenFocusWindow: Identifiable, Equatable {
         "\(Self.formatMinutes(startMinutes)) – \(Self.formatMinutes(endMinutes))"
     }
 
-    private static func formatMinutes(_ minutes: Int) -> String {
+    static func formatMinutes(_ minutes: Int) -> String {
         let h = (minutes / 60) % 24
         let m = minutes % 60
         let period = h >= 12 ? "PM" : "AM"

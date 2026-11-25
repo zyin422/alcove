@@ -26,7 +26,18 @@ struct StatsView: View {
                 tabHeader(summary: summary, period: period, allSessions: sessions, shares: shares, comparison: comparison, heading: stats.heading(span, containing: shown))
                         if StatsFormatting.hasTrackedSessions(sessions) {
                             periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
-                            StatsSummaryGrid(summary: summary, overallSummary: overallSummary, comparison: comparison, subjectCount: shares.count)
+                            let bestDay = span == .day ? nil : stats.bestFocusDay(in: period)
+                            StatsSummaryGrid(
+                                summary: summary,
+                                overallSummary: overallSummary,
+                                comparison: comparison,
+                                subjectCount: shares.count,
+                                bestDay: bestDay,
+                                onSelectDay: { date in
+                                    span = .day
+                                    anchor = min(date, latest)
+                                }
+                            )
                             if span == .day {
                                 if !period.isEmpty {
                                     DayChronologicalTimeline(sessions: period, day: shown, color: color(for:))
@@ -704,6 +715,8 @@ private struct StatsSummaryGrid: View {
     let overallSummary: StatsSummary
     let comparison: PeriodComparison
     let subjectCount: Int
+    var bestDay: BestFocusDay? = nil
+    var onSelectDay: ((Date) -> Void)? = nil
 
     private var scoreTint: Color {
         if summary.focusScore >= 80 { return Theme.emerald }
@@ -790,6 +803,41 @@ private struct StatsSummaryGrid: View {
                 StatCard(title: "Current Streak", value: "\(overallSummary.currentStreak)d", tint: overallSummary.currentStreak > 0 ? Theme.amber : nil, icon: "flame.fill")
                 StatCard(title: "Best Streak", value: "\(overallSummary.longestStreak)d", icon: "trophy.fill")
                 StatCard(title: "Shield Deflections", value: "\(summary.blockedAttempts + summary.closedTabs)", tint: (summary.blockedAttempts + summary.closedTabs) > 0 ? Theme.rose : nil, icon: "shield.fill")
+            }
+
+            if let bestDay {
+                Button {
+                    onSelectDay?(bestDay.date)
+                } label: {
+                    HStack(spacing: Theme.Space.s) {
+                        Image(systemName: "crown.fill")
+                            .foregroundStyle(Theme.amber)
+                            .font(.caption)
+                        Text("Best Focus Day:")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(bestDay.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                            .font(.caption.weight(.semibold))
+                        Text("· \(TimeFormat.short(bestDay.seconds)) across \(bestDay.sessionCount) \(bestDay.sessionCount == 1 ? "block" : "blocks")")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Label("Inspect day", systemImage: "arrow.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Theme.indigo)
+                    }
+                    .padding(.horizontal, Theme.Space.m)
+                    .padding(.vertical, Theme.Space.s)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Theme.amber.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(Theme.amber.opacity(0.25), lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
     }

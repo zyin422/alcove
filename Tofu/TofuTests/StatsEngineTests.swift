@@ -558,4 +558,17 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertEqual(activity[4].minutes, 30, accuracy: 0.01)
         XCTAssertEqual(activity[5].minutes, 0, accuracy: 0.01)
     }
+
+    func testBestFocusDayPicksHighestCompletedVolumeAndBreaksTiesTowardRecent() {
+        let day1a = session("CS128", date(2026, 10, 7, 9), minutes: 45)
+        let day1b = session("CS128", date(2026, 10, 7, 14), minutes: 45)
+        let day2 = session("MATH241", date(2026, 10, 9, 10), minutes: 90)
+        var bailedHuge = session("CS128", date(2026, 10, 8, 10), minutes: 180)
+        bailedHuge.outcome = .bailed
+
+        let best = engine.bestFocusDay(in: [day1a, day1b, day2, bailedHuge])
+        XCTAssertEqual(best?.seconds, 90 * 60)
+        XCTAssertEqual(best?.sessionCount, 1)
+        XCTAssertEqual(best?.date, date(2026, 10, 9, 0))
+    }
 }
