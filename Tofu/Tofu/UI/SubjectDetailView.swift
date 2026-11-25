@@ -60,6 +60,7 @@ struct SubjectDetailView: View {
     @State private var isChoosingMode = false
     @State private var targetPriorityForLockIn: Priority?
     @State private var quickPriorityDraft = ""
+    @State private var isTestingWorkspace = false
 
     init(model: AppModel, subject: Subject) {
         self.model = model
@@ -80,16 +81,43 @@ struct SubjectDetailView: View {
                 TextField("Name", text: $form.name)
                     .textFieldStyle(.plain)
                     .font(Theme.titleFont)
-                Button {
-                    targetPriorityForLockIn = nil
-                    isChoosingMode = true
-                } label: {
-                    Text("LOCK IN")
-                        .tracking(3)
-                        .frame(maxWidth: .infinity, minHeight: 56)
+                HStack(spacing: Theme.Space.s) {
+                    Button {
+                        targetPriorityForLockIn = nil
+                        isChoosingMode = true
+                    } label: {
+                        Text("LOCK IN")
+                            .tracking(3)
+                            .frame(maxWidth: .infinity, minHeight: 56)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .keyboardShortcut(.return, modifiers: .command)
+
+                    Button {
+                        let draft = form.errors.isEmpty
+                            ? form.subject(id: subject.id, createdAt: subject.createdAt)
+                            : subject
+                        isTestingWorkspace = true
+                        Task {
+                            await model.previewWorkspace(for: draft)
+                            isTestingWorkspace = false
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isTestingWorkspace {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "macwindow.on.rectangle")
+                            }
+                            Text("Test Setup")
+                        }
+                        .frame(minHeight: 56)
+                        .padding(.horizontal, Theme.Space.m)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(isTestingWorkspace || model.engine.isLocked)
+                    .help("Launch configured websites and app windows now without starting a Lock-In session")
                 }
-                .buttonStyle(PrimaryButtonStyle())
-                .keyboardShortcut(.return, modifiers: .command)
                 
                 telemetryBentoGrid(telemetry)
 

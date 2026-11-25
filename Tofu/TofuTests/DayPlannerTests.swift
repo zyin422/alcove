@@ -881,4 +881,35 @@ final class DayPlanModelTests: XCTestCase {
         XCTAssertEqual(normalized[0].subjectID, research.id)
         XCTAssertTrue(normalized[0].isAnchor)
     }
+
+    func testWrapUpTelemetrySummarizesFocusedWorkAndPriorities() {
+        let cs = Subject(name: "CS128", colorHex: "#4f46e5")
+        let math = Subject(name: "MATH241", colorHex: "#059669")
+        let day = DayKey.key(for: Date())
+        let now = Date()
+        let sessions = [
+            Session(subjectID: cs.id, subjectName: "CS128", mode: .open, start: now, end: now.addingTimeInterval(3600), outcome: .completed),
+            Session(subjectID: math.id, subjectName: "MATH241", mode: .open, start: now.addingTimeInterval(4000), end: now.addingTimeInterval(5800), outcome: .completed),
+            Session(subjectID: cs.id, subjectName: "CS128", mode: .open, start: now, end: now.addingTimeInterval(900), outcome: .bailed),
+        ]
+        let priorities = [
+            Priority(title: "Lab 1", isDone: true),
+            Priority(title: "Lab 2", isDone: false),
+        ]
+
+        let telemetry = DayPlanner.wrapUpTelemetry(
+            for: day,
+            sessions: sessions,
+            priorities: priorities,
+            subjects: [cs, math],
+            dailyTargetMinutes: 90
+        )
+
+        XCTAssertEqual(telemetry.focusedSeconds, 5400, accuracy: 0.1)
+        XCTAssertEqual(telemetry.completedSessions, 2)
+        XCTAssertEqual(telemetry.prioritiesDone, 1)
+        XCTAssertEqual(telemetry.prioritiesTotal, 2)
+        XCTAssertTrue(telemetry.isTargetMet)
+        XCTAssertEqual(telemetry.subjects.map(\.name), ["CS128", "MATH241"])
+    }
 }

@@ -553,6 +553,11 @@ enum TokenSource: Equatable {
         await engine.start(subject: subject, mode: mode, displayName: displayName)
     }
 
+    /// Opens a subject's configured browser URLs and app windows without locking in.
+    func previewWorkspace(for subject: Subject) async {
+        await engine.previewWorkspace(for: subject)
+    }
+
     // MARK: Day plan
 
     func plan(for day: String) -> DayPlan? {

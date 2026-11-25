@@ -882,6 +882,64 @@ struct DayScheduleLayout: Equatable {
     }
 }
 
+/// Subject breakdown inside a wrap-up debrief header.
+struct WrapUpSubjectBreakdown: Equatable, Identifiable {
+    let name: String
+    let seconds: TimeInterval
+    let colorHex: String
+    var id: String { name }
+}
+
+/// Live daily telemetry surfaced during Step 1 of End-of-Day Wrap Up.
+struct WrapUpDayTelemetry: Equatable {
+    let focusedSeconds: TimeInterval
+    let completedSessions: Int
+    let prioritiesDone: Int
+    let prioritiesTotal: Int
+    let dailyTargetMinutes: Int
+    let subjects: [WrapUpSubjectBreakdown]
+
+    var targetSeconds: TimeInterval { TimeInterval(max(1, dailyTargetMinutes) * 60) }
+    var targetFraction: Double { min(1.0, focusedSeconds / targetSeconds) }
+    var targetPercent: Int { Int(((focusedSeconds / targetSeconds) * 100).rounded()) }
+    var isTargetMet: Bool { focusedSeconds >= targetSeconds }
+}
+
+extension DayPlanner {
+    /// Summarizes completed focus work and checked priorities for `day` cleanly for End-of-Day Wrap Up.
+    static func wrapUpTelemetry(
+        for day: String,
+        sessions: [Session],
+        priorities: [Priority],
+        subjects: [Subject],
+        dailyTargetMinutes: Int,
+        calendar: Calendar = .current
+    ) -> WrapUpDayTelemetry {
+        let daySessions = sessions.filter {
+            $0.outcome == .completed && !$0.isDemo && DayKey.key(for: $0.start, calendar: calendar) == day
+        }
+        var secondsByName: [String: TimeInterval] = [:]
+        var hexByName: [String: String] = [:]
+        for subject in subjects {
+            hexByName[subject.name] = subject.colorHex
+        }
+        for session in daySessions {
+            secondsByName[session.subjectName, default: 0] += session.duration
+        }
+        let ordered = secondsByName
+            .map { WrapUpSubjectBreakdown(name: $0.key, seconds: $0.value, colorHex: hexByName[$0.key] ?? SubjectColor.hex(for: $0.key)) }
+            .sorted { $0.seconds > $1.seconds }
+        return WrapUpDayTelemetry(
+            focusedSeconds: daySessions.reduce(0) { $0 + $1.duration },
+            completedSessions: daySessions.count,
+            prioritiesDone: priorities.filter(\.isDone).count,
+            prioritiesTotal: priorities.count,
+            dailyTargetMinutes: dailyTargetMinutes,
+            subjects: ordered
+        )
+    }
+}
+
 /// One number for the day the bot posts with the recap, and the counts behind it.
 /// Score is 0...100: 50 for priorities finished, 30 for focus time (full at 90 minutes), 20 for not bailing.
 /// A day with no sessions and no priorities scores 0.

@@ -272,17 +272,7 @@ extension WindowPresenting {
         let placement = LayoutEngine.placement(for: subject, visible: visibleFrame(), primaryHeight: primaryHeight())
         presenter?.enterLocked(appFrame: placement.appFrame)
 
-        var browserWindows: [BrowserWindowPlan] = []
-        var appSlots: [(slot: SetupSlot, bounds: ChromeBounds?)] = []
-        for (index, slot) in subject.slots.enumerated() {
-            let bounds = index < placement.slotBounds.count ? placement.slotBounds[index] : nil
-            switch slot.kind {
-            case .website:
-                if !slot.urls.isEmpty { browserWindows.append(BrowserWindowPlan(urls: slot.urls, bounds: bounds)) }
-            case .app:
-                if slot.app != nil { appSlots.append((slot, bounds)) }
-            }
-        }
+        let (browserWindows, appSlots) = Self.partitionSlots(for: subject, slotBounds: placement.slotBounds)
 
         let chromeError = await chrome.prepare(browser: subject.browser, windows: browserWindows)
         // The session may have ended (e.g. the app quit) while the browser was being prepared.
@@ -290,16 +280,8 @@ extension WindowPresenting {
         if let chromeError {
             toaster.show(Self.chromeErrorMessage(chromeError, browser: subject.browser))
         }
-        for (slot, bounds) in appSlots {
-            guard let app = slot.app, let launcher else { break }
-            guard !DistractionApps.isDistraction(app.bundleID) else {
-                toaster.show("\(app.name) is a blocked distraction app and cannot be launched during a focus session.")
-                continue
-            }
-            let problem = await launcher.open(app, folder: slot.folder, bounds: bounds)
-            guard session?.id == sessionID else { return }
-            if let problem { toaster.show(problem) }
-        }
+        await openAppSlots(appSlots) { [weak self] in self?.session?.id == sessionID }
+        guard session?.id == sessionID else { return }
 
         blocker.onBlocked = { [weak self] app in self?.recordBlocked(app) }
         sessionAllowed = allowed
@@ -326,6 +308,52 @@ extension WindowPresenting {
         }
         companion?.sessionDidStart(subject: subject.name, goalSeconds: saved.mode.goalSeconds)
         onLockedIn?(subject)
+    }
+
+    /// Launches a subject's websites and app windows at their configured layout without entering Lock-In
+    /// or hiding/blocking other apps, so the user can test their setup beforehand.
+    func previewWorkspace(for subject: Subject) async {
+        guard !isLocked else { return }
+        let placement = LayoutEngine.placement(for: subject, visible: visibleFrame(), primaryHeight: primaryHeight())
+        let (browserWindows, appSlots) = Self.partitionSlots(for: subject, slotBounds: placement.slotBounds)
+        if !browserWindows.isEmpty, let chromeError = await chrome.prepare(browser: subject.browser, windows: browserWindows) {
+            toaster.show(Self.chromeErrorMessage(chromeError, browser: subject.browser))
+        }
+        await openAppSlots(appSlots, shouldContinue: { !isLocked })
+    }
+
+    private static func partitionSlots(
+        for subject: Subject,
+        slotBounds: [ChromeBounds?]
+    ) -> (browserWindows: [BrowserWindowPlan], appSlots: [(slot: SetupSlot, bounds: ChromeBounds?)]) {
+        var browserWindows: [BrowserWindowPlan] = []
+        var appSlots: [(slot: SetupSlot, bounds: ChromeBounds?)] = []
+        for (index, slot) in subject.slots.enumerated() {
+            let bounds: ChromeBounds? = index < slotBounds.count ? slotBounds[index] : nil
+            switch slot.kind {
+            case .website:
+                if !slot.urls.isEmpty { browserWindows.append(BrowserWindowPlan(urls: slot.urls, bounds: bounds)) }
+            case .app:
+                if slot.app != nil { appSlots.append((slot, bounds)) }
+            }
+        }
+        return (browserWindows, appSlots)
+    }
+
+    private func openAppSlots(
+        _ appSlots: [(slot: SetupSlot, bounds: ChromeBounds?)],
+        shouldContinue: () -> Bool
+    ) async {
+        for (slot, bounds) in appSlots {
+            guard shouldContinue(), let app = slot.app, let launcher else { break }
+            guard !DistractionApps.isDistraction(app.bundleID) else {
+                toaster.show("\(app.name) is a blocked distraction app and cannot be launched during a focus session.")
+                continue
+            }
+            let problem = await launcher.open(app, folder: slot.folder, bounds: bounds)
+            guard shouldContinue() else { return }
+            if let problem { toaster.show(problem) }
+        }
     }
 
     /// Toast text for a browser failure during lock-in (spec §12).

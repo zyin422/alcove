@@ -15,6 +15,7 @@ struct StatsView: View {
         let shown = min(stats.startOf(span, containing: anchor), latest)
         let period = stats.matching(sessions, span: span, containing: shown)
         let summary = stats.summary(period)
+        let overallSummary = stats.summary(sessions)
         let comparison = stats.periodComparison(sessions, span: span, containing: shown)
         let heatmapColumns = stats.consistencyHeatmap(sessions: sessions, weeks: 12)
         let shares = stats.shares(period)
@@ -24,7 +25,7 @@ struct StatsView: View {
                 tabHeader(summary: summary, shares: shares, comparison: comparison, heading: stats.heading(span, containing: shown))
                         if StatsFormatting.hasTrackedSessions(sessions) {
                             periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
-                            StatsSummaryGrid(summary: summary, comparison: comparison, subjectCount: shares.count)
+                            StatsSummaryGrid(summary: summary, overallSummary: overallSummary, comparison: comparison, subjectCount: shares.count)
                             if span == .day {
                                 if !period.isEmpty {
                                     DayChronologicalTimeline(sessions: period, day: shown, color: color(for:))
@@ -630,6 +631,7 @@ private struct StatsStackedChart: View {
 /// Summary Bento Grid for the active period, led by Total Focus with period-over-period comparison delta.
 private struct StatsSummaryGrid: View {
     let summary: StatsSummary
+    let overallSummary: StatsSummary
     let comparison: PeriodComparison
     let subjectCount: Int
 
@@ -715,8 +717,8 @@ private struct StatsSummaryGrid: View {
 
             LazyVGrid(columns: statsGridColumns, alignment: .leading, spacing: Theme.Space.m) {
                 StatCard(title: "Focus Score", value: "\(summary.focusScore)%", tint: scoreTint, icon: "chart.line.uptrend.xyaxis")
-                StatCard(title: "Current Streak", value: "\(summary.currentStreak)d", tint: summary.currentStreak > 0 ? Theme.amber : nil, icon: "flame.fill")
-                StatCard(title: "Best Streak", value: "\(summary.longestStreak)d", icon: "trophy.fill")
+                StatCard(title: "Current Streak", value: "\(overallSummary.currentStreak)d", tint: overallSummary.currentStreak > 0 ? Theme.amber : nil, icon: "flame.fill")
+                StatCard(title: "Best Streak", value: "\(overallSummary.longestStreak)d", icon: "trophy.fill")
                 StatCard(title: "Shield Deflections", value: "\(summary.blockedAttempts + summary.closedTabs)", tint: (summary.blockedAttempts + summary.closedTabs) > 0 ? Theme.rose : nil, icon: "shield.fill")
             }
         }

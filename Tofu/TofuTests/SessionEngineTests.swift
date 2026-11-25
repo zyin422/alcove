@@ -1119,4 +1119,25 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertNil(h.engine.secondsUntilNextBreak)
         XCTAssertTrue(h.engine.canTakeBreak)
     }
+
+    func testPreviewWorkspaceLaunchesSitesAndAppsWithoutLocking() async {
+        let h = EngineHarness()
+        let app = AllowedApp(bundleID: "com.apple.dt.Xcode", name: "Xcode")
+        let subject = Subject(
+            name: "CS128",
+            preset: .split,
+            sites: ["swift.org"],
+            slots: [
+                SetupSlot(kind: .website, urls: ["https://swift.org"]),
+                SetupSlot(kind: .app, app: app, folder: "~/code")
+            ]
+        )
+
+        await h.engine.previewWorkspace(for: subject)
+
+        XCTAssertFalse(h.engine.isLocked)
+        XCTAssertEqual(h.chrome.preparedWindows.first?.urls, ["https://swift.org"])
+        XCTAssertEqual(h.launcher.opened.first?.bundleID, app.bundleID)
+        XCTAssertEqual(h.launcher.opened.first?.folder, "~/code")
+    }
 }

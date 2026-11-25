@@ -99,7 +99,17 @@ struct EndOfDayView: View {
     }
 
     private var recap: some View {
-        VStack(alignment: .leading, spacing: Theme.Space.m) {
+        let wrapDay = wrappingPreviousDay ? model.todayPlan().day : DayKey.key(for: Date())
+        let telemetry = DayPlanner.wrapUpTelemetry(
+            for: wrapDay,
+            sessions: model.data.sessions,
+            priorities: today,
+            subjects: model.data.subjects,
+            dailyTargetMinutes: model.data.settings.dailyTargetMinutes
+        )
+        return VStack(alignment: .leading, spacing: Theme.Space.m) {
+            wrapUpTelemetryCard(telemetry)
+
             if today.isEmpty {
                 Text("You had no priorities planned for \(finishedWord).").foregroundStyle(.secondary)
             } else {
@@ -231,6 +241,69 @@ struct EndOfDayView: View {
                 .keyboardShortcut(.defaultAction)
             }
         }
+    }
+
+    private func wrapUpTelemetryCard(_ telemetry: WrapUpDayTelemetry) -> some View {
+        let goalColor: Color = telemetry.isTargetMet ? Theme.emerald : Theme.indigo
+        let blockWord = telemetry.completedSessions == 1 ? "block" : "blocks"
+        let goalLabel = telemetry.isTargetMet
+            ? "Target met · \(telemetry.targetPercent)%"
+            : "\(telemetry.targetPercent)% of daily goal"
+        let topSubjects = Array(telemetry.subjects.prefix(4))
+
+        return VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: telemetry.isTargetMet ? "checkmark.seal.fill" : "chart.bar.fill")
+                        .foregroundStyle(goalColor)
+                    Text(TimeFormat.short(telemetry.focusedSeconds))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                    Text("focused · \(telemetry.completedSessions) \(blockWord)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(goalLabel)
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(goalColor.opacity(0.12)))
+                    .foregroundStyle(goalColor)
+            }
+            HStack(spacing: Theme.Space.s) {
+                Text("\(telemetry.prioritiesDone)/\(telemetry.prioritiesTotal) priorities")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                if !topSubjects.isEmpty {
+                    Text("·").font(.caption2).foregroundStyle(.tertiary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: Theme.Space.xs) {
+                            ForEach(topSubjects) { share in
+                                wrapUpSubjectChip(share)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(Theme.Space.s)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.03)))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+    }
+
+    private func wrapUpSubjectChip(_ share: WrapUpSubjectBreakdown) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(Theme.subjectColor(share.colorHex))
+                .frame(width: 6, height: 6)
+            Text("\(share.name) \(TimeFormat.short(share.seconds))")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Capsule().fill(Color.primary.opacity(0.05)))
     }
 
     // MARK: Step 2: say tomorrow's priorities
