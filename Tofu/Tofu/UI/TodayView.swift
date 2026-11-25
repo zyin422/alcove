@@ -1661,6 +1661,7 @@ private struct TodayScheduleView: View {
 
     @State private var hoveredBlockID: String?
     @State private var showingAllAgenda = false
+    @State private var showingAllWindows = false
 
     private var openWindows: [OpenFocusWindow] {
         DayPlanner.availableFocusWindows(
@@ -1935,10 +1936,18 @@ private struct TodayScheduleView: View {
                         .background(Capsule().fill((fit.fits ? Theme.emerald : Theme.amber).opacity(0.14)))
                         .foregroundStyle(fit.fits ? Theme.emerald : Theme.amber)
                 }
+                if openWindows.count > 3 {
+                    Button(showingAllWindows ? "Show less" : "All (\(openWindows.count))") {
+                        showingAllWindows.toggle()
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(Theme.indigo)
+                }
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Theme.Space.s) {
-                    ForEach(openWindows.prefix(3)) { window in
+                    ForEach(showingAllWindows ? openWindows : Array(openWindows.prefix(3))) { window in
                         Button {
                             onLockInWindow?(window)
                         } label: {

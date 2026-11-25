@@ -640,6 +640,20 @@ struct MorningView: View {
 
                 Button(buttonTitle, action: add)
                     .disabled(trimmed.isEmpty)
+
+                if !open.isEmpty && showingAddPriority {
+                    Button {
+                        showingAddPriority = false
+                        newTitle = ""
+                        newIsAnchor = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Close add priority field")
+                }
             }
             if parsedSubject != nil || parsedSched != nil || parsed?.estimatedMinutes != nil || newIsAnchor {
                 HStack(spacing: 5) {

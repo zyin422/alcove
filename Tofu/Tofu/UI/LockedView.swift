@@ -289,17 +289,21 @@ struct LockedView: View {
                 let color = priority.isAnchor ? Theme.amber : Theme.subjectColor(SubjectColor.hex(for: session.subjectName))
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 4) {
-                        HStack(spacing: 3) {
-                            if priority.isAnchor {
-                                Image(systemName: "star.fill")
+                        Button {
+                            model.togglePriorityAnchor(priority.id, day: todayKey)
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: priority.isAnchor ? "star.fill" : "star")
                                     .font(.system(size: 8))
-                                    .foregroundStyle(Theme.amber)
+                                    .foregroundStyle(priority.isAnchor ? Theme.amber : color.opacity(0.75))
+                                Text(priority.isAnchor ? "FOCUS ANCHOR" : "ACTIVE FOCUS")
+                                    .font(.system(size: 8.5, weight: .bold))
+                                    .foregroundStyle(color)
+                                    .tracking(0.8)
                             }
-                            Text(priority.isAnchor ? "FOCUS ANCHOR" : "ACTIVE FOCUS")
-                                .font(.system(size: 8.5, weight: .bold))
-                                .foregroundStyle(color)
-                                .tracking(0.8)
                         }
+                        .buttonStyle(.plain)
+                        .help(priority.isAnchor ? "Remove focus anchor" : "Mark active task as ★ Focus Anchor")
                         if subjectQueue.count > 1 {
                             let activeIdx = (subjectQueue.firstIndex(where: { $0.id == priority.id }) ?? 0) + 1
                             Menu {
