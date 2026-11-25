@@ -64,6 +64,23 @@ enum LockedLayout {
         return "Unlocks " + target.formatted(.dateTime.hour().minute())
     }
 
+    /// Computes live today focus progress including the active block's elapsed time against `targetMinutes`.
+    static func dayFocusProgress(
+        sessions: [Session],
+        activeElapsed: TimeInterval,
+        targetMinutes: Int,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> (focusedSeconds: TimeInterval, targetSeconds: TimeInterval, metGoal: Bool) {
+        let dayKey = DayKey.key(for: now, calendar: calendar)
+        let priorSeconds = sessions
+            .filter { $0.outcome == .completed && !$0.isDemo && DayKey.key(for: $0.start, calendar: calendar) == dayKey }
+            .reduce(0.0) { $0 + $1.duration }
+        let focused = priorSeconds + max(0, activeElapsed)
+        let target = TimeInterval(max(1, targetMinutes) * 60)
+        return (focused, target, focused >= target)
+    }
+
     /// `size` centered in `visible`, shrunk to fit when the screen is smaller. Origin rounded down to whole points.
     static func centeredFrame(size: CGSize, in visible: CGRect) -> CGRect {
         let width = min(size.width, visible.width)
@@ -202,6 +219,7 @@ struct LockedView: View {
             breakLine(engine: engine)
             gracePassLine(engine: engine)
             goalBlock(engine: engine, barWidth: nil)
+            dailyGoalStatusRow(engine: engine)
             focusSoundControl
             countersText(engine: engine)
             Spacer(minLength: Theme.Space.m)
@@ -446,6 +464,31 @@ struct LockedView: View {
                 }
             }
         }
+    }
+
+    private func dailyGoalStatusRow(engine: SessionEngine) -> some View {
+        let progress = LockedLayout.dayFocusProgress(
+            sessions: model.data.sessions,
+            activeElapsed: engine.elapsed,
+            targetMinutes: model.data.settings.dailyTargetMinutes,
+            now: engine.now
+        )
+        let pct = min(100, Int(((progress.focusedSeconds / progress.targetSeconds) * 100).rounded()))
+        return HStack(spacing: 5) {
+            Image(systemName: progress.metGoal ? "checkmark.circle.fill" : "chart.bar.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(progress.metGoal ? Theme.emerald : .secondary)
+            Text("Today: \(TimeFormat.short(progress.focusedSeconds)) / \(TimeFormat.short(progress.targetSeconds))")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(progress.metGoal ? Theme.emerald : .secondary)
+            Spacer()
+            Text(progress.metGoal ? "Goal met" : "\(pct)%")
+                .font(.caption2.weight(.semibold).monospacedDigit())
+                .foregroundStyle(progress.metGoal ? Theme.emerald : .secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: 6).fill((progress.metGoal ? Theme.emerald : Color.primary).opacity(progress.metGoal ? 0.12 : 0.04)))
     }
 
     private func countersText(engine: SessionEngine) -> some View {

@@ -80,4 +80,24 @@ final class LockedLayoutTests: XCTestCase {
         XCTAssertEqual(LockedLayout.centeredFrame(size: CGSize(width: 900, height: 600), in: visible),
                        CGRect(x: 0, y: 25, width: 800, height: 500))
     }
+
+    func testDayFocusProgressCombinesCompletedTodayAndActiveElapsed() {
+        let cal = Calendar.current
+        let noon = cal.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 12, minute: 0))!
+        let earlierToday = cal.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 9, minute: 0))!
+        let subID = UUID()
+
+        let prior = Session(subjectID: subID, subjectName: "CS128", mode: .open,
+                            start: earlierToday, end: earlierToday.addingTimeInterval(90 * 60), outcome: .completed)
+        let bailed = Session(subjectID: subID, subjectName: "CS128", mode: .open,
+                             start: earlierToday, end: earlierToday.addingTimeInterval(30 * 60), outcome: .bailed)
+
+        let midSession = LockedLayout.dayFocusProgress(sessions: [prior, bailed], activeElapsed: 30 * 60, targetMinutes: 120, now: noon, calendar: cal)
+        XCTAssertEqual(midSession.focusedSeconds, 120 * 60, accuracy: 0.1)
+        XCTAssertEqual(midSession.targetSeconds, 120 * 60, accuracy: 0.1)
+        XCTAssertTrue(midSession.metGoal)
+
+        let early = LockedLayout.dayFocusProgress(sessions: [prior], activeElapsed: 10 * 60, targetMinutes: 120, now: noon, calendar: cal)
+        XCTAssertFalse(early.metGoal)
+    }
 }

@@ -320,6 +320,21 @@ struct SubjectDetailView: View {
                     .buttonStyle(SecondaryButtonStyle())
                     .disabled(quickPriorityDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+            HStack(spacing: Theme.Space.xs) {
+                ForEach([25, 45, 60], id: \.self) { mins in
+                    Button("+\(mins)m") {
+                        let base = quickPriorityDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        quickPriorityDraft = base.isEmpty ? "\(mins)m " : "\(base) \(mins)m"
+                    }
+                    .font(.caption2.weight(.medium).monospacedDigit())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
         }
         .padding(Theme.Space.m)
         .background(

@@ -145,7 +145,25 @@ struct EndOfDayView: View {
                         ForEach($today) { $priority in
                             HStack {
                                 Toggle(isOn: $priority.isDone) {
-                                    Text(priority.title)
+                                    HStack(spacing: 6) {
+                                        Text(priority.title)
+                                        if let sub = priority.subjectID.flatMap(model.subject(id:)) {
+                                            let subColor = Theme.subjectColor(sub.colorHex)
+                                            HStack(spacing: 3) {
+                                                Circle().fill(subColor).frame(width: 5, height: 5)
+                                                Text(sub.name).font(.caption2.weight(.semibold))
+                                            }
+                                            .foregroundStyle(subColor)
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 1)
+                                            .background(Capsule().fill(subColor.opacity(0.12)))
+                                        }
+                                        if let est = priority.estimatedMinutes {
+                                            Text("\(est)m")
+                                                .font(.caption2.monospacedDigit())
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
                                 }
                                 .toggleStyle(.checkbox)
                                 Spacer()
