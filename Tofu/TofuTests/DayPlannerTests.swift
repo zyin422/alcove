@@ -974,4 +974,26 @@ final class DayPlanModelTests: XCTestCase {
                                                                             start: morning.addingTimeInterval(8000), end: morning.addingTimeInterval(9800), outcome: .completed),
                                                     dailyTargetMinutes: 120))
     }
+
+    func testMeetingFitRecommendationFitsBeforeUpcomingEventAndIgnoresOngoing() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let iso = ISO8601DateFormatter()
+
+        let upcoming = GoogleEvent(
+            id: "1",
+            summary: "Team Standup",
+            start: GoogleEventTime(dateTime: iso.string(from: now.addingTimeInterval(35 * 60)), date: nil),
+            end: GoogleEventTime(dateTime: iso.string(from: now.addingTimeInterval(65 * 60)), date: nil)
+        )
+        let rec = DayPlanner.meetingFitRecommendation(in: [upcoming], at: now)
+        XCTAssertEqual(rec, MeetingFitRecommendation(meetingTitle: "Team Standup", minutesUntil: 35, fitMinutes: 30))
+
+        let ongoing = GoogleEvent(
+            id: "2",
+            summary: "Now",
+            start: GoogleEventTime(dateTime: iso.string(from: now.addingTimeInterval(-10 * 60)), date: nil),
+            end: GoogleEventTime(dateTime: iso.string(from: now.addingTimeInterval(20 * 60)), date: nil)
+        )
+        XCTAssertNil(DayPlanner.meetingFitRecommendation(in: [ongoing, upcoming], at: now))
+    }
 }

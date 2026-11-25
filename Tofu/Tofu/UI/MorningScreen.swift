@@ -531,30 +531,7 @@ struct MorningView: View {
                 if option == .custom {
                     CustomMinutesField(minutes: $customMinutes)
                 }
-                if model.data.settings.googleShowEventsEnabled,
-                   let events = model.googleSync?.todayEvents,
-                   let alert = DayPlanner.nextCalendarAlert(in: events, at: Date()),
-                   !alert.isOngoing, alert.minutes > 8, alert.minutes <= 90 {
-                    let fitMins = LockInOption.clampedMinutes(alert.minutes - 5)
-                    let currentGoalMins = option.mode(customMinutes: customMinutes).goalMinutes
-                    let overlapsMeeting = currentGoalMins.map { $0 > alert.minutes } ?? true
-                    Button {
-                        option = .custom
-                        customMinutes = fitMins
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: overlapsMeeting ? "exclamationmark.triangle.fill" : "calendar.badge.clock")
-                                .font(.caption2)
-                            Text("Fit before “\(alert.title)” (\(fitMins)m)")
-                                .font(.caption.weight(.medium))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill((overlapsMeeting ? Theme.amber : Theme.indigo).opacity(0.14)))
-                        .foregroundStyle(overlapsMeeting ? Theme.amber : Theme.indigo)
-                    }
-                    .buttonStyle(.plain)
-                }
+                MeetingFitBanner(model: model, option: $option, customMinutes: $customMinutes)
                 Button {
                     performLockIn()
                 } label: {

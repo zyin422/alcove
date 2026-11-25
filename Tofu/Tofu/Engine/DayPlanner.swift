@@ -841,6 +841,27 @@ struct CalendarEventAlert: Equatable {
     let isOngoing: Bool
 }
 
+/// Safe lock-in duration suggestion finishing cleanly 5 minutes before an upcoming calendar event.
+struct MeetingFitRecommendation: Equatable {
+    let meetingTitle: String
+    let minutesUntil: Int
+    let fitMinutes: Int
+}
+
+extension DayPlanner {
+    static func meetingFitRecommendation(in calendarEvents: [GoogleEvent], at now: Date = Date()) -> MeetingFitRecommendation? {
+        guard let alert = nextCalendarAlert(in: calendarEvents, at: now),
+              !alert.isOngoing,
+              alert.minutes > 8,
+              alert.minutes <= 90 else { return nil }
+        return MeetingFitRecommendation(
+            meetingTitle: alert.title,
+            minutesUntil: alert.minutes,
+            fitMinutes: LockInOption.clampedMinutes(alert.minutes - 5)
+        )
+    }
+}
+
 // MARK: - Schedule Types
 
 struct OpenFocusWindow: Identifiable, Equatable {

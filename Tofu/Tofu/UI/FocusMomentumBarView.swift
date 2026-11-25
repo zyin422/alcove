@@ -93,17 +93,19 @@ struct FocusMomentumBarView: View {
                         Image(systemName: "bolt.fill")
                             .font(.system(size: 11))
                             .foregroundStyle(Theme.indigo)
-                        Text("\(summary.totalWeekHoursFormatted) this week")
+                        let goalDaysHit = summary.slices.filter { targetSeconds > 0 && $0.focusSeconds >= targetSeconds }.count
+                        Text(goalDaysHit > 0 ? "\(summary.totalWeekHoursFormatted) this week · \(goalDaysHit)/7 goal" : "\(summary.totalWeekHoursFormatted) this week")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(Color.secondary)
                     }
                 }
             }
 
+            let maxSeconds = max(3600 * 2, summary.bestDaySeconds, targetSeconds)
+            let goalOffset = targetSeconds > 0 ? min(36.0, CGFloat(targetSeconds / maxSeconds) * 38.0) : 0
             HStack(spacing: 10) {
                 ForEach(summary.slices) { slice in
                     let isSelected = (slice.dayKey == selectedDayKey)
-                    let maxSeconds = max(3600 * 2, summary.bestDaySeconds) // Minimum reference scale of 2h
                     let fraction = maxSeconds > 0 ? min(1.0, slice.focusSeconds / maxSeconds) : 0
 
                     Button {
@@ -115,6 +117,13 @@ struct FocusMomentumBarView: View {
                                 RoundedRectangle(cornerRadius: 3)
                                     .fill(Color.primary.opacity(0.06))
                                     .frame(width: 22, height: 38)
+
+                                if goalOffset > 2 {
+                                    Rectangle()
+                                        .fill(Theme.emerald.opacity(0.38))
+                                        .frame(width: 22, height: 1)
+                                        .offset(y: -goalOffset)
+                                }
 
                                 // Filled focus bar
                                 if slice.focusSeconds > 0 {

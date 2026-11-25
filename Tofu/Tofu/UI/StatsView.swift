@@ -129,8 +129,15 @@ struct StatsView: View {
                         anchor = stats.shift(shown, span: span, by: -1)
                     }
                     Spacer()
-                    Text(stats.heading(span, containing: shown))
-                        .font(.title3)
+                    HStack(spacing: Theme.Space.s) {
+                        Text(stats.heading(span, containing: shown))
+                            .font(.title3)
+                        if shown < latest {
+                            Button("Current") { anchor = latest }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                        }
+                    }
                     Spacer()
                     weekArrow(systemName: "chevron.right", enabled: shown < latest) {
                         anchor = stats.shift(shown, span: span, by: 1)

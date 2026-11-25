@@ -48,6 +48,38 @@ enum LockInOption: Hashable, CaseIterable, Identifiable {
     }
 }
 
+/// Shared calendar-aware duration recommender for LockInSheet and MorningView.
+struct MeetingFitBanner: View {
+    let model: AppModel
+    @Binding var option: LockInOption
+    @Binding var customMinutes: Int
+
+    var body: some View {
+        if model.data.settings.googleShowEventsEnabled,
+           let events = model.googleSync?.todayEvents,
+           let rec = DayPlanner.meetingFitRecommendation(in: events, at: Date()) {
+            let currentGoalMins = option.mode(customMinutes: customMinutes).goalMinutes
+            let overlapsMeeting = currentGoalMins.map { $0 > rec.minutesUntil } ?? true
+            Button {
+                option = .custom
+                customMinutes = rec.fitMinutes
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: overlapsMeeting ? "exclamationmark.triangle.fill" : "calendar.badge.clock")
+                        .font(.caption2)
+                    Text("Fit before “\(rec.meetingTitle)” (\(rec.fitMinutes)m)")
+                        .font(.caption.weight(.medium))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Capsule().fill((overlapsMeeting ? Theme.amber : Theme.indigo).opacity(0.14)))
+                .foregroundStyle(overlapsMeeting ? Theme.amber : Theme.indigo)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
 /// Summary of what a subject launches when locking in (unit-tested).
 struct LockInWorkspaceSummary: Equatable {
     let layoutLabel: String
@@ -116,6 +148,8 @@ struct LockInSheet: View {
             if option == .custom {
                 CustomMinutesField(minutes: $customMinutes)
             }
+
+            MeetingFitBanner(model: model, option: $option, customMinutes: $customMinutes)
 
             workspacePreviewCard
 
