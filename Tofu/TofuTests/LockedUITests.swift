@@ -198,6 +198,7 @@ final class LockedUITests: XCTestCase {
         let telemetry = SubjectTelemetry.calculate(subjectID: id, sessions: [s1, s2, s3, s4], dayPlans: [], now: t0.addingTimeInterval(8000))
         XCTAssertEqual(telemetry.totalSeconds, 2400, accuracy: 0.1)
         XCTAssertEqual(telemetry.thisWeekSeconds, 2400, accuracy: 0.1)
+        XCTAssertEqual(telemetry.focusPurityPercent, 100)
     }
 
     func testUnlockTimeLabelFormatsFutureTimestampCleanly() {

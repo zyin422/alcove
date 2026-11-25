@@ -804,34 +804,8 @@ private struct PlanningPriorityView: View {
                             .foregroundStyle(.secondary)
                     }
                     if !priority.isDone {
-                        Menu {
-                            ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
-                                Button {
-                                    model.updatePriorityDetails(priority.id, day: plan.day, estimatedMinutes: .some(mins))
-                                } label: {
-                                    if priority.estimatedMinutes == mins {
-                                        Label("\(mins)m", systemImage: "checkmark")
-                                    } else {
-                                        Text("\(mins)m")
-                                    }
-                                }
-                            }
-                            if priority.estimatedMinutes != nil {
-                                Divider()
-                                Button("Clear") {
-                                    model.updatePriorityDetails(priority.id, day: plan.day, estimatedMinutes: .some(nil))
-                                }
-                            }
-                        } label: {
-                            Text(priority.estimatedMinutes == nil ? "+ Est" : "Edit")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.05)))
-                        }
-                        .menuStyle(.borderlessButton)
-                        .help("Set time estimate")
+                        planningScheduleMenu(for: priority)
+                        planningDurationMenu(for: priority)
                     }
                 }
             }
@@ -878,6 +852,80 @@ private struct PlanningPriorityView: View {
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.03)))
     }
 
+    @ViewBuilder private func planningScheduleMenu(for priority: Priority) -> some View {
+        let anchors = [9 * 60, 10 * 60 + 30, 13 * 60, 14 * 60 + 30, 16 * 60, 19 * 60, 20 * 60 + 30]
+        Menu {
+            ForEach(anchors, id: \.self) { mins in
+                Button {
+                    model.updatePriorityDetails(priority.id, day: plan.day, scheduledMinutesFromMidnight: .some(mins))
+                } label: {
+                    if priority.scheduledMinutesFromMidnight == mins {
+                        Label(OpenFocusWindow.formatMinutes(mins), systemImage: "checkmark")
+                    } else {
+                        Text(OpenFocusWindow.formatMinutes(mins))
+                    }
+                }
+            }
+            if priority.scheduledMinutesFromMidnight != nil {
+                Divider()
+                Button("Clear time") {
+                    model.updatePriorityDetails(priority.id, day: plan.day, scheduledMinutesFromMidnight: .some(nil))
+                }
+            }
+        } label: {
+            if let sched = priority.scheduledTimeLabel {
+                HStack(spacing: 2) {
+                    Image(systemName: "clock").font(.system(size: 8))
+                    Text(sched).font(.caption2.monospacedDigit())
+                }
+                .foregroundStyle(Theme.indigo)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Theme.indigo.opacity(0.10)))
+            } else {
+                Text("+ Time")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.05)))
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .help("Schedule start time")
+    }
+
+    @ViewBuilder private func planningDurationMenu(for priority: Priority) -> some View {
+        Menu {
+            ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
+                Button {
+                    model.updatePriorityDetails(priority.id, day: plan.day, estimatedMinutes: .some(mins))
+                } label: {
+                    if priority.estimatedMinutes == mins {
+                        Label("\(mins)m", systemImage: "checkmark")
+                    } else {
+                        Text("\(mins)m")
+                    }
+                }
+            }
+            if priority.estimatedMinutes != nil {
+                Divider()
+                Button("Clear") {
+                    model.updatePriorityDetails(priority.id, day: plan.day, estimatedMinutes: .some(nil))
+                }
+            }
+        } label: {
+            Text(priority.estimatedMinutes == nil ? "+ Est" : "Edit")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.05)))
+        }
+        .menuStyle(.borderlessButton)
+        .help("Set time estimate")
+    }
+
     private func add() {
         let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
@@ -914,20 +962,32 @@ private struct ParkedThoughtsView: View {
                 }
                 Spacer()
                 if !engine.parkedThoughts.isEmpty {
-                    Button {
-                        let subName = engine.session?.subjectName ?? "Focus"
-                        let dateStr = DayKey.key(for: Date())
-                        let md = ThoughtParkingEngine.exportMarkdown(thoughts: engine.parkedThoughts, subjectName: subName, dateString: dateStr)
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(md, forType: .string)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "doc.on.doc")
-                            Text("Copy Markdown")
+                    HStack(spacing: Theme.Space.xs) {
+                        if engine.parkedThoughts.count > 1 {
+                            Button("Promote All") {
+                                while !engine.parkedThoughts.isEmpty {
+                                    guard model.promoteSessionThoughtToToday(at: 0) != nil else { break }
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .font(.caption.weight(.medium))
+                            .help("Promote every parked thought to Today's Plan")
                         }
-                        .font(.caption.weight(.medium))
+                        Button {
+                            let subName = engine.session?.subjectName ?? "Focus"
+                            let dateStr = DayKey.key(for: Date())
+                            let md = ThoughtParkingEngine.exportMarkdown(thoughts: engine.parkedThoughts, subjectName: subName, dateString: dateStr)
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(md, forType: .string)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.on.doc")
+                                Text("Copy Markdown")
+                            }
+                            .font(.caption.weight(.medium))
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
                 }
             }
             .padding(Theme.Space.m)

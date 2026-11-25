@@ -8,6 +8,7 @@ struct SubjectTelemetry: Equatable {
     var averageDurationSeconds: TimeInterval
     var longestDurationSeconds: TimeInterval
     var totalDeflections: Int
+    var focusPurityPercent: Int
     var activePrioritiesCount: Int
     var sevenDayMinutes: [Double]
     var sevenDayLabels: [String]
@@ -43,6 +44,9 @@ struct SubjectTelemetry: Equatable {
         let avg = count > 0 ? total / Double(count) : 0
         let longest = matching.map(\.duration).max() ?? 0
         let deflections = matching.reduce(0) { $0 + $1.blockedAttempts + $1.closedTabs }
+        let purity = total > 0
+            ? max(0, min(100, Int(((1.0 - (Double(deflections) * 180.0 / total)) * 100.0).rounded())))
+            : 100
         let currentDay = DayPlanner.workingDay(now: now, plans: dayPlans)
         let todayPlan = dayPlans.first { $0.day == currentDay }
         let active = todayPlan?.priorities.filter { $0.subjectID == subjectID && !$0.isDone }.count ?? 0
@@ -54,6 +58,7 @@ struct SubjectTelemetry: Equatable {
             averageDurationSeconds: avg,
             longestDurationSeconds: longest,
             totalDeflections: deflections,
+            focusPurityPercent: purity,
             activePrioritiesCount: active,
             sevenDayMinutes: activity.map(\.minutes),
             sevenDayLabels: activity.map(\.label)
@@ -581,9 +586,13 @@ struct SubjectDetailView: View {
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Image(systemName: "shield.checkered")
-                            .font(.system(size: 11))
-                            .foregroundStyle(telemetry.totalDeflections > 0 ? Theme.amber : .secondary)
+                        let purityTint: Color = telemetry.focusPurityPercent >= 85 ? Theme.emerald : Theme.amber
+                        Text("\(telemetry.focusPurityPercent)% clean")
+                            .font(.system(size: 9.5, weight: .bold).monospacedDigit())
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(purityTint.opacity(0.14)))
+                            .foregroundStyle(purityTint)
                     }
                     Text("\(telemetry.totalDeflections) intercepted")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
