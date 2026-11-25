@@ -40,7 +40,16 @@ struct StatsView: View {
                             )
                             if span == .day {
                                 if !period.isEmpty {
-                                    DayChronologicalTimeline(sessions: period, day: shown, color: color(for:))
+                                    DayChronologicalTimeline(
+                                        sessions: period,
+                                        day: shown,
+                                        color: color(for:),
+                                        onSelectSubjectName: { name in
+                                            if let id = model.data.subjects.first(where: { $0.name == name })?.id {
+                                                model.selection = .subject(id)
+                                            }
+                                        }
+                                    )
                                 }
                                 dayDetail(StatsFormatting.subjectBlocks(period))
                             } else {
@@ -305,8 +314,10 @@ struct StatsView: View {
 
     private func periodChart(stats: StatsEngine, sessions: [Session], shown: Date) -> some View {
         let buckets = stats.periodBuckets(sessions, span: span, containing: shown, topSubjects: 16)
+        let dailyGoal = (span == .week || span == .month) ? Double(model.data.settings.dailyTargetMinutes) : nil
         return StatsStackedChart(buckets: buckets, maxLabels: axisCount(span, buckets: buckets.count),
-                                  colors: colors(for: StatsFormatting.chartSubjects(buckets)))
+                                 colors: colors(for: StatsFormatting.chartSubjects(buckets)),
+                                 dailyGoalMinutes: dailyGoal)
     }
 
     private func color(for name: String) -> Color {
@@ -459,6 +470,7 @@ private struct DayChronologicalTimeline: View {
     let sessions: [Session]
     let day: Date
     let color: (String) -> Color
+    var onSelectSubjectName: ((String) -> Void)? = nil
     @State private var hoveredSession: Session?
 
     private static let hourMarkers = [0, 4, 8, 12, 16, 20, 24]
@@ -495,13 +507,24 @@ private struct DayChronologicalTimeline: View {
                         let durSec = max(60, session.duration)
                         let x = (startSec / 86400.0) * width
                         let w = max(4.0, (durSec / 86400.0) * width)
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(color(session.subjectName))
-                            .frame(width: min(w, max(0, width - x)), height: 20)
-                            .offset(x: x, y: 0)
-                            .onHover { isHovered in
-                                hoveredSession = isHovered ? session : nil
-                            }
+                        let isHovered = hoveredSession?.id == session.id
+                        Button {
+                            onSelectSubjectName?(session.subjectName)
+                        } label: {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(color(session.subjectName))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .stroke(Color.primary.opacity(isHovered ? 0.5 : 0), lineWidth: 1)
+                                )
+                                .frame(width: min(w, max(0, width - x)), height: 20)
+                        }
+                        .buttonStyle(.plain)
+                        .offset(x: x, y: 0)
+                        .onHover { hovering in
+                            hoveredSession = hovering ? session : nil
+                        }
+                        .help("Open \(session.subjectName) (\(TimeFormat.short(session.duration)))")
                     }
 
                     if calendar.isDateInToday(day) {
@@ -746,6 +769,7 @@ private struct StatsStackedChart: View {
     let buckets: [StatsBucket]
     let maxLabels: Int
     let colors: [Color]
+    var dailyGoalMinutes: Double? = nil
 
     var body: some View {
         let subjects = StatsFormatting.chartSubjects(buckets)
@@ -757,6 +781,16 @@ private struct StatsStackedChart: View {
                             .foregroundStyle(by: .value("Subject", subject))
                     }
                 }
+            }
+            if let dailyGoalMinutes, dailyGoalMinutes > 0 {
+                RuleMark(y: .value("Daily Goal", dailyGoalMinutes))
+                    .lineStyle(StrokeStyle(lineWidth: 1.2, dash: [4, 4]))
+                    .foregroundStyle(Theme.emerald.opacity(0.75))
+                    .annotation(position: .top, alignment: .trailing) {
+                        Text("Goal \(TimeFormat.short(dailyGoalMinutes * 60))")
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(Theme.emerald)
+                    }
             }
         }
         .chartXScale(domain: buckets.map(\.label))

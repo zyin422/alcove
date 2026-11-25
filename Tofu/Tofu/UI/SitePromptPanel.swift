@@ -216,7 +216,25 @@ private struct SitePromptView: View {
     private var header: some View {
         HStack(spacing: Theme.Space.s) {
             BotAvatar(size: 26)
-            Text("Quick check").font(.system(size: 14, weight: .semibold))
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
+                    Text("Quick check").font(.system(size: 14, weight: .semibold))
+                    if assistant.pending.count > 1 {
+                        Text("1 of \(assistant.pending.count)")
+                            .font(.system(size: 10, weight: .bold).monospacedDigit())
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Theme.amber.opacity(0.16)))
+                            .foregroundStyle(Theme.amber)
+                    }
+                }
+                if let waitingHost = assistant.pending.first?.host {
+                    Text(waitingHost)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Theme.amber)
+                        .lineLimit(1)
+                }
+            }
             Spacer()
             if let deadline = assistant.pending.first?.deadline {
                 TimelineView(.periodic(from: .now, by: 1)) { context in

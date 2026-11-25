@@ -759,25 +759,62 @@ private struct PlanningPriorityView: View {
                 .padding(.horizontal, Theme.Space.m)
             }
 
-            HStack(spacing: Theme.Space.s) {
-                TextField("Add a priority", text: $newTitle)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(add)
-                    .onChange(of: newTitle) { _, updated in
-                        let next = DayPlanner.autoAssignedSubject(
-                            for: updated,
-                            currentSubjectID: newSubjectID,
-                            lastAutoMatchedID: lastAutoMatchedSubjectID,
-                            userOverrode: userSelectedSubject,
-                            subjects: model.data.subjects
-                        )
-                        newSubjectID = next.subjectID
-                        lastAutoMatchedSubjectID = next.autoMatchedID
+            VStack(spacing: 6) {
+                HStack(spacing: Theme.Space.s) {
+                    TextField("Add a priority", text: $newTitle)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(add)
+                        .onChange(of: newTitle) { _, updated in
+                            let next = DayPlanner.autoAssignedSubject(
+                                for: updated,
+                                currentSubjectID: newSubjectID,
+                                lastAutoMatchedID: lastAutoMatchedSubjectID,
+                                userOverrode: userSelectedSubject,
+                                subjects: model.data.subjects
+                            )
+                            newSubjectID = next.subjectID
+                            lastAutoMatchedSubjectID = next.autoMatchedID
+                        }
+                    SetupPicker(subjects: model.data.subjects, selection: draftSetupSelection)
+                        .frame(width: 140)
+                    Button("Add", action: add)
+                        .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                HStack(spacing: 5) {
+                    ForEach([25, 45, 60], id: \.self) { mins in
+                        Button("+\(mins)m") {
+                            newTitle = newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? "\(mins)m "
+                                : "\(newTitle) \(mins)m"
+                        }
+                        .font(.caption2.weight(.medium).monospacedDigit())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)))
+                        .foregroundStyle(.secondary)
+                        .buttonStyle(.plain)
                     }
-                SetupPicker(subjects: model.data.subjects, selection: draftSetupSelection)
-                    .frame(width: 140)
-                Button("Add", action: add)
-                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                    if !model.data.subjects.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 4) {
+                                ForEach(model.data.subjects.prefix(4)) { sub in
+                                    let tag = "#" + sub.name.lowercased().replacingOccurrences(of: " ", with: "")
+                                    Button(tag) {
+                                        if !newTitle.localizedCaseInsensitiveContains(tag) {
+                                            newTitle = newTitle.isEmpty ? "\(tag) " : "\(newTitle) \(tag) "
+                                        }
+                                    }
+                                    .font(.caption2.weight(.medium))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Theme.subjectColor(sub.colorHex).opacity(0.12)))
+                                    .foregroundStyle(Theme.subjectColor(sub.colorHex))
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                }
             }
             .padding(Theme.Space.m)
             .background(Color.primary.opacity(0.04))
