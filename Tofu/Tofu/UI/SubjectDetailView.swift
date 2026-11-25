@@ -3,6 +3,7 @@ import SwiftUI
 /// Pure metrics calculation for a subject's historical telemetry.
 struct SubjectTelemetry: Equatable {
     var totalSeconds: TimeInterval
+    var thisWeekSeconds: TimeInterval
     var completedCount: Int
     var averageDurationSeconds: TimeInterval
     var longestDurationSeconds: TimeInterval
@@ -13,6 +14,10 @@ struct SubjectTelemetry: Equatable {
         let hours = Int(totalSeconds) / 3600
         let mins = (Int(totalSeconds) % 3600) / 60
         return hours > 0 ? "\(hours)h \(mins)m" : "\(mins)m"
+    }
+
+    var thisWeekLabel: String {
+        TimeFormat.short(thisWeekSeconds)
     }
 
     var avgDurationLabel: String {
@@ -29,6 +34,7 @@ struct SubjectTelemetry: Equatable {
     static func calculate(subjectID: UUID, sessions: [Session], dayPlans: [DayPlan], now: Date = Date()) -> SubjectTelemetry {
         let matching = sessions.filter { $0.subjectID == subjectID && $0.outcome == .completed && !$0.isDemo }
         let total = matching.reduce(0.0) { $0 + $1.duration }
+        let thisWeek = StatsEngine(now: now).seconds(for: subjectID, in: matching, window: .week)
         let count = matching.count
         let avg = count > 0 ? total / Double(count) : 0
         let longest = matching.map(\.duration).max() ?? 0
@@ -39,6 +45,7 @@ struct SubjectTelemetry: Equatable {
 
         return SubjectTelemetry(
             totalSeconds: total,
+            thisWeekSeconds: thisWeek,
             completedCount: count,
             averageDurationSeconds: avg,
             longestDurationSeconds: longest,
@@ -396,7 +403,7 @@ struct SubjectDetailView: View {
                     Text(telemetry.totalTimeLabel)
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
-                    Text("\(telemetry.completedCount) completed session\(telemetry.completedCount == 1 ? "" : "s")")
+                    Text("\(telemetry.completedCount) completed session\(telemetry.completedCount == 1 ? "" : "s") · \(telemetry.thisWeekLabel) this week")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                 }

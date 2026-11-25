@@ -489,10 +489,16 @@ struct EndOfDayView: View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Space.s) {
-                    ForEach($tomorrow) { $priority in
-                        ReviewPriorityRow(priority: $priority, subjects: model.data.subjects) {
-                            tomorrow.removeAll { $0.id == priority.id }
-                        }
+                    ForEach(Array($tomorrow.enumerated()), id: \.element.id) { index, $priority in
+                        ReviewPriorityRow(
+                            priority: $priority,
+                            subjects: model.data.subjects,
+                            canMoveUp: index > 0,
+                            canMoveDown: index < tomorrow.count - 1,
+                            onMoveUp: { tomorrow.swapAt(index, index - 1) },
+                            onMoveDown: { tomorrow.swapAt(index, index + 1) },
+                            onDelete: { tomorrow.removeAll { $0.id == priority.id } }
+                        )
                     }
                     Button {
                         tomorrow.append(Priority(title: ""))
@@ -558,6 +564,10 @@ struct EndOfDayView: View {
 private struct ReviewPriorityRow: View {
     @Binding var priority: Priority
     let subjects: [Subject]
+    var canMoveUp: Bool = false
+    var canMoveDown: Bool = false
+    var onMoveUp: () -> Void = {}
+    var onMoveDown: () -> Void = {}
     let onDelete: () -> Void
 
     @State private var userSelectedSetup = false
@@ -621,6 +631,22 @@ private struct ReviewPriorityRow: View {
 
             SetupPicker(subjects: subjects, selection: setupSelection)
                 .frame(width: 150)
+            if canMoveUp || canMoveDown {
+                HStack(spacing: 2) {
+                    Button(action: onMoveUp) {
+                        Image(systemName: "chevron.up").font(.system(size: 10, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canMoveUp)
+                    .foregroundStyle(canMoveUp ? Color.secondary : Color.secondary.opacity(0.25))
+                    Button(action: onMoveDown) {
+                        Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canMoveDown)
+                    .foregroundStyle(canMoveDown ? Color.secondary : Color.secondary.opacity(0.25))
+                }
+            }
             Button(action: onDelete) {
                 Image(systemName: "minus.circle")
             }

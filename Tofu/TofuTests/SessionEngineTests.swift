@@ -1140,4 +1140,23 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertEqual(h.launcher.opened.first?.bundleID, app.bundleID)
         XCTAssertEqual(h.launcher.opened.first?.folder, "~/code")
     }
+
+    func testOneMinuteRemainingAndBreakEndingShowToastWarningsOnce() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .goal(minutes: 30), displayName: "Alex")
+
+        // Advance past 25m break unlock so we can test 30s break-ending toast, then test 1m session toast
+        h.clock.advance(26 * 60)
+        h.engine.tick()
+        XCTAssertTrue(h.engine.beginBreak(minutes: 5))
+
+        h.clock.advance(4 * 60 + 35)
+        h.engine.tick()
+        XCTAssertTrue(h.toaster.messages.contains("Break ends in 30s — wrap up & refocus"))
+
+        h.engine.endBreak()
+        h.clock.advance(3 * 60 + 10)
+        h.engine.tick()
+        XCTAssertTrue(h.toaster.messages.contains("1 minute remaining on CS128"))
+    }
 }

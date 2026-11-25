@@ -256,6 +256,8 @@ extension WindowPresenting {
         breakOpenedTheLock = false
         announcedHalfway = false
         announcedTenMinutes = false
+        announcedOneMinute = false
+        announcedBreakEnding = false
         gracePassEndsAt = nil
         nextBreakElapsed = Self.breakCooldown
         if subject.id == Subject.planningID {
@@ -481,6 +483,9 @@ extension WindowPresenting {
         }
         if let breakEndsAt, now >= breakEndsAt {
             resumeMonitoring()
+        } else if let breakRem = breakRemaining, breakRem <= 30, breakRem > 0, !announcedBreakEnding {
+            announcedBreakEnding = true
+            toaster.show("Break ends in 30s — wrap up & refocus")
         }
         if let gracePassEndsAt, now >= gracePassEndsAt {
             endGracePass()
@@ -523,16 +528,21 @@ extension WindowPresenting {
     @ObservationIgnored private var lastAudioIntervention: Date?
     @ObservationIgnored private var announcedHalfway = false
     @ObservationIgnored private var announcedTenMinutes = false
+    @ObservationIgnored private var announcedOneMinute = false
+    @ObservationIgnored private var announcedBreakEnding = false
 
-    /// Voice milestone encouragement at 50% and 10 minutes remaining in goal sessions.
+    /// Voice milestone encouragement at 50% and 10 minutes remaining, plus 1-minute wrap-up toast.
     private func checkMilestones(session: Session) {
-        guard let goal = session.mode.goalSeconds, goal >= 20 * 60, !isOnBreak else { return }
-        if elapsed >= (goal / 2.0), !announcedHalfway {
+        guard let goal = session.mode.goalSeconds, !isOnBreak else { return }
+        if goal >= 20 * 60, elapsed >= (goal / 2.0), !announcedHalfway {
             announcedHalfway = true
             VoiceOutput.shared.speak("Halfway mark reached on \(session.subjectName). Strong progress.")
-        } else if let rem = remaining, rem <= 10 * 60, rem > 60, !announcedTenMinutes {
+        } else if goal >= 20 * 60, let rem = remaining, rem <= 10 * 60, rem > 60, !announcedTenMinutes {
             announcedTenMinutes = true
             VoiceOutput.shared.speak("Ten minutes left on \(session.subjectName). Finish strong.")
+        } else if goal >= 5 * 60, let rem = remaining, rem <= 60, rem > 0, !announcedOneMinute {
+            announcedOneMinute = true
+            toaster.show("1 minute remaining on \(session.subjectName)")
         }
     }
 
@@ -627,6 +637,7 @@ extension WindowPresenting {
         }
         breakEndsAt = now.addingTimeInterval(TimeInterval(clamped * 60))
         breakTotal = TimeInterval(clamped * 60)
+        announcedBreakEnding = false
         onBreakStarted?()
         SoundCue.breakStart.play(enabled: soundCuesEnabled())
         VoiceOutput.shared.speak("Break started. Step away from the screen.")
@@ -653,6 +664,9 @@ extension WindowPresenting {
         }
         breakEndsAt = currentEndsAt.addingTimeInterval(allowedSeconds)
         breakTotal = currentTotal + allowedSeconds
+        if let rem = breakRemaining, rem > 30 {
+            announcedBreakEnding = false
+        }
         VoiceOutput.shared.speak("Break extended by \(Int(allowedSeconds / 60)) minutes.")
         toaster.show("Break extended +\(Int(allowedSeconds / 60))m ☕️")
     }
@@ -667,6 +681,9 @@ extension WindowPresenting {
             session = current
             if let rem = remaining, rem > 10 * 60 {
                 announcedTenMinutes = false
+            }
+            if let rem = remaining, rem > 60 {
+                announcedOneMinute = false
             }
             onSessionChanged?(current)
             VoiceOutput.shared.speak("Session extended by \(minutes) minutes.")
