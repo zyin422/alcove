@@ -95,4 +95,31 @@ final class ThoughtParkingTests: XCTestCase {
         XCTAssertEqual(priority2.estimatedMinutes, 30)
         XCTAssertNil(priority2.scheduledMinutesFromMidnight)
     }
+
+    func testPromoteThoughtToPriorityWithHashtagSubjectRouting() {
+        let mathID = UUID()
+        let mathSub = Subject(id: mathID, name: "Math", details: "Calculus")
+        let mlID = UUID()
+        let mlSub = Subject(id: mlID, name: "Machine Learning", details: "Neural nets")
+
+        // Thought starting with hashtag
+        let thought1 = "#math Solve problem set 4 (50m)"
+        let p1 = ThoughtParkingEngine.promoteThoughtToPriority(thought: thought1, subjects: [mathSub, mlSub])
+        XCTAssertEqual(p1.title, "Solve problem set 4")
+        XCTAssertEqual(p1.subjectID, mathID)
+        XCTAssertEqual(p1.estimatedMinutes, 50)
+
+        // Thought with hyphenated hashtag matching multi-word subject
+        let thought2 = "Implement backprop algorithm #machine-learning 45m"
+        let p2 = ThoughtParkingEngine.promoteThoughtToPriority(thought: thought2, subjects: [mathSub, mlSub])
+        XCTAssertEqual(p2.title, "Implement backprop algorithm")
+        XCTAssertEqual(p2.subjectID, mlID)
+        XCTAssertEqual(p2.estimatedMinutes, 45)
+
+        // Hashtag that doesn't match any subject falls back to fallbackSubjectID
+        let thought3 = "#random Buy groceries"
+        let p3 = ThoughtParkingEngine.promoteThoughtToPriority(thought: thought3, subjects: [mathSub, mlSub], fallbackSubjectID: mathID)
+        XCTAssertEqual(p3.title, "#random Buy groceries")
+        XCTAssertEqual(p3.subjectID, mathID)
+    }
 }

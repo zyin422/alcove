@@ -373,6 +373,7 @@ enum TokenSource: Equatable {
     private func persistAllowedHost(_ host: String) {
         guard let id = engine.subject?.id, id != Subject.planningID, var subject = subject(id: id) else { return }
         guard let host = DomainMatcher.host(of: host),
+              !DomainMatcher.isSearchEngine(host),
               !subject.extraDomains.contains(where: { DomainMatcher.host(of: $0) == host }) else { return }
         subject.extraDomains.append(host)
         updateSubject(subject)
@@ -434,6 +435,26 @@ enum TokenSource: Equatable {
         let clean = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         data.sessions[index].notes = (clean?.isEmpty == true) ? nil : clean
         save()
+    }
+
+    /// Removes a parked thought from a recorded session by ID.
+    func removeParkedThought(sessionID: UUID, at index: Int) {
+        guard let sIndex = data.sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+        guard data.sessions[sIndex].parkedThoughts.indices.contains(index) else { return }
+        data.sessions[sIndex].parkedThoughts.remove(at: index)
+        save()
+    }
+
+    /// Clears all parked thoughts from sessions recorded on `day`.
+    func clearParkedThoughts(day: String) {
+        var changed = false
+        for idx in data.sessions.indices {
+            if DayKey.key(for: data.sessions[idx].start) == day && !data.sessions[idx].parkedThoughts.isEmpty {
+                data.sessions[idx].parkedThoughts.removeAll()
+                changed = true
+            }
+        }
+        if changed { save() }
     }
 
     /// Drops finished blocks under five minutes. Called after the morning check, so a short abort

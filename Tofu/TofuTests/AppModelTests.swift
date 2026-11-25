@@ -594,4 +594,41 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(tomorrowPlan?.priorities.map(\.id), [p1.id])
         XCTAssertEqual(tomorrowPlan?.priorities.first?.title, "Complete lab 4")
     }
+
+    func testRemoveAndClearParkedThoughtsInAppModel() throws {
+        let store = try makeStore()
+        let harness = EngineHarness()
+        let model = AppModel(store: store, engine: harness.engine)
+        let subject = makeSubject()
+        model.addSubject(subject)
+
+        let start = Date(timeIntervalSince1970: 1_760_000_000)
+        let day = DayKey.key(for: start)
+
+        var s1 = Session(subjectID: subject.id, subjectName: subject.name, mode: .open,
+                         start: start, end: start.addingTimeInterval(1800), outcome: .completed)
+        s1.parkedThoughts = ["Check email", "Buy coffee", "Read paper"]
+
+        var s2 = Session(subjectID: subject.id, subjectName: subject.name, mode: .open,
+                         start: start.addingTimeInterval(3600), end: start.addingTimeInterval(5400), outcome: .completed)
+        s2.parkedThoughts = ["Call lab partner"]
+
+        model.upsertSession(s1)
+        model.upsertSession(s2)
+
+        // Remove parked thought at index 1 ("Buy coffee") in s1
+        model.removeParkedThought(sessionID: s1.id, at: 1)
+        let updatedS1 = model.data.sessions.first { $0.id == s1.id }
+        XCTAssertEqual(updatedS1?.parkedThoughts, ["Check email", "Read paper"])
+
+        // Out of bounds removal does not crash
+        model.removeParkedThought(sessionID: s1.id, at: 99)
+        model.removeParkedThought(sessionID: UUID(), at: 0)
+
+        // Clear all parked thoughts for day
+        model.clearParkedThoughts(day: day)
+        for s in model.data.sessions where DayKey.key(for: s.start) == day {
+            XCTAssertTrue(s.parkedThoughts.isEmpty)
+        }
+    }
 }

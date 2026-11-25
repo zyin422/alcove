@@ -48,7 +48,16 @@ struct TodayView: View {
                 }
 
                 let momentum = FocusMomentumEngine.compute7DayMomentum(sessions: model.data.sessions)
-                FocusMomentumBarView(summary: momentum, selectedDayKey: shownDay, onSelectDay: { showDay($0) })
+                FocusMomentumBarView(
+                    summary: momentum,
+                    selectedDayKey: shownDay,
+                    targetMinutes: model.data.settings.dailyTargetMinutes,
+                    onSelectDay: { showDay($0) },
+                    onUpdateTarget: { newTarget in
+                        model.updateSettings { $0.dailyTargetMinutes = newTarget }
+                        ToastCenter.shared.show("Daily focus goal set to \(newTarget / 60) hours 🎯")
+                    }
+                )
 
                 subjectDistributionStripView
 
@@ -83,6 +92,10 @@ struct TodayView: View {
                 }
 
                 if canEdit && !plan.priorities.isEmpty { addRow }
+
+                if !todayParkedThoughtItems.isEmpty {
+                    parkedThoughtsTriageCard
+                }
 
                 Spacer(minLength: Theme.Space.m)
 
@@ -474,6 +487,139 @@ struct TodayView: View {
 
     private func shiftMonth(_ delta: Int) {
         shownMonth = DayCalendar.shiftMonth(year: month.year, month: month.month, by: delta)
+    }
+
+    private var todayParkedThoughtItems: [(sessionID: UUID, subjectName: String, subjectColor: String, index: Int, text: String)] {
+        let sessions = model.data.sessions.filter { DayKey.key(for: $0.start) == shownDay && !$0.isDemo }
+        var items: [(sessionID: UUID, subjectName: String, subjectColor: String, index: Int, text: String)] = []
+        for session in sessions {
+            let color = model.subject(id: session.subjectID)?.colorHex ?? "888888"
+            for (idx, thought) in session.parkedThoughts.enumerated() {
+                items.append((session.id, session.subjectName, color, idx, thought))
+            }
+        }
+        return items
+    }
+
+    private var parkedThoughtsTriageCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "lightbulb.fill")
+                        .foregroundStyle(Theme.amber)
+                        .font(.system(size: 13))
+                    Text("Parked Thoughts (\(todayParkedThoughtItems.count))")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.primary)
+                }
+
+                Spacer()
+
+                if canEdit && todayParkedThoughtItems.count > 1 {
+                    Button("Convert all to Priorities") {
+                        convertAllParkedThoughts()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+
+            VStack(spacing: 6) {
+                ForEach(Array(todayParkedThoughtItems.enumerated()), id: \.offset) { _, item in
+                    HStack(spacing: Theme.Space.s) {
+                        Circle()
+                            .fill(Theme.subjectColor(item.subjectColor))
+                            .frame(width: 7, height: 7)
+
+                        Text(item.text)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+
+                        Text("(\(item.subjectName))")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        if canEdit {
+                            Button {
+                                convertThoughtToPriority(item: item)
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "plus.circle.fill")
+                                    Text("Add to Plan")
+                                }
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Theme.emerald)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(RoundedRectangle(cornerRadius: 6).fill(Theme.emerald.opacity(0.12)))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Convert this parked thought into a priority on today's plan")
+
+                            Button {
+                                dismissThought(sessionID: item.sessionID, at: item.index)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 18, height: 18)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .help("Dismiss thought")
+                        }
+                    }
+                    .padding(Theme.Space.s)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.primary.opacity(0.02))
+                    )
+                }
+            }
+        }
+        .padding(Theme.Space.m)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+        )
+    }
+
+    private func convertThoughtToPriority(item: (sessionID: UUID, subjectName: String, subjectColor: String, index: Int, text: String)) {
+        let priority = ThoughtParkingEngine.promoteThoughtToPriority(
+            thought: item.text,
+            subjects: model.data.subjects
+        )
+        model.updatePlan(day: shownDay) { plan in
+            plan.priorities.append(priority)
+        }
+        model.removeParkedThought(sessionID: item.sessionID, at: item.index)
+        ToastCenter.shared.show("Converted to priority: \(priority.title) 🎯")
+    }
+
+    private func dismissThought(sessionID: UUID, at index: Int) {
+        model.removeParkedThought(sessionID: sessionID, at: index)
+    }
+
+    private func convertAllParkedThoughts() {
+        let items = todayParkedThoughtItems
+        for item in items {
+            let priority = ThoughtParkingEngine.promoteThoughtToPriority(
+                thought: item.text,
+                subjects: model.data.subjects
+            )
+            model.updatePlan(day: shownDay) { plan in
+                plan.priorities.append(priority)
+            }
+        }
+        model.clearParkedThoughts(day: shownDay)
+        ToastCenter.shared.show("Converted \(items.count) thoughts to priorities 🎯")
     }
 
     private func row(_ priority: Priority, index: Int = 0, count: Int = 1) -> some View {
