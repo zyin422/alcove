@@ -77,13 +77,43 @@ struct BreakGuideView: View {
 
             if FocusAudioEngine.shared.isPlaying, let title = FocusAudioEngine.shared.currentTrackTitle {
                 HStack(spacing: 6) {
-                    Image(systemName: "music.note")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.indigo)
-                    Text(title)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    let tracks = FocusAudioEngine.shared.availableTrackTitles
+                    if tracks.count > 1 && FocusAudioEngine.shared.activePlaylist != nil {
+                        Menu {
+                            ForEach(Array(tracks.enumerated()), id: \.offset) { idx, trackTitle in
+                                Button {
+                                    _ = FocusAudioEngine.shared.selectTrack(at: idx)
+                                } label: {
+                                    if trackTitle == title {
+                                        Label(trackTitle, systemImage: "checkmark")
+                                    } else {
+                                        Text(trackTitle)
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "music.note")
+                                    .font(.caption2)
+                                    .foregroundStyle(Theme.indigo)
+                                Text(title)
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                        .help("Select calm break track")
+                    } else {
+                        Image(systemName: "music.note")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.indigo)
+                        Text(title)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                     if FocusAudioEngine.shared.activePlaylist != nil {
                         Button {
                             _ = FocusAudioEngine.shared.nextTrack()

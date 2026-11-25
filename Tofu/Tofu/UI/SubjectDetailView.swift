@@ -376,11 +376,6 @@ struct SubjectDetailView: View {
             }
             .buttonStyle(.plain)
 
-            Text(priority.title)
-                .strikethrough(priority.isDone)
-                .foregroundStyle(priority.isDone ? .secondary : .primary)
-                .lineLimit(1)
-
             if editingPriorityID == priority.id {
                 TextField("Task title", text: $editingPriorityTitle)
                     .textFieldStyle(.roundedBorder)
@@ -399,6 +394,11 @@ struct SubjectDetailView: View {
                         editingPriorityID = nil
                     }
                     .onExitCommand { editingPriorityID = nil }
+            } else {
+                Text(priority.title)
+                    .strikethrough(priority.isDone)
+                    .foregroundStyle(priority.isDone ? .secondary : .primary)
+                    .lineLimit(1)
             }
 
             if priority.isAnchor {

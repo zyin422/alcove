@@ -1032,7 +1032,18 @@ private struct PlanningPriorityView: View {
 
     @ViewBuilder private func planningScheduleMenu(for priority: Priority) -> some View {
         let anchors = [9 * 60, 10 * 60 + 30, 13 * 60, 14 * 60 + 30, 16 * 60, 19 * 60, 20 * 60 + 30]
+        let events = model.data.settings.googleShowEventsEnabled ? (model.googleSync?.todayEvents ?? []) : []
+        let openWindows = DayPlanner.availableFocusWindows(calendarEvents: events, isToday: true)
+        let conflictTitle = DayPlanner.scheduleConflictTitle(for: priority, in: events)
         Menu {
+            if let nextGap = openWindows.first {
+                Button(conflictTitle != nil
+                       ? "Move to Open Gap (\(OpenFocusWindow.formatMinutes(nextGap.startMinutes)))"
+                       : "Next Open Gap (\(OpenFocusWindow.formatMinutes(nextGap.startMinutes)))") {
+                    model.updatePriorityDetails(priority.id, day: plan.day, scheduledMinutesFromMidnight: .some(nextGap.startMinutes))
+                }
+                Divider()
+            }
             ForEach(anchors, id: \.self) { mins in
                 Button {
                     model.updatePriorityDetails(priority.id, day: plan.day, scheduledMinutesFromMidnight: .some(mins))
@@ -1052,14 +1063,16 @@ private struct PlanningPriorityView: View {
             }
         } label: {
             if let sched = priority.scheduledTimeLabel {
+                let tint = conflictTitle != nil ? Theme.amber : Theme.indigo
                 HStack(spacing: 2) {
-                    Image(systemName: "clock").font(.system(size: 8))
+                    Image(systemName: conflictTitle != nil ? "exclamationmark.triangle.fill" : "clock")
+                        .font(.system(size: 8))
                     Text(sched).font(.caption2.monospacedDigit())
                 }
-                .foregroundStyle(Theme.indigo)
+                .foregroundStyle(tint)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
-                .background(RoundedRectangle(cornerRadius: 4).fill(Theme.indigo.opacity(0.10)))
+                .background(RoundedRectangle(cornerRadius: 4).fill(tint.opacity(0.10)))
             } else {
                 Text("+ Time")
                     .font(.caption2)
@@ -1070,7 +1083,7 @@ private struct PlanningPriorityView: View {
             }
         }
         .menuStyle(.borderlessButton)
-        .help("Schedule start time")
+        .help(conflictTitle.map { "Overlaps Google Calendar: \($0)" } ?? "Schedule start time")
     }
 
     @ViewBuilder private func planningDurationMenu(for priority: Priority) -> some View {
