@@ -273,6 +273,7 @@ struct MiniTimerView: View {
         if isBetweenBlocks {
             return model?.nextForceBlockReason ?? "Force Lock-In"
         }
+        if engine.isOnGracePass { return "Grace Pass" }
         if engine.isOnBreak { return "Break" }
         let subName = engine.session?.subjectName ?? ""
         if let model, let session = engine.session {
@@ -301,7 +302,7 @@ struct MiniTimerView: View {
     }
 
     private var subjectColor: Color {
-        if isBetweenBlocks { return Theme.amber }
+        if isBetweenBlocks || engine.isOnGracePass { return Theme.amber }
         if engine.isOnBreak { return Theme.coral }
         if let name = engine.session?.subjectName {
             return Theme.subjectColor(SubjectColor.hex(for: name))

@@ -542,4 +542,20 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertEqual(parts[2].minutes, 30, accuracy: 0.01)
         XCTAssertEqual(parts[3].minutes, 15, accuracy: 0.01)
     }
+
+    func testSubjectRecentActivityReturnsSevenDaysWithCompletedOnly() {
+        let s1 = Session(subjectID: subjectID, subjectName: "CS128", mode: .open,
+                         start: date(2026, 10, 10, 9), end: date(2026, 10, 10, 10), outcome: .completed)
+        let s2 = Session(subjectID: subjectID, subjectName: "CS128", mode: .open,
+                         start: date(2026, 10, 8, 9), end: date(2026, 10, 8, 9, 30), outcome: .completed)
+        let bailed = Session(subjectID: subjectID, subjectName: "CS128", mode: .open,
+                             start: date(2026, 10, 9, 9), end: date(2026, 10, 9, 9, 30), outcome: .bailed)
+
+        let activity = engine.subjectRecentActivity(subjectID: subjectID, sessions: [s1, s2, bailed], days: 7)
+        XCTAssertEqual(activity.count, 7)
+        XCTAssertTrue(activity.last?.isToday == true)
+        XCTAssertEqual(activity.last?.minutes ?? -1, 60, accuracy: 0.01)
+        XCTAssertEqual(activity[4].minutes, 30, accuracy: 0.01)
+        XCTAssertEqual(activity[5].minutes, 0, accuracy: 0.01)
+    }
 }

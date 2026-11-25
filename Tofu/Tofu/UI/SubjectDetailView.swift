@@ -9,6 +9,8 @@ struct SubjectTelemetry: Equatable {
     var longestDurationSeconds: TimeInterval
     var totalDeflections: Int
     var activePrioritiesCount: Int
+    var sevenDayMinutes: [Double]
+    var sevenDayLabels: [String]
 
     var totalTimeLabel: String {
         let hours = Int(totalSeconds) / 3600
@@ -34,7 +36,9 @@ struct SubjectTelemetry: Equatable {
     static func calculate(subjectID: UUID, sessions: [Session], dayPlans: [DayPlan], now: Date = Date()) -> SubjectTelemetry {
         let matching = sessions.filter { $0.subjectID == subjectID && $0.outcome == .completed && !$0.isDemo }
         let total = matching.reduce(0.0) { $0 + $1.duration }
-        let thisWeek = StatsEngine(now: now).seconds(for: subjectID, in: matching, window: .week)
+        let engine = StatsEngine(now: now)
+        let thisWeek = engine.seconds(for: subjectID, in: matching, window: .week)
+        let activity = engine.subjectRecentActivity(subjectID: subjectID, sessions: matching, days: 7)
         let count = matching.count
         let avg = count > 0 ? total / Double(count) : 0
         let longest = matching.map(\.duration).max() ?? 0
@@ -50,7 +54,9 @@ struct SubjectTelemetry: Equatable {
             averageDurationSeconds: avg,
             longestDurationSeconds: longest,
             totalDeflections: deflections,
-            activePrioritiesCount: active
+            activePrioritiesCount: active,
+            sevenDayMinutes: activity.map(\.minutes),
+            sevenDayLabels: activity.map(\.label)
         )
     }
 
@@ -243,6 +249,42 @@ struct SubjectDetailView: View {
                             Spacer()
 
                             if !priority.isDone {
+                                Menu {
+                                    ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
+                                        Button("\(mins)m") {
+                                            model.updatePriorityDetails(
+                                                priority.id,
+                                                day: todayKey,
+                                                title: priority.title,
+                                                subjectID: priority.subjectID,
+                                                estimatedMinutes: mins
+                                            )
+                                        }
+                                    }
+                                    if priority.estimatedMinutes != nil {
+                                        Divider()
+                                        Button("Clear") {
+                                            model.updatePriorityDetails(
+                                                priority.id,
+                                                day: todayKey,
+                                                title: priority.title,
+                                                subjectID: priority.subjectID,
+                                                estimatedMinutes: nil
+                                            )
+                                        }
+                                    }
+                                } label: {
+                                    Text(priority.estimatedMinutes.map { "\($0)m" } ?? "+ Est")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
+                                }
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
+                                .help("Adjust estimated minutes")
+
                                 Button {
                                     model.togglePriorityAnchor(priority.id, day: todayKey)
                                 } label: {
@@ -406,6 +448,25 @@ struct SubjectDetailView: View {
                     Text("\(telemetry.completedCount) completed session\(telemetry.completedCount == 1 ? "" : "s") · \(telemetry.thisWeekLabel) this week")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
+
+                    if let peakMin = telemetry.sevenDayMinutes.max(), peakMin > 0 {
+                        let subjColor = Theme.subjectColor(subject.colorHex)
+                        HStack(alignment: .bottom, spacing: 4) {
+                            ForEach(Array(telemetry.sevenDayMinutes.enumerated()), id: \.offset) { idx, mins in
+                                let frac = max(0.12, min(1.0, mins / peakMin))
+                                VStack(spacing: 2) {
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(mins > 0 ? subjColor : Color.primary.opacity(0.10))
+                                        .frame(width: 14, height: mins > 0 ? max(4, 18 * CGFloat(frac)) : 3)
+                                    Text(idx < telemetry.sevenDayLabels.count ? telemetry.sevenDayLabels[idx] : "")
+                                        .font(.system(size: 8.5))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .help("\(Int(mins.rounded()))m")
+                            }
+                        }
+                        .padding(.top, 2)
+                    }
                 }
                 .padding(Theme.Space.m)
                 .frame(maxWidth: .infinity, alignment: .leading)

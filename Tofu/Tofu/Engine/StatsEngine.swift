@@ -700,6 +700,28 @@ struct StatsEngine {
             ("Night", night),
         ]
     }
+
+    /// Last `days` calendar days (oldest to today) of completed non-demo minutes for one subject.
+    func subjectRecentActivity(subjectID: UUID, sessions: [Session], days: Int = 7) -> [(label: String, minutes: Double, isToday: Bool)] {
+        let count = max(1, days)
+        let todayStart = periodStart(.day, for: now)
+        let oldest = shiftDay(todayStart, by: -(count - 1))
+        var totalsByDay: [Date: TimeInterval] = [:]
+        for session in Self.ended(sessions) where session.outcome == .completed && session.subjectID == subjectID {
+            let day = periodStart(.day, for: session.start)
+            if day >= oldest && day <= todayStart {
+                totalsByDay[day, default: 0] += session.duration
+            }
+        }
+        return (0..<count).map { offset in
+            let day = shiftDay(oldest, by: offset)
+            let weekday = calendar.component(.weekday, from: day)
+            let symbol = weekday > 0 && weekday <= calendar.veryShortWeekdaySymbols.count
+                ? calendar.veryShortWeekdaySymbols[weekday - 1]
+                : ""
+            return (symbol, (totalsByDay[day] ?? 0) / 60.0, day == todayStart)
+        }
+    }
 }
 
 private extension StatsSpan {
