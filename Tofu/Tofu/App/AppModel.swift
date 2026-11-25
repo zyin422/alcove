@@ -71,8 +71,10 @@ enum TokenSource: Equatable {
     /// Puts the bedtime screen up / takes it down (AppDelegate connects the full-screen window).
     @ObservationIgnored var onShowBedtime: (() -> Void)?
     @ObservationIgnored var onHideBedtime: (() -> Void)?
-    /// Brings the morning screen back when "Start in 10 minutes" ends.
+    /// Brings the morning screen back when "Start in 10 minutes" or between-block grace ends.
     @ObservationIgnored private var morningReturnTimer: Timer?
+    /// Keeps macOS App Nap from deferring `morningReturnTimer` while a return deadline is pending.
+    @ObservationIgnored private var returnTimerActivity: NSObjectProtocol?
     /// Posts to the group chat (the same announcer the session engine uses).
     let announcer: Announcing
     /// Turns tomorrow's spoken priorities into a list.
@@ -778,21 +780,37 @@ enum TokenSource: Equatable {
     private func scheduleMorningReturn(at until: Date?, now: Date) {
         morningReturnTimer?.invalidate()
         morningReturnTimer = nil
+        endReturnTimerActivity()
         guard let until, until > now else { return }
-        let timer = Timer(timeInterval: until.timeIntervalSince(now), repeats: false) { [weak self] _ in
+        returnTimerActivity = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep,
+            reason: "Between-block force lock-in countdown"
+        )
+        // Add 50 ms so sub-millisecond early timer delivery still satisfies `Date() >= until`.
+        let delay = max(0.05, until.timeIntervalSince(now) + 0.05)
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.morningReturnTimer = nil
+                self?.endReturnTimerActivity()
                 self?.checkMorning()
             }
         }
+        timer.tolerance = 0
         RunLoop.main.add(timer, forMode: .common)
         morningReturnTimer = timer
+    }
+
+    private func endReturnTimerActivity() {
+        guard let activity = returnTimerActivity else { return }
+        ProcessInfo.processInfo.endActivity(activity)
+        returnTimerActivity = nil
     }
 
     /// A block is under way, so the return timer stays quiet until it ends.
     private func settleMorning(now: Date) {
         morningReturnTimer?.invalidate()
         morningReturnTimer = nil
+        endReturnTimerActivity()
         let key = DayKey.key(for: now)
         guard data.settings.lastMorningKey != key else { return }
         updateSettings { $0.lastMorningKey = key }

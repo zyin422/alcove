@@ -466,4 +466,29 @@ final class MorningTests: XCTestCase {
         XCTAssertTrue(model.isStudyCompleted(day: today, now: now),
                       "when all configured subjects have completed sessions today, study is completed")
     }
+
+    @MainActor func testScheduledBetweenBlockReturnAutomaticallyShowsForceLockIn() throws {
+        let model = try makeModel(EngineHarness())
+        model.updateSettings {
+            $0.morningScreenEnabled = true
+            $0.dayEndMinutes = 24 * 60
+        }
+        let s1 = Subject(name: "CS128")
+        model.addSubject(s1)
+        let now = Date()
+        let today = DayKey.key(for: now)
+        model.updatePlan(day: today) {
+            $0.priorities = [Priority(title: "Finish lab", subjectID: s1.id, isDone: false)]
+        }
+
+        let shown = expectation(description: "force lock-in automatically appears when timer expires")
+        model.onShowMorning = { shown.fulfill() }
+
+        // Postpone / grace expires in 0.15s; timer must fire automatically without another manual checkMorning().
+        model.postponeMorning(by: 0.15, now: now)
+        XCTAssertFalse(model.isShowingMorning)
+
+        wait(for: [shown], timeout: 2.0)
+        XCTAssertTrue(model.isShowingMorning)
+    }
 }

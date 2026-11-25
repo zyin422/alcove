@@ -332,7 +332,15 @@ struct MiniTimerView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0)) { context in
+            let expired = isBetweenBlocks
+                && !(model?.isShowingMorning ?? true)
+                && (model?.nextForceBlockDeadline.map { context.date >= $0 } ?? false)
             content(now: context.date)
+                .onChange(of: expired) { _, nowExpired in
+                    if nowExpired {
+                        model?.checkMorning(now: context.date)
+                    }
+                }
         }
     }
 

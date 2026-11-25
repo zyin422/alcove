@@ -98,6 +98,7 @@ enum QuitPolicy {
                 self?.storedModel?.checkBedtime()
             }
         }
+        endOfDayTimer?.tolerance = 1.0
         Task { @MainActor in
             await model.continueBlockIfNeeded()
             model.checkMorning()
