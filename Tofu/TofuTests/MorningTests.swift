@@ -78,7 +78,7 @@ final class MorningTests: XCTestCase {
 
     @MainActor func testMorningPostponeDelaysTenMinutes() throws {
         let model = try makeModel(EngineHarness())
-        let now = Date()
+        let now = (DayKey.date(for: DayKey.key(for: Date())) ?? Calendar.current.startOfDay(for: Date())).addingTimeInterval(10 * 3600)
         var shown = 0
         model.onShowMorning = { shown += 1 }
         model.updateSettings { $0.dayEndMinutes = 28 * 60 }   // never "too late" during the test (full 4 AM - 4 AM cycle)
@@ -130,7 +130,7 @@ final class MorningTests: XCTestCase {
 
     @MainActor func testBetweenBlocksSyncAndDeadlinesWhenPostponing() throws {
         let model = try makeModel(EngineHarness())
-        let now = Date()
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 10, minute: 0))!
         var syncCalled = false
         model.onSyncBetweenBlocks = { syncCalled = true }
 
@@ -138,9 +138,9 @@ final class MorningTests: XCTestCase {
         model.openPlan(now: now)
 
         XCTAssertTrue(syncCalled, "Opening plan must trigger between-blocks mini-timer sync")
-        XCTAssertNotNil(model.nextForceBlockDeadline)
-        XCTAssertEqual(model.nextForceBlockReason, "10-minute postpone active")
-        XCTAssertGreaterThan(model.secondsUntilNextForceBlock ?? 0, 500)
+        XCTAssertNotNil(model.nextForceBlockDeadline(at: now))
+        XCTAssertEqual(model.nextForceBlockReason(at: now), "10-minute postpone active")
+        XCTAssertGreaterThan(model.secondsUntilNextForceBlock(at: now) ?? 0, 500)
     }
 
     @MainActor func testStartTiesThePriorityToTheSetupAndLocksIn() async throws {
@@ -354,21 +354,21 @@ final class MorningTests: XCTestCase {
 
     @MainActor func testNextForceBlockCountdownTelemetry() async throws {
         let model = try makeModel(EngineHarness())
-        let now = Date()
-        
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 10, minute: 0))!
+
         // When not locked in, postpone sets next force block
         model.postponeMorning(by: 600, now: now)
-        XCTAssertNotNil(model.nextForceBlockDeadline)
-        XCTAssertEqual(model.nextForceBlockReason, "10-minute postpone active")
-        if let seconds = model.secondsUntilNextForceBlock {
+        XCTAssertNotNil(model.nextForceBlockDeadline(at: now))
+        XCTAssertEqual(model.nextForceBlockReason(at: now), "10-minute postpone active")
+        if let seconds = model.secondsUntilNextForceBlock(at: now) {
             XCTAssertGreaterThan(seconds, 0)
             XCTAssertLessThanOrEqual(seconds, 600)
         }
 
         // When locked in, deadline is nil
         await model.engine.start(subject: Subject(name: "CS128"), mode: .open, displayName: "Alex")
-        XCTAssertNil(model.nextForceBlockDeadline)
-        XCTAssertNil(model.secondsUntilNextForceBlock)
+        XCTAssertNil(model.nextForceBlockDeadline(at: now))
+        XCTAssertNil(model.secondsUntilNextForceBlock(at: now))
     }
 
     @MainActor func testMorningPrioritySelectionDefaults() throws {

@@ -151,13 +151,26 @@ struct TodayView: View {
                                 .buttonStyle(.plain)
                             }
                             if canEdit && plan.priorities.count > 1 {
+                                let hasScheduled = plan.priorities.contains { !$0.isDone && $0.scheduledMinutesFromMidnight != nil }
                                 Menu {
                                     Button("Sort anchors & open first") {
                                         model.sortPrioritiesAnchorsFirst(day: plan.day)
                                     }
+                                    if hasScheduled {
+                                        Button("Sort by scheduled time") {
+                                            model.sortPrioritiesBySchedule(day: plan.day)
+                                        }
+                                    }
                                     if openCount > 0 {
+                                        Divider()
                                         Button("Defer \(openCount) open to tomorrow") {
                                             _ = model.deferAllOpenPrioritiesToTomorrow(from: plan.day)
+                                        }
+                                    }
+                                    if doneCount > 0 {
+                                        Divider()
+                                        Button("Clear \(doneCount) completed") {
+                                            _ = model.clearCompletedPriorities(day: plan.day)
                                         }
                                     }
                                 } label: {
@@ -472,10 +485,21 @@ struct TodayView: View {
                     let usableWidth = max(0, width - totalSpacing)
                     HStack(spacing: 2) {
                         ForEach(shares) { share in
-                            RoundedRectangle(cornerRadius: 3)
+                            let subID = model.data.subjects.first(where: { $0.name == share.name })?.id
+                            let segment = RoundedRectangle(cornerRadius: 3)
                                 .fill(share.color)
                                 .frame(width: max(4, usableWidth * CGFloat(share.fraction)))
                                 .help("\(share.name): \(TimeFormat.short(share.seconds)) (\(Int(share.fraction * 100))%)")
+                            if let subID {
+                                Button {
+                                    model.selection = .subject(subID)
+                                } label: {
+                                    segment
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                segment
+                            }
                         }
                     }
                 }

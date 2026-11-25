@@ -586,4 +586,14 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertEqual(dist[5].totalMinutes, 75, accuracy: 0.01)
         XCTAssertEqual(dist[5].sessionCount, 2)
     }
+
+    func testDailyTotalsByStartOfDaySumsCompletedAndEndedIgnoringDemo() {
+        let s1 = session("CS128", date(2026, 10, 10, 9), minutes: 30)
+        let s2 = session("MATH241", date(2026, 10, 10, 14), minutes: 60)
+        var demo = session("CS128", date(2026, 10, 10, 16), minutes: 120)
+        demo.isDemo = true
+
+        let map = engine.dailyTotalsByStartOfDay(in: [s1, s2, demo])
+        XCTAssertEqual(map[date(2026, 10, 10, 0)], 90 * 60)
+    }
 }

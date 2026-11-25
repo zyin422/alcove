@@ -679,6 +679,36 @@ enum TokenSource: Equatable {
         ToastCenter.shared.show("Sorted open anchors first")
     }
 
+    /// Sorts unfinished priorities chronologically by scheduled start time (`scheduledMinutesFromMidnight`), then anchors.
+    func sortPrioritiesBySchedule(day: String) {
+        updatePlan(day: day) { plan in
+            let indexed = plan.priorities.enumerated().map { ($0.offset, $0.element) }
+            plan.priorities = indexed.sorted { lhs, rhs in
+                if lhs.1.isDone != rhs.1.isDone { return !lhs.1.isDone }
+                let lTime = lhs.1.scheduledMinutesFromMidnight ?? Int.max
+                let rTime = rhs.1.scheduledMinutesFromMidnight ?? Int.max
+                if lTime != rTime { return lTime < rTime }
+                if lhs.1.isAnchor != rhs.1.isAnchor { return lhs.1.isAnchor }
+                return lhs.0 < rhs.0
+            }.map(\.1)
+        }
+        ToastCenter.shared.show("Sorted priorities by scheduled time")
+    }
+
+    /// Removes all completed priorities for `day` and returns how many were cleared.
+    @discardableResult
+    func clearCompletedPriorities(day: String) -> Int {
+        var cleared = 0
+        updatePlan(day: day) { plan in
+            cleared = plan.priorities.filter(\.isDone).count
+            plan.priorities.removeAll(where: \.isDone)
+        }
+        if cleared > 0 {
+            ToastCenter.shared.show("Cleared \(cleared) completed \(cleared == 1 ? "priority" : "priorities")")
+        }
+        return cleared
+    }
+
     /// Defers every unfinished priority from `day` to tomorrow (`DayKey.next(day)`), returning the moved count.
     @discardableResult
     func deferAllOpenPrioritiesToTomorrow(from day: String) -> Int {
@@ -1082,8 +1112,11 @@ enum TokenSource: Equatable {
     /// When the morning screen or between-block force lock-in will next take over the screen.
     /// Nil if already locked in, if the day is wrapped up, if study subjects are completed, or if past dayEndMinutes.
     var nextForceBlockDeadline: Date? {
+        nextForceBlockDeadline(at: Date())
+    }
+
+    func nextForceBlockDeadline(at now: Date) -> Date? {
         guard !engine.isLocked else { return nil }
-        let now = Date()
         let today = DayKey.key(for: now)
         if plan(for: today)?.wrappedUp == true || isStudyCompleted(day: today, now: now) {
             return nil
@@ -1107,14 +1140,21 @@ enum TokenSource: Equatable {
 
     /// Remaining seconds until the next force lock-in. 0 if due now; nil if none scheduled.
     var secondsUntilNextForceBlock: TimeInterval? {
-        guard let deadline = nextForceBlockDeadline else { return nil }
-        return max(0, deadline.timeIntervalSince(Date()))
+        secondsUntilNextForceBlock(at: Date())
+    }
+
+    func secondsUntilNextForceBlock(at now: Date) -> TimeInterval? {
+        guard let deadline = nextForceBlockDeadline(at: now) else { return nil }
+        return max(0, deadline.timeIntervalSince(now))
     }
 
     /// Human explanation of why the next force-block deadline is set to that time.
     var nextForceBlockReason: String? {
-        guard let deadline = nextForceBlockDeadline else { return nil }
-        let now = Date()
+        nextForceBlockReason(at: Date())
+    }
+
+    func nextForceBlockReason(at now: Date) -> String? {
+        guard let deadline = nextForceBlockDeadline(at: now) else { return nil }
         if deadline <= now { return "Lock-in required now" }
         if let postpone = data.settings.morningPostponeUntil, postpone > now {
             return "10-minute postpone active"

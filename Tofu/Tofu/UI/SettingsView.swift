@@ -455,6 +455,23 @@ struct SettingsView: View {
                 ),
                 in: 1...16
             )
+            HStack(spacing: Theme.Space.xs) {
+                Text("Quick targets:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach([2, 4, 6, 8], id: \.self) { hours in
+                    let isSelected = model.data.settings.dailyTargetMinutes == hours * 60
+                    Button("\(hours)h") {
+                        model.updateSettings { $0.dailyTargetMinutes = hours * 60 }
+                    }
+                    .font(.caption2.weight(isSelected ? .bold : .medium).monospacedDigit())
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(isSelected ? Theme.indigo.opacity(0.16) : Color.primary.opacity(0.06)))
+                    .foregroundStyle(isSelected ? Theme.indigo : .secondary)
+                    .buttonStyle(.plain)
+                }
+            }
             Toggle("Show the morning screen", isOn: Binding(
                 get: { model.data.settings.morningScreenEnabled },
                 set: { value in model.updateSettings { $0.morningScreenEnabled = value } }))

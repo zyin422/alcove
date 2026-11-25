@@ -762,6 +762,21 @@ extension StatsEngine {
             )
         }
     }
+
+    /// Aggregates ended non-demo session durations keyed by calendar start of day.
+    func dailyTotalsByStartOfDay(in sessions: [Session]) -> [Date: TimeInterval] {
+        var map: [Date: TimeInterval] = [:]
+        for session in Self.ended(sessions) where !session.isDemo {
+            let day = periodStart(.day, for: session.start)
+            map[day, default: 0] += session.duration
+        }
+        return map
+    }
+
+    /// True when at least one ended non-demo session started inside `span` containing `date`.
+    func hasEndedActivity(_ sessions: [Session], span: StatsSpan, containing date: Date) -> Bool {
+        !Self.ended(matching(sessions, span: span, containing: date)).isEmpty
+    }
     /// Returns the single highest-volume completed focus day across `sessions`, breaking ties toward recent dates.
     func bestFocusDay(in sessions: [Session]) -> BestFocusDay? {
         var byDay: [Date: (seconds: TimeInterval, count: Int)] = [:]

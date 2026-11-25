@@ -197,18 +197,26 @@ struct StatsView: View {
                         Button {
                             anchor = start
                         } label: {
-                            Text(stats.chipTitle(span, containing: start))
-                                .font(.caption)
-                                .padding(.horizontal, Theme.Space.s)
-                                .padding(.vertical, Theme.Space.xs)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .fill(start == shown ? Color.primary.opacity(0.12) : Color.clear)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color.primary.opacity(start == shown ? 0.45 : 0.15), lineWidth: 1)
-                                )
+                            let hasWork = stats.hasEndedActivity(model.data.sessions, span: span, containing: start)
+                            HStack(spacing: 4) {
+                                if hasWork {
+                                    Circle()
+                                        .fill(start == shown ? Theme.indigo : Theme.indigo.opacity(0.6))
+                                        .frame(width: 5, height: 5)
+                                }
+                                Text(stats.chipTitle(span, containing: start))
+                                    .font(.caption)
+                            }
+                            .padding(.horizontal, Theme.Space.s)
+                            .padding(.vertical, Theme.Space.xs)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(start == shown ? Color.primary.opacity(0.12) : Color.clear)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.primary.opacity(start == shown ? 0.45 : 0.15), lineWidth: 1)
+                            )
                         }
                         .buttonStyle(.plain)
                         .id(start)
@@ -229,17 +237,31 @@ struct StatsView: View {
     private func dayStrip(stats: StatsEngine, shown: Date, latest: Date) -> some View {
         let weekStart = stats.startOf(.week, containing: shown)
         let days = (0..<7).map { stats.shift(weekStart, span: .day, by: $0) }
+        let totals = stats.dailyTotalsByStartOfDay(in: model.data.sessions)
+        let targetSeconds = TimeInterval(max(1, model.data.settings.dailyTargetMinutes) * 60)
         return HStack(spacing: Theme.Space.xs) {
             ForEach(days, id: \.self) { day in
                 let future = day > latest
                 let selected = day == shown
+                let focused = totals[day] ?? 0
+                let metGoal = focused >= targetSeconds
                 Button {
                     anchor = day
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 3) {
                         Text(stats.monthDay(day))
                             .font(.callout.weight(selected ? .semibold : .regular))
                             .monospacedDigit()
+                        HStack(spacing: 3) {
+                            if focused > 0 {
+                                Circle()
+                                    .fill(metGoal ? Theme.emerald : Theme.indigo)
+                                    .frame(width: 5, height: 5)
+                            }
+                            Text(focused > 0 ? TimeFormat.short(focused) : "—")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(metGoal ? Theme.emerald : .secondary)
+                        }
                     }
                     .frame(maxWidth: .infinity, minHeight: 56)
                     .background(
@@ -248,7 +270,7 @@ struct StatsView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.primary.opacity(selected ? 0.55 : 0.12), lineWidth: 1)
+                            .stroke(selected ? Color.primary.opacity(0.55) : (metGoal ? Theme.emerald.opacity(0.45) : Color.primary.opacity(0.12)), lineWidth: 1)
                     )
                     .contentShape(Rectangle())
                 }

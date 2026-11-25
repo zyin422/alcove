@@ -727,4 +727,23 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(h.engine.parkedThoughts.isEmpty)
         XCTAssertEqual(model.todayPlan().priorities.last?.id, promoted?.id)
     }
+
+    func testSortPrioritiesByScheduleAndClearCompletedWorkCleanly() async throws {
+        let h = EngineHarness()
+        let model = AppModel(store: try makeStore(), engine: h.engine)
+        let today = DayKey.key(for: Date())
+
+        let doneTask = Priority(title: "Done task", isDone: true, scheduledMinutesFromMidnight: 8 * 60)
+        let lateTask = Priority(title: "Evening", scheduledMinutesFromMidnight: 19 * 60)
+        let unscheduled = Priority(title: "Unscheduled", isAnchor: true)
+        let earlyTask = Priority(title: "Morning", scheduledMinutesFromMidnight: 9 * 60)
+        model.updatePlan(day: today) { $0.priorities = [doneTask, lateTask, unscheduled, earlyTask] }
+
+        model.sortPrioritiesBySchedule(day: today)
+        XCTAssertEqual(model.plan(for: today)?.priorities.map(\.title), ["Morning", "Evening", "Unscheduled", "Done task"])
+
+        let cleared = model.clearCompletedPriorities(day: today)
+        XCTAssertEqual(cleared, 1)
+        XCTAssertEqual(model.plan(for: today)?.priorities.map(\.title), ["Morning", "Evening", "Unscheduled"])
+    }
 }
