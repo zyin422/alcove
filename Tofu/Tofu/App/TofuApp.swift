@@ -133,11 +133,29 @@ private struct TofuMenuBarContent: View {
             .filter { $0.outcome == .completed && !$0.isDemo && DayKey.key(for: $0.start) == dayKey }
             .reduce(0.0) { $0 + $1.duration }
         let targetSeconds = TimeInterval(max(1, model.data.settings.dailyTargetMinutes) * 60)
+        let pct = min(100, Int(((focusedToday / targetSeconds) * 100).rounded()))
         let openPriorities = model.todayPlan().priorities.filter { !$0.isDone }
 
-        Text("Today: \(TimeFormat.short(focusedToday)) / \(TimeFormat.short(targetSeconds))")
+        Text("Today: \(TimeFormat.short(focusedToday)) / \(TimeFormat.short(targetSeconds)) (\(pct)%)")
         if let top = openPriorities.first {
             Text("Up next: \(top.title)")
+        }
+
+        if !openPriorities.isEmpty {
+            Menu("Mark Priority Done (\(openPriorities.count))") {
+                ForEach(openPriorities.prefix(8)) { priority in
+                    let subName = priority.subjectID.flatMap(model.subject(id:))?.name
+                    let starPrefix = priority.isAnchor ? "★ " : ""
+                    let metaParts = [subName, priority.estimatedMinutes.map { "\($0)m" }].compactMap { $0 }
+                    let label = metaParts.isEmpty
+                        ? "\(starPrefix)\(priority.title)"
+                        : "\(starPrefix)\(priority.title) (\(metaParts.joined(separator: " · ")))"
+                    Button(label) {
+                        model.setPriority(priority.id, done: true, day: dayKey)
+                        ToastCenter.shared.show("Completed “\(priority.title)” ✓")
+                    }
+                }
+            }
         }
 
         Divider()

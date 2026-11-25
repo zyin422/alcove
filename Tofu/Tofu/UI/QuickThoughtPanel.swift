@@ -164,12 +164,13 @@ struct QuickThoughtView: View {
     @State private var text = ""
     @FocusState private var isFocused: Bool
 
-    private var parsedPreview: (subject: Subject?, minutes: Int?) {
+    private var parsedPreview: (subject: Subject?, scheduledLabel: String?, minutes: Int?) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return (nil, nil) }
+        guard !trimmed.isEmpty else { return (nil, nil, nil) }
         let p = ThoughtParkingEngine.promoteThoughtToPriority(thought: trimmed, subjects: subjects)
         let sub = p.subjectID.flatMap { id in subjects.first(where: { $0.id == id }) }
-        return (sub, p.estimatedMinutes)
+        let sched = p.scheduledMinutesFromMidnight.map { OpenFocusWindow.formatMinutes($0) }
+        return (sub, sched, p.estimatedMinutes)
     }
 
     var body: some View {
@@ -191,7 +192,7 @@ struct QuickThoughtView: View {
                         onCancel()
                     }
 
-                if preview.subject != nil || preview.minutes != nil {
+                if preview.subject != nil || preview.scheduledLabel != nil || preview.minutes != nil {
                     HStack(spacing: 4) {
                         if let sub = preview.subject {
                             Circle()
@@ -201,6 +202,11 @@ struct QuickThoughtView: View {
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(Theme.subjectColor(sub.colorHex))
                                 .lineLimit(1)
+                        }
+                        if let sched = preview.scheduledLabel {
+                            Text(sched)
+                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(Theme.indigo)
                         }
                         if let mins = preview.minutes {
                             Text("\(mins)m")

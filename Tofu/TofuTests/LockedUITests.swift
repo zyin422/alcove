@@ -209,6 +209,19 @@ final class LockedUITests: XCTestCase {
         XCTAssertTrue(label?.hasPrefix("Unlocks ") == true)
     }
 
+    func testFocusPurityPercentPenalizesDeflectionsAndClampsToZeroHundred() {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        var clean = Session(subjectID: UUID(), subjectName: "CS128", mode: .open, start: t0, end: t0.addingTimeInterval(1800), outcome: .completed)
+        XCTAssertEqual(SessionSummaryText.focusPurityPercent(for: clean), 100)
+
+        clean.blockedAttempts = 2
+        clean.closedTabs = 3 // 5 * 180s = 900s penalty out of 1800s -> 50%
+        XCTAssertEqual(SessionSummaryText.focusPurityPercent(for: clean), 50)
+
+        clean.closedTabs = 20
+        XCTAssertEqual(SessionSummaryText.focusPurityPercent(for: clean), 0)
+    }
+
     private func session(_ outcome: SessionOutcome?) -> Session {
         Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
                 start: Date(timeIntervalSince1970: 0), outcome: outcome)

@@ -74,6 +74,14 @@ enum SessionSummaryText {
         return outcome != .interrupted
     }
 
+    /// Clean focus purity percentage (0–100) for a single session after penalizing distraction events.
+    static func focusPurityPercent(for session: Session) -> Int {
+        guard session.duration > 0 else { return 100 }
+        let penalty = Double(session.blockedAttempts + session.closedTabs) * 180.0
+        let ratio = max(0.0, min(1.0, 1.0 - (penalty / session.duration)))
+        return Int((ratio * 100.0).rounded())
+    }
+
     /// Formats a single focus block into a clean Markdown recap.
     static func markdownRecap(session: Session, priority: Priority? = nil, notes: String? = nil) -> String {
         var lines: [String] = []
@@ -138,6 +146,10 @@ struct SessionSummaryView: View {
                     StatCard(title: "Duration", value: TimeFormat.short(session.duration), tint: Theme.indigo, icon: "clock.fill")
                     if let goal = SessionSummaryText.goal(session.mode) {
                         StatCard(title: "Goal", value: goal, tint: Theme.emerald, icon: "target")
+                    } else {
+                        let purity = SessionSummaryText.focusPurityPercent(for: session)
+                        let purityTint: Color = purity >= 80 ? Theme.emerald : (purity >= 60 ? Theme.amber : Theme.coral)
+                        StatCard(title: "Focus Purity", value: "\(purity)%", tint: purityTint, icon: "chart.line.uptrend.xyaxis")
                     }
                 }
                 HStack(spacing: Theme.Space.s) {
