@@ -658,4 +658,28 @@ final class AppModelTests: XCTestCase {
         let finalNext = model.completeActivePriorityAndAdvance(p2.id, subjectID: subject.id, day: today)
         XCTAssertNil(finalNext)
     }
+
+    func testDuplicateSubjectClonesConfigurationAndPriorityCountsTrackToday() throws {
+        let model = AppModel(store: try makeStore(), engine: EngineHarness().engine)
+        let original = makeSubject("CS128")
+        model.addSubject(original)
+
+        let today = DayKey.key(for: Date())
+        let p1 = Priority(title: "Read chapter", subjectID: original.id, isDone: true)
+        let p2 = Priority(title: "Debug lab", subjectID: original.id, isDone: false)
+        model.updatePlan(day: today) { $0.priorities = [p1, p2] }
+
+        let counts = model.todayPriorityCounts(for: original.id)
+        XCTAssertEqual(counts.open, 1)
+        XCTAssertEqual(counts.done, 1)
+
+        let cloned = model.duplicateSubject(id: original.id)
+        XCTAssertEqual(cloned?.name, "CS128 Copy")
+        XCTAssertEqual(cloned?.sites, original.sites)
+        XCTAssertEqual(cloned?.extraDomains, original.extraDomains)
+        XCTAssertEqual(model.selection, cloned.map { .subject($0.id) })
+
+        let clonedSecond = model.duplicateSubject(id: original.id)
+        XCTAssertEqual(clonedSecond?.name, "CS128 Copy 2")
+    }
 }

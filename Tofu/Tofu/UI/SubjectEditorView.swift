@@ -92,6 +92,7 @@ struct SubjectForm: View {
     /// The window whose app is being chosen.
     @State private var choosingAppFor: SlotRef?
     @State private var captureNote: String?
+    @State private var siteNote: String?
     @State private var hasAccessibility = WindowPlacer.isTrusted
 
     private struct SlotRef: Identifiable {
@@ -463,16 +464,34 @@ struct SubjectForm: View {
             HStack(spacing: Theme.Space.s) {
                 TextField("Add a site, e.g. piazza.com", text: $siteDraft)
                     .textFieldStyle(.roundedBorder)
+                    .onSubmit(addAllowedSite)
                 Button("Add") { addAllowedSite() }
                     .buttonStyle(SecondaryButtonStyle())
                     .disabled(siteDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            if let siteNote {
+                Text(siteNote)
+                    .font(.caption)
+                    .foregroundStyle(Theme.amber)
             }
         }
     }
 
     private func addAllowedSite() {
         let raw = siteDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let host = DomainMatcher.host(of: raw), !host.isEmpty else { return }
+        guard let host = DomainMatcher.host(of: raw), !host.isEmpty else {
+            siteNote = "Enter a valid website domain (e.g. arxiv.org or piazza.com)."
+            return
+        }
+        if DomainMatcher.isSearchEngine(host) {
+            siteNote = "Search engines (\(host)) stay query-judged per search; academic queries stay open automatically."
+            return
+        }
+        if let category = DistractionList.category(of: host), category != .video {
+            siteNote = "\(host) is blocked under Distraction Shield (\(category.rawValue))."
+            return
+        }
+        siteNote = nil
         if !form.extraDomains.contains(where: { DomainMatcher.normalize($0) == host }) {
             form.extraDomains.append(host)
         }

@@ -1,11 +1,17 @@
 import SwiftUI
 
+private struct RootLockInRequest: Identifiable {
+    let id = UUID()
+    let subject: Subject
+    let priority: Priority?
+}
+
 /// NavigationSplitView (sidebar + detail). When model.engine.isLocked shows LockedView(model:) full-window instead.
 /// Presents SessionSummaryView once a session has ended (not when it was interrupted by quitting).
 struct RootView: View {
     let model: AppModel
     @State private var summary: Session?
-    @State private var lockInSubject: Subject?
+    @State private var lockInRequest: RootLockInRequest?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
@@ -29,12 +35,12 @@ struct RootView: View {
             }
         }
         .sheet(item: $summary) { ended in
-            SessionSummaryView(model: model, session: ended, onStartNext: { nextSubject in
-                lockInSubject = nextSubject
+            SessionSummaryView(model: model, session: ended, onStartNext: { nextSubject, nextPriority in
+                lockInRequest = RootLockInRequest(subject: nextSubject, priority: nextPriority)
             })
         }
-        .sheet(item: $lockInSubject) { subject in
-            LockInSheet(model: model, subject: subject)
+        .sheet(item: $lockInRequest) { request in
+            LockInSheet(model: model, subject: request.subject, initialPriority: request.priority)
         }
         .sheet(isPresented: Binding(get: { model.isWrappingUpDay && !model.engine.isLocked && summary == nil },
                                     set: { if !$0 { model.isWrappingUpDay = false } })) {

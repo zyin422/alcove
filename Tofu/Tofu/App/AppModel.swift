@@ -368,6 +368,48 @@ enum TokenSource: Equatable {
         save()
     }
 
+    /// Clones an existing subject setup with a unique name, distinct color, and selects it.
+    @discardableResult
+    func duplicateSubject(id: UUID) -> Subject? {
+        guard let source = subject(id: id) else { return nil }
+        let existingNames = Set(data.subjects.map(\.name))
+        var candidate = "\(source.name) Copy"
+        var suffix = 2
+        while existingNames.contains(candidate) {
+            candidate = "\(source.name) Copy \(suffix)"
+            suffix += 1
+        }
+        let clone = Subject(
+            name: candidate,
+            details: source.details,
+            preset: source.preset,
+            sites: source.sites,
+            allowedApps: source.allowedApps,
+            extraDomains: source.extraDomains,
+            slots: source.slots.map {
+                SetupSlot(kind: $0.kind, urls: $0.urls, app: $0.app, folder: $0.folder, frame: $0.frame)
+            },
+            usesCustomLayout: source.usesCustomLayout,
+            browser: source.browser,
+            unusedApps: source.unusedApps,
+            colorHex: SubjectColor.hex(for: candidate)
+        )
+        data.subjects.append(clone)
+        assignChartColors()
+        selection = .subject(clone.id)
+        save()
+        ToastCenter.shared.show("Duplicated “\(source.name)” as “\(clone.name)”")
+        return clone
+    }
+
+    /// Returns today's open and completed priority counts assigned to `subjectID`.
+    func todayPriorityCounts(for subjectID: UUID, now: Date = Date()) -> (open: Int, done: Int) {
+        let priorities = todayPlan(now: now).priorities.filter { $0.subjectID == subjectID }
+        let open = priorities.filter { !$0.isDone }.count
+        let done = priorities.filter(\.isDone).count
+        return (open, done)
+    }
+
     /// Saves a host the user or the assistant allowed during the current work block.
     private func persistAllowedHost(_ host: String) {
         guard let id = engine.subject?.id, id != Subject.planningID, var subject = subject(id: id) else { return }

@@ -5,6 +5,7 @@ struct SidebarView: View {
     @Bindable var model: AppModel
     @State private var isAddingSubject = false
     @State private var subjectToDelete = Subject?.none
+    @State private var lockInSubject: Subject?
 
     private var selectionBinding: Binding<SidebarItem?> {
         Binding(
@@ -31,13 +32,28 @@ struct SidebarView: View {
                         .selectionDisabled()
                 }
                 ForEach(model.data.subjects) { subject in
+                    let counts = model.todayPriorityCounts(for: subject.id)
                     NavigationLink(value: SidebarItem.subject(subject.id)) {
-                        HStack {
+                        HStack(spacing: 6) {
                             Circle()
                                 .fill(Theme.subjectColor(subject.colorHex))
                                 .frame(width: 8, height: 8)
                             Text(subject.name).lineLimit(1)
                             Spacer()
+                            if counts.open > 0 {
+                                Text("\(counts.open)")
+                                    .font(.system(size: 10, weight: .bold).monospacedDigit())
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(Theme.indigo.opacity(0.14)))
+                                    .foregroundStyle(Theme.indigo)
+                                    .help("\(counts.open) open priorities today")
+                            } else if counts.done > 0 {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Theme.emerald)
+                                    .help("All \(counts.done) priorities done today")
+                            }
                             Text(TimeFormat.short(totalTime(of: subject.id)))
                                 .font(.callout)
                                 .monospacedDigit()
@@ -45,7 +61,10 @@ struct SidebarView: View {
                         }
                     }
                     .contextMenu {
-                        Button("Delete “\(subject.name)”…") { subjectToDelete = subject }
+                        Button("Lock in “\(subject.name)”…") { lockInSubject = subject }
+                        Button("Duplicate “\(subject.name)”") { model.duplicateSubject(id: subject.id) }
+                        Divider()
+                        Button("Delete “\(subject.name)”…", role: .destructive) { subjectToDelete = subject }
                     }
                 }
                 .onMove { source, destination in
@@ -88,6 +107,9 @@ struct SidebarView: View {
         }
         .sheet(isPresented: $isAddingSubject) {
             SubjectEditorView(model: model)
+        }
+        .sheet(item: $lockInSubject) { subject in
+            LockInSheet(model: model, subject: subject)
         }
         .confirmationDialog(
             "Delete “\(subjectToDelete?.name ?? "")”?",

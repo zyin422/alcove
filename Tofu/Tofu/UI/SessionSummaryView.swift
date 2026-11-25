@@ -55,7 +55,7 @@ enum SessionSummaryText {
 struct SessionSummaryView: View {
     let model: AppModel
     let session: Session
-    var onStartNext: ((Subject) -> Void)? = nil
+    var onStartNext: ((Subject, Priority) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     /// The priority this lock-in worked on, asked about once ("Did you finish …?").
     @State private var priority: Priority?
@@ -66,18 +66,20 @@ struct SessionSummaryView: View {
     @State private var copiedDiscord = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Space.l) {
-            VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                Text("Session summary")
-                    .font(Theme.captionFont)
-                    .foregroundStyle(.secondary)
-                Text(session.subjectName)
-                    .font(Theme.titleFont)
-                    .lineLimit(2)
-                Text(SessionSummaryText.outcome(session.outcome))
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Space.l) {
+                    VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                        Text("Session summary")
+                            .font(Theme.captionFont)
+                            .foregroundStyle(.secondary)
+                        Text(session.subjectName)
+                            .font(Theme.titleFont)
+                            .lineLimit(2)
+                        Text(SessionSummaryText.outcome(session.outcome))
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
 
             VStack(spacing: Theme.Space.s) {
                 HStack(spacing: Theme.Space.s) {
@@ -141,10 +143,13 @@ struct SessionSummaryView: View {
                 priorityCheck(priority)
             }
 
-            let next = DayPlanner.nextPriority(in: model.plan(for: DayKey.key(for: session.start)) ?? model.todayPlan(), excludingID: priority?.id)
-            if let next {
-                nextPrioritySection(next)
+                    let next = DayPlanner.nextPriority(in: model.plan(for: DayKey.key(for: session.start)) ?? model.todayPlan(), excludingID: priority?.id)
+                    if let next {
+                        nextPrioritySection(next)
+                    }
+                }
             }
+            .frame(maxHeight: 560)
 
             Button("Done") { dismiss() }
                 .buttonStyle(PrimaryButtonStyle())
@@ -341,7 +346,7 @@ struct SessionSummaryView: View {
             if let subject {
                 Button {
                     dismiss()
-                    onStartNext?(subject)
+                    onStartNext?(subject, next)
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "bolt.fill")
