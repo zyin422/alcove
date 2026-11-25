@@ -183,6 +183,7 @@ final class DecisionsClientTests: XCTestCase {
         let text = DecisionsClient.instructions(subject: "CS128", details: "Intro CS in C++")
         XCTAssertTrue(text.contains("A mention of the subject, a course code, or a word from the description is not enough."))
         XCTAssertTrue(text.contains("even when the title, URL, or description names the work"))
+        XCTAssertTrue(text.contains("EXCEPTION FOR WEB SEARCH PAGES"))
         XCTAssertFalse(text.contains("plausibly"))
     }
 
