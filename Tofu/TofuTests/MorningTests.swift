@@ -512,4 +512,12 @@ final class MorningTests: XCTestCase {
         model.setPriority(p2.id, done: true, day: today)
         XCTAssertEqual(model.data.settings.lastStudyCelebratedDay, today)
     }
+
+    func testActivePriorityPreferredForMorningAndMiniTimerCaption() {
+        let sub = UUID()
+        let first = Priority(title: "Routine task", subjectID: sub, isDone: false, isAnchor: false)
+        let second = Priority(title: "Anchored task", subjectID: sub, isDone: false, isAnchor: true)
+        let plan = DayPlan(day: "2026-11-25", priorities: [first, second])
+        XCTAssertEqual(plan.activePriority(for: sub)?.id, second.id)
+    }
 }

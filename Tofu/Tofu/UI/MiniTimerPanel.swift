@@ -277,8 +277,8 @@ struct MiniTimerView: View {
         let subName = engine.session?.subjectName ?? ""
         if let model, let session = engine.session {
             let todayKey = DayKey.key(for: Date())
-            if let p = model.plan(for: todayKey)?.priorities.first(where: { $0.subjectID == session.subjectID && !$0.isDone }) {
-                return "\(subName) · \(p.title)"
+            if let p = model.plan(for: todayKey)?.activePriority(for: session.subjectID) {
+                return p.isAnchor ? "\(subName) · ★ \(p.title)" : "\(subName) · \(p.title)"
             }
         }
         return subName

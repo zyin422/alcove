@@ -16,6 +16,8 @@ struct TodayView: View {
     @State private var userSelectedSubject = false
     @State private var lastAutoMatchedSubjectID: UUID?
     @State private var lockInTarget: LockInTarget?
+    @State private var editingPriorityID: UUID?
+    @State private var editingPriorityTitle = ""
     /// Nil shows the current day. Set when the user steps or jumps to a day.
     @State private var selectedDay: String?
     /// Nil follows the shown day's month. Set when the user pages the calendar or chooses a day.
@@ -695,11 +697,48 @@ struct TodayView: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(priority.title)
-                    .strikethrough(priority.isDone)
-                    .foregroundStyle(priority.isDone ? .secondary : .primary)
+                if canEdit && editingPriorityID == priority.id {
+                    HStack(spacing: 6) {
+                        TextField("Priority title", text: $editingPriorityTitle)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { savePriorityTitleEdit(priority) }
+                            .onExitCommand { editingPriorityID = nil }
+                        Button("Save") { savePriorityTitleEdit(priority) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Button {
+                            editingPriorityID = nil
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                } else {
+                    HStack(spacing: 6) {
+                        Text(priority.title)
+                            .strikethrough(priority.isDone)
+                            .foregroundStyle(priority.isDone ? .secondary : .primary)
+                        if canEdit && !priority.isDone {
+                            Button {
+                                editingPriorityTitle = priority.title
+                                editingPriorityID = priority.id
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Rename priority")
+                        }
+                    }
+                }
+
                 HStack(spacing: Theme.Space.xs) {
-                    if let subject = priority.subjectID.flatMap(model.subject(id:)) {
+                    if canEdit && !priority.isDone {
+                        prioritySubjectMenu(for: priority)
+                    } else if let subject = priority.subjectID.flatMap(model.subject(id:)) {
                         let color = Theme.subjectColor(subject.colorHex)
                         HStack(spacing: 4) {
                             Circle().fill(color).frame(width: 5, height: 5)
@@ -729,7 +768,11 @@ struct TodayView: View {
                         .padding(.vertical, 2)
                         .background(RoundedRectangle(cornerRadius: 4).fill(Theme.amber.opacity(0.15)))
                     }
-                    durationBadge(for: priority)
+                    if canEdit && !priority.isDone {
+                        priorityDurationMenu(for: priority)
+                    } else {
+                        durationBadge(for: priority)
+                    }
                 }
             }
             Spacer()
@@ -812,6 +855,102 @@ struct TodayView: View {
         }
         .padding(.horizontal, Theme.Space.m)
         .padding(.vertical, Theme.Space.s)
+    }
+
+    private func savePriorityTitleEdit(_ priority: Priority) {
+        model.updatePriorityDetails(priority.id, day: plan.day, title: editingPriorityTitle)
+        editingPriorityID = nil
+    }
+
+    @ViewBuilder private func prioritySubjectMenu(for priority: Priority) -> some View {
+        let current = priority.subjectID.flatMap(model.subject(id:))
+        Menu {
+            Button("No setup") {
+                model.updatePriorityDetails(priority.id, day: plan.day, subjectID: .some(nil))
+            }
+            if !model.data.subjects.isEmpty {
+                Divider()
+                ForEach(model.data.subjects) { subject in
+                    Button {
+                        model.updatePriorityDetails(priority.id, day: plan.day, subjectID: .some(subject.id))
+                    } label: {
+                        if subject.id == priority.subjectID {
+                            Label(subject.name, systemImage: "checkmark")
+                        } else {
+                            Text(subject.name)
+                        }
+                    }
+                }
+            }
+        } label: {
+            if let current {
+                let color = Theme.subjectColor(current.colorHex)
+                HStack(spacing: 4) {
+                    Circle().fill(color).frame(width: 5, height: 5)
+                    Text(current.name).font(.caption.weight(.semibold)).foregroundStyle(color)
+                    Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).foregroundStyle(color.opacity(0.75))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 4).fill(color.opacity(0.12)))
+            } else {
+                HStack(spacing: 3) {
+                    Text("No setup").font(.caption).foregroundStyle(.secondary)
+                    Image(systemName: "chevron.down").font(.system(size: 7)).foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.05)))
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .help("Change assigned subject")
+    }
+
+    @ViewBuilder private func priorityDurationMenu(for priority: Priority) -> some View {
+        let actualSeconds = model.focusDuration(for: priority, day: plan.day)
+        let actualMinutes = Int(actualSeconds / 60)
+        Menu {
+            ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
+                Button {
+                    model.updatePriorityDetails(priority.id, day: plan.day, estimatedMinutes: .some(mins))
+                } label: {
+                    if priority.estimatedMinutes == mins {
+                        Label("\(mins)m", systemImage: "checkmark")
+                    } else {
+                        Text("\(mins)m")
+                    }
+                }
+            }
+            if priority.estimatedMinutes != nil {
+                Divider()
+                Button("Clear estimate") {
+                    model.updatePriorityDetails(priority.id, day: plan.day, estimatedMinutes: .some(nil))
+                }
+            }
+        } label: {
+            if let estimated = priority.estimatedMinutes {
+                HStack(spacing: 3) {
+                    if priority.subjectID != nil { Text("·").font(.caption).foregroundStyle(.secondary) }
+                    Text("\(actualMinutes)m / \(estimated)m")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(actualMinutes >= estimated ? Theme.emerald : .secondary)
+                }
+            } else if actualMinutes > 0 {
+                Text("· \(actualMinutes)m focused · +Est")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("+ Est")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.04)))
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .help("Set or update time estimate")
     }
 
     @ViewBuilder private func durationBadge(for priority: Priority) -> some View {

@@ -266,8 +266,20 @@ struct MorningView: View {
         .padding(Theme.Space.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
+            syncSuggestedDuration()
             let greeting = "\(DayPlanner.greeting(at: Date())), \(firstName). What are you starting with today?"
             VoiceOutput.shared.speak(greeting)
+        }
+        .onChange(of: activeTarget) { _, _ in
+            syncSuggestedDuration()
+        }
+    }
+
+    private func syncSuggestedDuration() {
+        if let est = selectedPriority?.estimatedMinutes,
+           let suggestion = LockInOption.suggestedOption(for: est) {
+            option = suggestion.option
+            customMinutes = suggestion.customMinutes
         }
     }
 
@@ -338,13 +350,30 @@ struct MorningView: View {
                     .foregroundStyle(isSelected ? color : Color.secondary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(priority.title).font(.title3.weight(.medium))
-                    if let subject {
-                        HStack(spacing: 4) {
-                            Circle().fill(color).frame(width: 5, height: 5)
-                            Text(subject.name).font(.callout.weight(.medium)).foregroundStyle(color)
+                    HStack(spacing: 6) {
+                        if let subject {
+                            HStack(spacing: 4) {
+                                Circle().fill(color).frame(width: 5, height: 5)
+                                Text(subject.name).font(.callout.weight(.medium)).foregroundStyle(color)
+                            }
+                        } else {
+                            Text("No setup yet").font(.callout).foregroundStyle(.secondary)
                         }
-                    } else {
-                        Text("No setup yet").font(.callout).foregroundStyle(.secondary)
+                        if priority.isAnchor {
+                            HStack(spacing: 2) {
+                                Image(systemName: "star.fill").font(.system(size: 9))
+                                Text("Anchor").font(.caption2.weight(.bold))
+                            }
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Theme.amber.opacity(0.16)))
+                            .foregroundStyle(Theme.amber)
+                        }
+                        if let est = priority.estimatedMinutes {
+                            Text("· \(est)m")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 Spacer()
@@ -480,7 +509,10 @@ struct MorningView: View {
     private func add() {
         let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
-        let priority = Priority(title: title, subjectID: DayPlanner.matchSubject(title, subjects: model.data.subjects))
+        var priority = ThoughtParkingEngine.promoteThoughtToPriority(thought: title, subjects: model.data.subjects)
+        if priority.subjectID == nil {
+            priority.subjectID = DayPlanner.matchSubject(priority.title, subjects: model.data.subjects)
+        }
         model.updatePlan(day: plan.day) { $0.priorities.append(priority) }
         selection = .priority(priority.id)
         newTitle = ""
@@ -488,6 +520,7 @@ struct MorningView: View {
 
     private func start(_ priority: Priority) {
         guard let subjectID = setupID(for: priority) else { return }
+        model.selectActivePriority(priority.id, for: subjectID, day: plan.day, notify: false)
         let mode = option.mode(customMinutes: customMinutes)
         let model = model
         Task { await model.start(priority: priority, subjectID: subjectID, mode: mode) }

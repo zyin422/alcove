@@ -687,6 +687,35 @@ enum TokenSource: Equatable {
         }
     }
 
+    /// Updates a priority's editable title, assigned subject, or estimated duration inline.
+    func updatePriorityDetails(
+        _ id: UUID,
+        day: String,
+        title: String? = nil,
+        subjectID: UUID?? = nil,
+        estimatedMinutes: Int?? = nil
+    ) {
+        updatePlan(day: day) { plan in
+            guard let index = plan.priorities.firstIndex(where: { $0.id == id }) else { return }
+            if let title {
+                let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    plan.priorities[index].title = trimmed
+                }
+            }
+            if let subjectID {
+                plan.priorities[index].subjectID = subjectID
+            }
+            if let estimatedMinutes {
+                if let mins = estimatedMinutes, mins > 0 {
+                    plan.priorities[index].estimatedMinutes = mins
+                } else {
+                    plan.priorities[index].estimatedMinutes = nil
+                }
+            }
+        }
+    }
+
     /// Completes `id` mid-session without ending the active focus block, advancing to the next unfinished priority
     /// for `subjectID` if one exists.
     @discardableResult

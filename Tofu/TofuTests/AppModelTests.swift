@@ -682,4 +682,29 @@ final class AppModelTests: XCTestCase {
         let clonedSecond = model.duplicateSubject(id: original.id)
         XCTAssertEqual(clonedSecond?.name, "CS128 Copy 2")
     }
+
+    func testUpdatePriorityDetailsEditsTitleSubjectAndEstimatedMinutes() throws {
+        let model = AppModel(store: try makeStore(), engine: EngineHarness().engine)
+        let cs = makeSubject("CS128")
+        let math = makeSubject("MATH241")
+        model.addSubject(cs)
+        model.addSubject(math)
+
+        let today = DayKey.key(for: Date())
+        let p = Priority(title: "Initial draft", subjectID: cs.id, estimatedMinutes: 25)
+        model.updatePlan(day: today) { $0.priorities = [p] }
+
+        model.updatePriorityDetails(p.id, day: today, title: "Final proof", subjectID: .some(math.id), estimatedMinutes: .some(60))
+        let updated = model.plan(for: today)?.priorities.first { $0.id == p.id }
+        XCTAssertEqual(updated?.title, "Final proof")
+        XCTAssertEqual(updated?.subjectID, math.id)
+        XCTAssertEqual(updated?.estimatedMinutes, 60)
+
+        // Clearing subject and estimate works without clobbering title
+        model.updatePriorityDetails(p.id, day: today, subjectID: .some(nil), estimatedMinutes: .some(nil))
+        let cleared = model.plan(for: today)?.priorities.first { $0.id == p.id }
+        XCTAssertEqual(cleared?.title, "Final proof")
+        XCTAssertNil(cleared?.subjectID)
+        XCTAssertNil(cleared?.estimatedMinutes)
+    }
 }
