@@ -175,6 +175,31 @@ private struct TofuMenuBarContent: View {
                     }
                 }
             }
+            if !model.data.subjects.isEmpty {
+                Menu("Quick Lock In") {
+                    let assigned = openPriorities.filter { $0.subjectID != nil }.prefix(5)
+                    if !assigned.isEmpty {
+                        Section("Open Priorities") {
+                            ForEach(assigned) { priority in
+                                if let sid = priority.subjectID, let sub = model.subject(id: sid) {
+                                    let est = priority.estimatedMinutes ?? 50
+                                    Button("\(priority.title) (\(sub.name) · \(est)m)") {
+                                        model.selectActivePriority(priority.id, for: sub.id, day: dayKey, notify: false)
+                                        Task { await model.lockIn(subjectID: sub.id, mode: .goal(minutes: est)) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Section("Subjects (50m)") {
+                        ForEach(model.data.subjects) { sub in
+                            Button(sub.name) {
+                                Task { await model.lockIn(subjectID: sub.id, mode: .goal(minutes: 50)) }
+                            }
+                        }
+                    }
+                }
+            }
             Button("15m Planning Mode") {
                 Task { await model.startPlanningMode() }
             }

@@ -152,6 +152,11 @@ final class LockedUITests: XCTestCase {
         XCTAssertEqual(info.appNames, ["Xcode"])
         XCTAssertEqual(info.unusedPolicyLabel, "Quit other apps")
         XCTAssertEqual(info.trustedDomains, ["cppreference.com", "swift.org"])
+
+        let summaryText = LockInWorkspaceSummary.clipboardText(subject: subject)
+        XCTAssertTrue(summaryText.contains("Setup: CS128"))
+        XCTAssertTrue(summaryText.contains("Apps: Xcode"))
+        XCTAssertTrue(summaryText.contains("cppreference.com"))
     }
 
     func testFollowUpPriorityParsesNoteWithFallbackSubject() {

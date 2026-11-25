@@ -106,6 +106,17 @@ struct LockInWorkspaceSummary: Equatable {
             trustedDomains: Array(Set(domains)).sorted()
         )
     }
+
+    static func clipboardText(subject: Subject) -> String {
+        let info = describe(subject: subject)
+        var lines = [
+            "Setup: \(subject.name)",
+            "Layout: \(info.layoutLabel) · Browser: \(info.browserTitle) · \(info.unusedPolicyLabel)",
+        ]
+        if !info.appNames.isEmpty { lines.append("Apps: \(info.appNames.joined(separator: ", "))") }
+        if !info.trustedDomains.isEmpty { lines.append("Trusted domains: \(info.trustedDomains.joined(separator: ", "))") }
+        return lines.joined(separator: "\n")
+    }
 }
 
 /// Mode choice before locking in: open-ended or a goal, then LOCK IN.

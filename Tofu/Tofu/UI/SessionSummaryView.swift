@@ -106,7 +106,7 @@ enum SessionSummaryText {
 struct SessionSummaryView: View {
     let model: AppModel
     let session: Session
-    var onStartNext: ((Subject, Priority) -> Void)? = nil
+    var onStartNext: ((Subject, Priority?) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     /// The priority this lock-in worked on, asked about once ("Did you finish …?").
     @State private var priority: Priority?
@@ -229,6 +229,8 @@ struct SessionSummaryView: View {
                     let next = DayPlanner.nextPriority(in: model.plan(for: DayKey.key(for: session.start)) ?? model.todayPlan(), excludingID: priority?.id)
                     if let next {
                         nextPrioritySection(next)
+                    } else if let currentSubject = model.subject(id: session.subjectID), onStartNext != nil {
+                        continueSubjectCard(currentSubject)
                     }
                 }
             }
@@ -501,6 +503,37 @@ struct SessionSummaryView: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(Theme.indigo.opacity(0.04))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.indigo.opacity(0.2), lineWidth: 1))
+        )
+    }
+
+    private func continueSubjectCard(_ subject: Subject) -> some View {
+        let col = Theme.subjectColor(subject.colorHex)
+        return HStack(spacing: Theme.Space.m) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("KEEP MOMENTUM GOING")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(col)
+                    .tracking(0.8)
+                Text("Start another focus block on \(subject.name)")
+                    .font(.system(size: 13, weight: .medium))
+            }
+            Spacer()
+            Button {
+                dismiss()
+                onStartNext?(subject, nil)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Lock in again")
+                }
+            }
+            .buttonStyle(SecondaryButtonStyle())
+        }
+        .padding(Theme.Space.s)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(col.opacity(0.05))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(col.opacity(0.22), lineWidth: 1))
         )
     }
 

@@ -87,9 +87,32 @@ struct SubjectDetailView: View {
 
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.l) {
-                TextField("Name", text: $form.name)
-                    .textFieldStyle(.plain)
-                    .font(Theme.titleFont)
+                HStack(alignment: .center, spacing: Theme.Space.s) {
+                    TextField("Name", text: $form.name)
+                        .textFieldStyle(.plain)
+                        .font(Theme.titleFont)
+                    Menu {
+                        Button("Duplicate “\(subject.name)”") {
+                            model.duplicateSubject(id: subject.id)
+                        }
+                        Button("Copy Setup Summary") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(LockInWorkspaceSummary.clipboardText(subject: subject), forType: .string)
+                            ToastCenter.shared.show("Copied setup summary")
+                        }
+                        Divider()
+                        Button("View in Stats") {
+                            model.selection = .stats
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help("Subject actions")
+                }
                 HStack(spacing: Theme.Space.s) {
                     Button {
                         targetPriorityForLockIn = nil
