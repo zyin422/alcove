@@ -143,6 +143,41 @@ enum StatsFormatting {
         }
         return lines.joined(separator: "\n")
     }
+
+    /// Exports completed non-demo sessions as RFC-4180 CSV (newest first).
+    static func csvExport(sessions: [Session]) -> String {
+        let iso = ISO8601DateFormatter()
+        var rows = ["day,start,end,subject,duration_minutes,outcome,blocked_apps,closed_tabs,notes"]
+        let sorted = sessions
+            .filter { $0.end != nil && !$0.isDemo }
+            .sorted { $0.start > $1.start }
+        for session in sorted {
+            let day = DayKey.key(for: session.start)
+            let start = iso.string(from: session.start)
+            let end = session.end.map { iso.string(from: $0) } ?? ""
+            let mins = String(format: "%.1f", session.duration / 60.0)
+            let outcome = session.outcome?.rawValue ?? "ended"
+            let notes = (session.notes ?? "").replacingOccurrences(of: "\n", with: " ")
+            let fields = [
+                day,
+                start,
+                end,
+                csvField(session.subjectName),
+                mins,
+                outcome,
+                "\(session.blockedAttempts)",
+                "\(session.closedTabs)",
+                csvField(notes),
+            ]
+            rows.append(fields.joined(separator: ","))
+        }
+        return rows.joined(separator: "\n")
+    }
+
+    private static func csvField(_ value: String) -> String {
+        guard value.contains(",") || value.contains("\"") || value.contains("\n") else { return value }
+        return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
 }
 
 /// One subject's hours in the period being viewed, with its blocks oldest first.

@@ -330,10 +330,27 @@ struct SubjectDetailView: View {
                                         .foregroundStyle(deflect == 0 ? Theme.emerald : Theme.amber)
                                 }
                                 if let note = session.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
-                                    Text("“\(note)”")
-                                        .font(.caption)
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(2)
+                                    HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                                        Text("“\(note)”")
+                                            .font(.caption)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(2)
+                                        Spacer(minLength: 4)
+                                        Button("+ Plan") {
+                                            if let created = SessionSummaryText.followUpPriority(
+                                                from: note,
+                                                fallbackSubjectID: subject.id,
+                                                subjects: model.data.subjects
+                                            ) {
+                                                let todayKey = DayKey.key(for: Date())
+                                                model.updatePlan(day: todayKey) { $0.priorities.append(created) }
+                                                ToastCenter.shared.show("Added “\(created.title)” to today")
+                                            }
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.mini)
+                                        .help("Turn this note into a priority for today")
+                                    }
                                 }
                             }
                             Spacer()

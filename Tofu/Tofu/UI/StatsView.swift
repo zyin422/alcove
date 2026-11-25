@@ -1,5 +1,6 @@
 import Charts
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Stats screen. Day is one day's subjects. Week and month are one period at a time. Year is that year's months.
 struct StatsView: View {
@@ -22,7 +23,7 @@ struct StatsView: View {
 
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.l) {
-                tabHeader(summary: summary, shares: shares, comparison: comparison, heading: stats.heading(span, containing: shown))
+                tabHeader(summary: summary, period: period, allSessions: sessions, shares: shares, comparison: comparison, heading: stats.heading(span, containing: shown))
                         if StatsFormatting.hasTrackedSessions(sessions) {
                             periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
                             StatsSummaryGrid(summary: summary, overallSummary: overallSummary, comparison: comparison, subjectCount: shares.count)
@@ -72,21 +73,33 @@ struct StatsView: View {
             .navigationTitle("Stats")
         }
 
-    private func tabHeader(summary: StatsSummary, shares: [SubjectShare], comparison: PeriodComparison, heading: String) -> some View {
+    private func tabHeader(summary: StatsSummary, period: [Session], allSessions: [Session], shares: [SubjectShare], comparison: PeriodComparison, heading: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Stats").font(Theme.titleFont)
             Spacer()
 
-            Button {
-                copyRecap(summary: summary, shares: shares, comparison: comparison, span: span, heading: heading)
+            Menu {
+                Button("Copy Markdown Recap") {
+                    copyRecap(summary: summary, shares: shares, comparison: comparison, span: span, heading: heading)
+                }
+                Divider()
+                Button("Export \(span.title) CSV…") {
+                    exportCSV(period, defaultName: "tofu-\(span.title.lowercased())-\(DayKey.key(for: Date())).csv")
+                }
+                .disabled(period.filter { $0.end != nil && !$0.isDemo }.isEmpty)
+                Button("Export All History CSV…") {
+                    exportCSV(allSessions, defaultName: "tofu-history-\(DayKey.key(for: Date())).csv")
+                }
+                .disabled(allSessions.filter { $0.end != nil && !$0.isDemo }.isEmpty)
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "doc.on.doc")
-                    Text("Copy Recap")
+                    Image(systemName: "square.and.arrow.up")
+                    Text("Export")
                 }
                 .font(.caption.weight(.medium))
             }
-            .buttonStyle(.bordered)
+            .menuStyle(.borderedButton)
+            .fixedSize()
 
             Picker("Range", selection: $span) {
                 ForEach(StatsSpan.allCases) { option in
@@ -291,6 +304,21 @@ struct StatsView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         ToastCenter.shared.show("Recap copied to clipboard")
+    }
+
+    private func exportCSV(_ sessions: [Session], defaultName: String) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = defaultName
+        panel.title = "Export Focus Sessions CSV"
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        let csv = StatsFormatting.csvExport(sessions: sessions)
+        do {
+            try csv.write(to: destination, atomically: true, encoding: .utf8)
+            ToastCenter.shared.show("Exported CSV ✓")
+        } catch {
+            ToastCenter.shared.show("Export failed: \(error.localizedDescription)")
+        }
     }
 }
 

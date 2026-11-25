@@ -334,7 +334,8 @@ struct TodayView: View {
 
     private var dayStepper: some View {
         HStack(alignment: .center, spacing: Theme.Space.s) {
-            dayButton("chevron.left", help: "Previous day") { stepDay(-1) }
+            dayButton("chevron.left", help: "Previous day (⌘[)") { stepDay(-1) }
+                .keyboardShortcut("[", modifiers: .command)
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 Text(heading).font(Theme.titleFont)
                 HStack(spacing: Theme.Space.m) {
@@ -342,7 +343,8 @@ struct TodayView: View {
                     dailyTargetDialView
                 }
             }
-            dayButton("chevron.right", help: "Next day", enabled: canGoForward) { stepDay(1) }
+            dayButton("chevron.right", help: "Next day (⌘])", enabled: canGoForward) { stepDay(1) }
+                .keyboardShortcut("]", modifiers: .command)
         }
     }
 

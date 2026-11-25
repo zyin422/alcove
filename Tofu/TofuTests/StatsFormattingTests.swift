@@ -180,4 +180,23 @@ final class StatsFormattingTests: XCTestCase {
         XCTAssertTrue(md.contains("**CS128:** 1h 30m (75%)"))
         XCTAssertTrue(md.contains("**Research:** 30m (25%)"))
     }
+
+    func testCSVExportFormatsRowsDescendingAndEscapesQuotesAndCommas() {
+        let sid = UUID()
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        var s1 = Session(subjectID: sid, subjectName: "CS, 128", mode: .goal(minutes: 50),
+                         start: t0, end: t0.addingTimeInterval(3000),
+                         blockedAttempts: 1, closedTabs: 2, outcome: .completed)
+        s1.notes = #"Fixed "parser", ready for tests"#
+        let demo = Session(subjectID: sid, subjectName: "Demo", mode: .open,
+                           start: t0, end: t0.addingTimeInterval(1800), outcome: .completed, isDemo: true)
+
+        let csv = StatsFormatting.csvExport(sessions: [s1, demo])
+        let lines = csv.split(separator: "\n").map(String.init)
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertTrue(lines[0].hasPrefix("day,start,end,subject,duration_minutes"))
+        XCTAssertTrue(lines[1].contains(#""CS, 128""#))
+        XCTAssertTrue(lines[1].contains("50.0,completed,1,2"))
+        XCTAssertTrue(lines[1].contains(#""Fixed ""parser"", ready for tests""#))
+    }
 }
