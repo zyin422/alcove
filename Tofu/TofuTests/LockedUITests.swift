@@ -96,6 +96,39 @@ final class LockedUITests: XCTestCase {
         XCTAssertTrue(snap.isMet)
     }
 
+    func testMenuBarStatusSummaryPrioritizesBreakSessionCountdownThenDailyTotal() {
+        let onBreak = MenuBarStatusSummary.label(
+            isLocked: true, subjectName: "CS128",
+            breakRemaining: 125, sessionRemaining: 1800, sessionElapsed: 600,
+            forceCountdownRemaining: 300, todayFocusedSeconds: 3600
+        )
+        XCTAssertEqual(onBreak.title, "Break 02:05")
+        XCTAssertEqual(onBreak.systemImage, "cup.and.saucer.fill")
+
+        let inBlock = MenuBarStatusSummary.label(
+            isLocked: true, subjectName: "CS128",
+            breakRemaining: nil, sessionRemaining: 1500, sessionElapsed: 300,
+            forceCountdownRemaining: 300, todayFocusedSeconds: 3600
+        )
+        XCTAssertEqual(inBlock.title, "CS128 · 25:00")
+        XCTAssertEqual(inBlock.systemImage, "lock.shield.fill")
+
+        let countdown = MenuBarStatusSummary.label(
+            isLocked: false, subjectName: nil,
+            breakRemaining: nil, sessionRemaining: nil, sessionElapsed: 0,
+            forceCountdownRemaining: 90, todayFocusedSeconds: 3600
+        )
+        XCTAssertEqual(countdown.title, "Next block 01:30")
+        XCTAssertEqual(countdown.systemImage, "timer")
+
+        let idleWithFocus = MenuBarStatusSummary.label(
+            isLocked: false, subjectName: nil,
+            breakRemaining: nil, sessionRemaining: nil, sessionElapsed: 0,
+            forceCountdownRemaining: nil, todayFocusedSeconds: 5400
+        )
+        XCTAssertEqual(idleWithFocus.title, "Tofu · 1h 30m")
+    }
+
     private func session(_ outcome: SessionOutcome?) -> Session {
         Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
                 start: Date(timeIntervalSince1970: 0), outcome: outcome)

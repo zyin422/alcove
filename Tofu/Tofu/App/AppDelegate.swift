@@ -59,19 +59,7 @@ enum QuitPolicy {
             self?.presenter?.syncBetweenBlocksPanel()
         }
         model.onShowMainWindow = { Self.bringMainWindowForward() }
-        let morning = MorningWindowController(model: model)
-        self.morning = morning
-        model.onShowMorning = { [weak morning] in morning?.show() }
-        model.onHideMorning = { [weak morning] in morning?.hide() }
-        let bedtime = BedtimeWindowController(model: model)
-        self.bedtime = bedtime
-        model.onShowBedtime = { [weak bedtime] in bedtime?.show() }
-        model.onHideBedtime = { [weak bedtime] in bedtime?.hide() }
-        #if TOFU_RELEASE
-        // Only builds made by scripts/release.sh check for updates; a build from source must not replace itself.
-        model.updates.driver = SparkleUpdater(center: model.updates)
-        #endif
-        GlobalHotKeyManager.shared.onTrigger = { [weak self] in
+        let toggleQuickThought: () -> Void = { [weak self] in
             guard let self else { return }
             QuickThoughtPanelController.shared.toggle(
                 engine: self.model.engine,
@@ -84,6 +72,20 @@ enum QuitPolicy {
                 }
             )
         }
+        model.onToggleQuickThought = toggleQuickThought
+        let morning = MorningWindowController(model: model)
+        self.morning = morning
+        model.onShowMorning = { [weak morning] in morning?.show() }
+        model.onHideMorning = { [weak morning] in morning?.hide() }
+        let bedtime = BedtimeWindowController(model: model)
+        self.bedtime = bedtime
+        model.onShowBedtime = { [weak bedtime] in bedtime?.show() }
+        model.onHideBedtime = { [weak bedtime] in bedtime?.hide() }
+        #if TOFU_RELEASE
+        // Only builds made by scripts/release.sh check for updates; a build from source must not replace itself.
+        model.updates.driver = SparkleUpdater(center: model.updates)
+        #endif
+        GlobalHotKeyManager.shared.onTrigger = toggleQuickThought
         GlobalHotKeyManager.shared.onToggleMute = { [weak self] in
             self?.presenter?.toggleFocusAudioMute()
         }

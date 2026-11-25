@@ -59,6 +59,8 @@ enum TokenSource: Equatable {
     @ObservationIgnored var onSyncBetweenBlocks: (() -> Void)?
     /// Brings the main window forward when the end-of-day wrap-up opens on its own.
     @ObservationIgnored var onShowMainWindow: (() -> Void)?
+    /// Toggles the floating Spotlight Quick-Thought panel.
+    @ObservationIgnored var onToggleQuickThought: (() -> Void)?
     /// True while the end-of-day wrap-up sheet is up.
     var isWrappingUpDay = false
     /// True while the morning screen is up.
