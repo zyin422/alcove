@@ -91,6 +91,7 @@ struct SubjectDetailView: View {
     @State private var isTestingWorkspace = false
     @State private var editingPriorityID: UUID?
     @State private var editingPriorityTitle = ""
+    @State private var hoveredSparklineIndex: Int?
 
     init(model: AppModel, subject: Subject) {
         self.model = model
@@ -689,9 +690,18 @@ struct SubjectDetailView: View {
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(Theme.subjectColor(subject.colorHex))
                         Spacer()
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.subjectColor(subject.colorHex).opacity(0.8))
+                        if let idx = hoveredSparklineIndex,
+                           idx < telemetry.sevenDayMinutes.count,
+                           idx < telemetry.sevenDayLabels.count {
+                            let mins = Int(telemetry.sevenDayMinutes[idx].rounded())
+                            Text("\(telemetry.sevenDayLabels[idx]): \(mins)m")
+                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(Theme.subjectColor(subject.colorHex))
+                        } else {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.subjectColor(subject.colorHex).opacity(0.8))
+                        }
                     }
                     Text(telemetry.totalTimeLabel)
                         .font(.system(size: 26, weight: .bold, design: .rounded))
@@ -705,14 +715,17 @@ struct SubjectDetailView: View {
                         HStack(alignment: .bottom, spacing: 4) {
                             ForEach(Array(telemetry.sevenDayMinutes.enumerated()), id: \.offset) { idx, mins in
                                 let frac = max(0.12, min(1.0, mins / peakMin))
+                                let isHovered = hoveredSparklineIndex == idx
                                 VStack(spacing: 2) {
                                     RoundedRectangle(cornerRadius: 2)
-                                        .fill(mins > 0 ? subjColor : Color.primary.opacity(0.10))
+                                        .fill(isHovered ? Theme.amber : (mins > 0 ? subjColor : Color.primary.opacity(0.10)))
                                         .frame(width: 14, height: mins > 0 ? max(4, 18 * CGFloat(frac)) : 3)
                                     Text(idx < telemetry.sevenDayLabels.count ? telemetry.sevenDayLabels[idx] : "")
-                                        .font(.system(size: 8.5))
-                                        .foregroundStyle(.tertiary)
+                                        .font(.system(size: 8.5, weight: isHovered ? .bold : .regular))
+                                        .foregroundStyle(isHovered ? subjColor : Color.secondary.opacity(0.6))
                                 }
+                                .contentShape(Rectangle())
+                                .onHover { inside in hoveredSparklineIndex = inside ? idx : nil }
                                 .help("\(Int(mins.rounded()))m")
                             }
                         }

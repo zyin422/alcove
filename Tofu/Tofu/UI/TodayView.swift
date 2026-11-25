@@ -759,13 +759,13 @@ struct TodayView: View {
         shownMonth = DayCalendar.shiftMonth(year: month.year, month: month.month, by: delta)
     }
 
-    private var todayParkedThoughtItems: [(sessionID: UUID, subjectName: String, subjectColor: String, index: Int, text: String)] {
+    private var todayParkedThoughtItems: [(sessionID: UUID, subjectID: UUID, subjectName: String, subjectColor: String, index: Int, text: String)] {
         let sessions = model.data.sessions.filter { DayKey.key(for: $0.start) == shownDay && !$0.isDemo }
-        var items: [(sessionID: UUID, subjectName: String, subjectColor: String, index: Int, text: String)] = []
+        var items: [(sessionID: UUID, subjectID: UUID, subjectName: String, subjectColor: String, index: Int, text: String)] = []
         for session in sessions {
             let color = model.subject(id: session.subjectID)?.colorHex ?? "888888"
             for (idx, thought) in session.parkedThoughts.enumerated() {
-                items.append((session.id, session.subjectName, color, idx, thought))
+                items.append((session.id, session.subjectID, session.subjectName, color, idx, thought))
             }
         }
         return items
@@ -861,10 +861,11 @@ struct TodayView: View {
         )
     }
 
-    private func convertThoughtToPriority(item: (sessionID: UUID, subjectName: String, subjectColor: String, index: Int, text: String)) {
+    private func convertThoughtToPriority(item: (sessionID: UUID, subjectID: UUID, subjectName: String, subjectColor: String, index: Int, text: String)) {
         let priority = ThoughtParkingEngine.promoteThoughtToPriority(
             thought: item.text,
-            subjects: model.data.subjects
+            subjects: model.data.subjects,
+            fallbackSubjectID: item.subjectID
         )
         model.updatePlan(day: shownDay) { plan in
             plan.priorities.append(priority)
@@ -882,7 +883,8 @@ struct TodayView: View {
         for item in items {
             let priority = ThoughtParkingEngine.promoteThoughtToPriority(
                 thought: item.text,
-                subjects: model.data.subjects
+                subjects: model.data.subjects,
+                fallbackSubjectID: item.subjectID
             )
             model.updatePlan(day: shownDay) { plan in
                 plan.priorities.append(priority)

@@ -379,6 +379,11 @@ struct EndOfDayView: View {
                                 Text(item.title)
                                     .font(.caption2)
                                     .lineLimit(1)
+                                if let sched = item.scheduledTimeLabel {
+                                    Text(sched)
+                                        .font(.caption2.weight(.semibold).monospacedDigit())
+                                        .foregroundStyle(Theme.indigo)
+                                }
                                 if let est = item.estimatedMinutes {
                                     Text("\(est)m")
                                         .font(.caption2.monospacedDigit())
