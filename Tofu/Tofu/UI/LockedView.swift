@@ -57,6 +57,13 @@ enum LockedLayout {
         "goal \(TimeFormat.short(goalSeconds))"
     }
 
+    /// Wall-clock time when a countdown block finishes, e.g. "Unlocks 3:42 PM".
+    static func unlockTimeLabel(remaining: TimeInterval?, now: Date = Date()) -> String? {
+        guard let remaining, remaining > 0 else { return nil }
+        let target = now.addingTimeInterval(remaining)
+        return "Unlocks " + target.formatted(.dateTime.hour().minute())
+    }
+
     /// `size` centered in `visible`, shrunk to fit when the screen is smaller. Origin rounded down to whole points.
     static func centeredFrame(size: CGSize, in visible: CGRect) -> CGRect {
         let width = min(size.width, visible.width)
@@ -384,9 +391,16 @@ struct LockedView: View {
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 1.5))
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(LockedLayout.goalCaption(goalSeconds: goal))
-                        .font(Theme.captionFont)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(LockedLayout.goalCaption(goalSeconds: goal))
+                            .font(Theme.captionFont)
+                            .foregroundStyle(.secondary)
+                        if let unlockText = LockedLayout.unlockTimeLabel(remaining: engine.remaining, now: engine.now) {
+                            Text(unlockText)
+                                .font(.system(size: 10).monospacedDigit())
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
                     Spacer()
                     HStack(spacing: 4) {
                         Button("+5m") { engine.extendSession(minutes: 5) }

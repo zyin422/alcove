@@ -183,6 +183,15 @@ final class LockedUITests: XCTestCase {
         XCTAssertEqual(recent.map(\.id), [s3.id, s1.id])
     }
 
+    func testUnlockTimeLabelFormatsFutureTimestampCleanly() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        XCTAssertNil(LockedLayout.unlockTimeLabel(remaining: nil, now: base))
+        XCTAssertNil(LockedLayout.unlockTimeLabel(remaining: 0, now: base))
+        let label = LockedLayout.unlockTimeLabel(remaining: 3000, now: base)
+        XCTAssertNotNil(label)
+        XCTAssertTrue(label?.hasPrefix("Unlocks ") == true)
+    }
+
     private func session(_ outcome: SessionOutcome?) -> Session {
         Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
                 start: Date(timeIntervalSince1970: 0), outcome: outcome)

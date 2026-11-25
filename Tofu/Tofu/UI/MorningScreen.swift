@@ -320,7 +320,19 @@ struct MorningView: View {
     /// Read-only list of the first few of today's Google Calendar events.
     private func eventsBlock(_ events: [GoogleEvent]) -> some View {
         VStack(alignment: .leading, spacing: Theme.Space.xs) {
-            Text("Today's events").font(.headline)
+            HStack(spacing: Theme.Space.s) {
+                Text("Today's events").font(.headline)
+                if let alert = DayPlanner.nextCalendarAlert(in: events, at: Date()) {
+                    let urgent = !alert.isOngoing && alert.minutes <= 30
+                    let tint: Color = alert.isOngoing ? Theme.cyan : (urgent ? Theme.amber : Theme.indigo)
+                    Text(alert.isOngoing ? "Now · \(alert.minutes)m left" : "\(alert.title) in \(alert.minutes)m")
+                        .font(.caption2.weight(.semibold).monospacedDigit())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(tint.opacity(0.14)))
+                        .foregroundStyle(tint)
+                }
+            }
             ForEach(events.prefix(5)) { event in
                 HStack(spacing: Theme.Space.s) {
                     Text(GoogleEventFormat.timeLabel(event))
@@ -518,6 +530,30 @@ struct MorningView: View {
                 .frame(width: 420)
                 if option == .custom {
                     CustomMinutesField(minutes: $customMinutes)
+                }
+                if model.data.settings.googleShowEventsEnabled,
+                   let events = model.googleSync?.todayEvents,
+                   let alert = DayPlanner.nextCalendarAlert(in: events, at: Date()),
+                   !alert.isOngoing, alert.minutes > 8, alert.minutes <= 90 {
+                    let fitMins = LockInOption.clampedMinutes(alert.minutes - 5)
+                    let currentGoalMins = option.mode(customMinutes: customMinutes).goalMinutes
+                    let overlapsMeeting = currentGoalMins.map { $0 > alert.minutes } ?? true
+                    Button {
+                        option = .custom
+                        customMinutes = fitMins
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: overlapsMeeting ? "exclamationmark.triangle.fill" : "calendar.badge.clock")
+                                .font(.caption2)
+                            Text("Fit before “\(alert.title)” (\(fitMins)m)")
+                                .font(.caption.weight(.medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill((overlapsMeeting ? Theme.amber : Theme.indigo).opacity(0.14)))
+                        .foregroundStyle(overlapsMeeting ? Theme.amber : Theme.indigo)
+                    }
+                    .buttonStyle(.plain)
                 }
                 Button {
                     performLockIn()

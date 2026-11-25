@@ -6,6 +6,16 @@ struct SidebarView: View {
     @State private var isAddingSubject = false
     @State private var subjectToDelete = Subject?.none
     @State private var lockInSubject: Subject?
+    @State private var subjectFilter = ""
+
+    private var filteredSubjects: [Subject] {
+        let query = subjectFilter.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return model.data.subjects }
+        return model.data.subjects.filter {
+            $0.name.localizedCaseInsensitiveContains(query)
+                || $0.details.localizedCaseInsensitiveContains(query)
+        }
+    }
 
     private var selectionBinding: Binding<SidebarItem?> {
         Binding(
@@ -26,12 +36,36 @@ struct SidebarView: View {
                 }
             }
             Section {
+                if model.data.subjects.count >= 5 {
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        TextField("Filter subjects", text: $subjectFilter)
+                            .textFieldStyle(.plain)
+                            .font(.caption)
+                        if !subjectFilter.isEmpty {
+                            Button {
+                                subjectFilter = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
+                    .selectionDisabled()
+                }
                 if model.data.subjects.isEmpty {
                     Text("No subjects yet. Add one to lock in.")
                         .foregroundStyle(.secondary)
                         .selectionDisabled()
                 }
-                ForEach(model.data.subjects) { subject in
+                ForEach(filteredSubjects) { subject in
                     let counts = model.todayPriorityCounts(for: subject.id)
                     let isActiveLock = model.engine.isLocked && model.engine.subject?.id == subject.id
                     NavigationLink(value: SidebarItem.subject(subject.id)) {
@@ -94,12 +128,22 @@ struct SidebarView: View {
                     }
                 }
                 .onMove { source, destination in
+                    guard subjectFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                     withAnimation(.spring(duration: 0.22)) {
                         model.moveSubjects(from: source, to: destination)
                     }
                 }
             } header: {
-                Text("Subjects")
+                let weekTotal = model.data.subjects.reduce(0.0) { $0 + totalTime(of: $1.id) }
+                HStack {
+                    Text("Subjects")
+                    Spacer()
+                    if weekTotal > 0 {
+                        Text(TimeFormat.short(weekTotal))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
             } footer: {
                 Text(SubjectHoursWindow.week.caption)
             }
