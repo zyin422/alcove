@@ -153,6 +153,7 @@ struct MorningView: View {
     @State private var customMinutes = 45
     @State private var newTitle = ""
     @State private var newIsAnchor = false
+    @State private var showingAddPriority = false
 
     private var plan: DayPlan { model.todayPlan() }
     private var open: [Priority] { plan.priorities.filter { !$0.isDone } }
@@ -258,10 +259,19 @@ struct MorningView: View {
             } else {
                 Text("What are you starting with?").font(.title2)
                 cardsList
-                startControls
-                if open.isEmpty {
+                if open.isEmpty || showingAddPriority {
                     addPriorityRow
+                } else {
+                    Button {
+                        showingAddPriority = true
+                    } label: {
+                        Label("Add priority", systemImage: "plus.circle")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
+                startControls
             }
             Spacer()
             HStack(spacing: Theme.Space.l) {
@@ -725,6 +735,7 @@ struct MorningView: View {
         selection = .priority(priority.id)
         newTitle = ""
         newIsAnchor = false
+        showingAddPriority = false
     }
 
     private func start(_ priority: Priority) {

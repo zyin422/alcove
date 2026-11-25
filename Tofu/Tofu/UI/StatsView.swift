@@ -68,6 +68,10 @@ struct StatsView: View {
                                     )
                                 }
                                 TimeBlockList(blocks: StatsFormatting.timeBlocks(period),
+                                              subjectIDForName: { name in
+                                                  model.data.subjects.first(where: { $0.name == name })?.id
+                                              },
+                                              onSelectSubject: { id in model.selection = .subject(id) },
                                               onUpdateNotes: { model.updateSessionNotes(id: $0, notes: $1) },
                                               onDelete: { model.deleteSession(id: $0) })
                             }
@@ -624,6 +628,8 @@ private struct DayChronologicalTimeline: View {
 /// Finished work blocks in the period on screen, newest first.
 private struct TimeBlockList: View {
     let blocks: [TimeBlock]
+    var subjectIDForName: ((String) -> UUID?)? = nil
+    var onSelectSubject: ((UUID) -> Void)? = nil
     let onUpdateNotes: (UUID, String?) -> Void
     let onDelete: (UUID) -> Void
     @State private var selectedSubjectFilter: String?
@@ -652,9 +658,21 @@ private struct TimeBlockList: View {
                 Text("Time blocks").font(Theme.captionFont).foregroundStyle(.secondary)
                 Spacer()
                 if !visibleBlocks.isEmpty {
-                    Text("\(visibleBlocks.count) blocks · \(TimeFormat.short(visibleBlocks.reduce(0) { $0 + $1.seconds })) total")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: Theme.Space.s) {
+                        Text("\(visibleBlocks.count) blocks · \(TimeFormat.short(visibleBlocks.reduce(0) { $0 + $1.seconds })) total")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        if let filter = selectedSubjectFilter,
+                           let subID = subjectIDForName?(filter),
+                           let onSelectSubject {
+                            Button("Open \(filter) ›") {
+                                onSelectSubject(subID)
+                            }
+                            .buttonStyle(.borderless)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Theme.indigo)
+                        }
+                    }
                 }
             }
             if distinctSubjects.count > 1 {

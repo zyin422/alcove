@@ -539,15 +539,21 @@ struct LockedView: View {
         let tabs = engine.session?.closedTabs ?? 0
         return Group {
             if blocked > 0 || tabs > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "shield.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.rose)
-                    Text(LockedLayout.countersText(blocked: blocked, tabs: tabs))
-                        .font(.system(size: 13, weight: .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.rose)
+                Button {
+                    sessionTab = .closedTabs
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "shield.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.rose)
+                        Text(LockedLayout.countersText(blocked: blocked, tabs: tabs))
+                            .font(.system(size: 13, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(Theme.rose)
+                    }
                 }
+                .buttonStyle(.plain)
+                .help("Open Shield (⌘4) to inspect deflected apps and closed tabs")
             } else {
                 Text(LockedLayout.countersText(blocked: 0, tabs: 0))
                     .font(.system(size: 13, weight: .medium))
