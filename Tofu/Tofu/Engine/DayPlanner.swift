@@ -660,9 +660,98 @@ enum DayPlanner {
             chronologicalAgenda: all
         )
     }
+
+    /// Computes uninterrupted open deep-work windows (`>= minimumMinutes`) between calendar events
+    /// during the active day (`7:00 AM – 11:00 PM` by default), clipping past time when `isToday` is true.
+    static func availableFocusWindows(
+        calendarEvents: [GoogleEvent],
+        dayStartMinutes: Int = 7 * 60,
+        dayEndMinutes: Int = 23 * 60,
+        minimumMinutes: Int = 25,
+        now: Date = Date(),
+        isToday: Bool = true,
+        calendar: Calendar = .current
+    ) -> [OpenFocusWindow] {
+        guard dayEndMinutes > dayStartMinutes else { return [] }
+        var effectiveStart = dayStartMinutes
+        if isToday {
+            let parts = calendar.dateComponents([.hour, .minute], from: now)
+            let nowMins = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+            // Round current minute up to nearest 5-minute mark for crisp scheduling labels.
+            let roundedNow = ((nowMins + 4) / 5) * 5
+            effectiveStart = max(dayStartMinutes, roundedNow)
+        }
+        guard effectiveStart + minimumMinutes <= dayEndMinutes else { return [] }
+
+        var busy: [(start: Int, end: Int)] = []
+        for event in calendarEvents {
+            guard let s = event.start.parsed, let e = event.end.parsed, e > s else { continue }
+            let sParts = calendar.dateComponents([.hour, .minute], from: s)
+            let eParts = calendar.dateComponents([.hour, .minute], from: e)
+            let startMin = (sParts.hour ?? 0) * 60 + (sParts.minute ?? 0)
+            let endMin = max(startMin + 5, (eParts.hour ?? 0) * 60 + (eParts.minute ?? 0))
+            let clampedStart = max(effectiveStart, startMin)
+            let clampedEnd = min(dayEndMinutes, endMin)
+            if clampedEnd > clampedStart {
+                busy.append((clampedStart, clampedEnd))
+            }
+        }
+        busy.sort { $0.start < $1.start }
+
+        var merged: [(start: Int, end: Int)] = []
+        for interval in busy {
+            if var last = merged.last, interval.start <= last.end {
+                last.end = max(last.end, interval.end)
+                merged[merged.count - 1] = last
+            } else {
+                merged.append(interval)
+            }
+        }
+
+        var windows: [OpenFocusWindow] = []
+        var cursor = effectiveStart
+        for interval in merged {
+            if interval.start - cursor >= minimumMinutes {
+                windows.append(OpenFocusWindow(startMinutes: cursor, endMinutes: interval.start))
+            }
+            cursor = max(cursor, interval.end)
+        }
+        if dayEndMinutes - cursor >= minimumMinutes {
+            windows.append(OpenFocusWindow(startMinutes: cursor, endMinutes: dayEndMinutes))
+        }
+        return windows
+    }
 }
 
 // MARK: - Schedule Types
+
+struct OpenFocusWindow: Identifiable, Equatable {
+    let startMinutes: Int
+    let endMinutes: Int
+
+    var id: String { "\(startMinutes)-\(endMinutes)" }
+    var durationMinutes: Int { max(0, endMinutes - startMinutes) }
+
+    /// Standard focus length recommendation fitting inside this window (90m, 50m, 25m, or clamped gap).
+    var suggestedBlockMinutes: Int {
+        if durationMinutes >= 90 { return 90 }
+        if durationMinutes >= 50 { return 50 }
+        if durationMinutes >= 25 { return 25 }
+        return LockInOption.clampedMinutes(durationMinutes)
+    }
+
+    var timeRangeLabel: String {
+        "\(Self.formatMinutes(startMinutes)) – \(Self.formatMinutes(endMinutes))"
+    }
+
+    private static func formatMinutes(_ minutes: Int) -> String {
+        let h = (minutes / 60) % 24
+        let m = minutes % 60
+        let period = h >= 12 ? "PM" : "AM"
+        let displayH = h == 0 ? 12 : (h > 12 ? h - 12 : h)
+        return m == 0 ? "\(displayH) \(period)" : String(format: "%d:%02d %@", displayH, m, period)
+    }
+}
 
 enum ScheduleBlockKind: Equatable {
     case calendarEvent(summary: String)

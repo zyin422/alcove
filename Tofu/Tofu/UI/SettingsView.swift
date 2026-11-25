@@ -30,6 +30,7 @@ struct SettingsView: View {
             googleSection
             accountabilitySection
             antiAvoidanceSection
+            shieldRulesSection
             breakSection
             companionSection
             endOfDaySection
@@ -327,6 +328,45 @@ struct SettingsView: View {
             Text("Anti-Avoidance & Startup")
         } footer: {
             Text("Starts Tofu on login and keeps it active between 04:00 and 23:00 so you cannot derail your day by avoiding the app.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var shieldRulesSection: some View {
+        Section {
+            DisclosureGroup("Blocked Website Categories (\(DistractionList.Category.allCases.count))") {
+                ForEach(DistractionList.Category.allCases, id: \.rawValue) { category in
+                    let hosts = DistractionList.domains[category] ?? []
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(category.rawValue.capitalized)
+                            .font(.caption.weight(.semibold))
+                        Text(hosts.prefix(6).joined(separator: ", ") + (hosts.count > 6 ? " +\(hosts.count - 6) more" : ""))
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            DisclosureGroup("Prohibited Distraction Apps (\(DistractionApps.Category.allCases.count))") {
+                ForEach(DistractionApps.Category.allCases, id: \.rawValue) { category in
+                    let count = DistractionApps.apps[category]?.count ?? 0
+                    LabeledContent(category.rawValue.capitalized) {
+                        Text("\(count) blocked signatures")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            LabeledContent("Educational Exceptions") {
+                Text(DistractionList.exceptions.joined(separator: ", "))
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Distraction Shield Policy")
+        } footer: {
+            Text("Academic search queries stay open while off-task searches and video previews close automatically. General search engines are never permanently whitelisted. False-positive study sites can be trusted inline in Locked → Shield (⌘4).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

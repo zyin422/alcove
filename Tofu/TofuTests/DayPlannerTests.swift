@@ -811,4 +811,45 @@ final class DayPlanModelTests: XCTestCase {
         XCTAssertEqual(roundtrip.title, "Starred task")
         XCTAssertTrue(roundtrip.isAnchor)
     }
+
+    func testAvailableFocusWindowsComputesGapsBetweenCalendarEvents() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        let now = Date(timeIntervalSince1970: 1_760_000_000) // pick deterministic components
+        let comps = calendar.dateComponents([.year, .month, .day], from: now)
+        let d0 = calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: comps.day, hour: 9, minute: 0))!
+        let m1Start = calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: comps.day, hour: 10, minute: 0))!
+        let m1End = calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: comps.day, hour: 11, minute: 0))!
+        let m2Start = calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: comps.day, hour: 11, minute: 15))!
+        let m2End = calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: comps.day, hour: 12, minute: 0))!
+
+        let iso = ISO8601DateFormatter()
+        let events = [
+            GoogleEvent(id: "1", summary: "Standup",
+                        start: GoogleEventTime(dateTime: iso.string(from: m1Start), date: nil),
+                        end: GoogleEventTime(dateTime: iso.string(from: m1End), date: nil)),
+            GoogleEvent(id: "2", summary: "Review",
+                        start: GoogleEventTime(dateTime: iso.string(from: m2Start), date: nil),
+                        end: GoogleEventTime(dateTime: iso.string(from: m2End), date: nil))
+        ]
+
+        let windows = DayPlanner.availableFocusWindows(
+            calendarEvents: events,
+            dayStartMinutes: 7 * 60,
+            dayEndMinutes: 15 * 60,
+            minimumMinutes: 25,
+            now: d0,
+            isToday: true,
+            calendar: calendar
+        )
+
+        // 9:00-10:00 (60m) and 12:00-15:00 (180m); the 15m gap between 11:00 and 11:15 is filtered (<25m).
+        XCTAssertEqual(windows.count, 2)
+        XCTAssertEqual(windows[0].startMinutes, 9 * 60)
+        XCTAssertEqual(windows[0].endMinutes, 10 * 60)
+        XCTAssertEqual(windows[0].suggestedBlockMinutes, 50)
+        XCTAssertEqual(windows[1].startMinutes, 12 * 60)
+        XCTAssertEqual(windows[1].endMinutes, 15 * 60)
+        XCTAssertEqual(windows[1].suggestedBlockMinutes, 90)
+    }
 }

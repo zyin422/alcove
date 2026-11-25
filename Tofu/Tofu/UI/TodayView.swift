@@ -1,5 +1,12 @@
 import SwiftUI
 
+private struct LockInTarget: Identifiable {
+    let id = UUID()
+    let subject: Subject
+    var priority: Priority? = nil
+    var suggestedMinutes: Int? = nil
+}
+
 /// One day's priorities. The date is the title. Arrows step a day at a time and the calendar jumps to a past day.
 /// The current day stays closed until the previous open day is wrapped up.
 struct TodayView: View {
@@ -8,7 +15,7 @@ struct TodayView: View {
     @State private var newSubjectID: UUID?
     @State private var userSelectedSubject = false
     @State private var lastAutoMatchedSubjectID: UUID?
-    @State private var lockInSubject: Subject?
+    @State private var lockInTarget: LockInTarget?
     /// Nil shows the current day. Set when the user steps or jumps to a day.
     @State private var selectedDay: String?
     /// Nil follows the shown day's month. Set when the user pages the calendar or chooses a day.
@@ -72,9 +79,25 @@ struct TodayView: View {
                     ? (model.googleSync?.todayEvents ?? []) : []
 
                 if !events.isEmpty || !todaySessions.isEmpty || !plan.priorities.isEmpty {
-                    TodayScheduleView(events: events, sessions: todaySessions, priorities: plan.priorities, day: shownDay, model: model, onLockIn: { subject in
-                        lockInSubject = subject
-                    })
+                    TodayScheduleView(
+                        events: events,
+                        sessions: todaySessions,
+                        priorities: plan.priorities,
+                        day: shownDay,
+                        model: model,
+                        onLockIn: { subject, priority in
+                            lockInTarget = LockInTarget(subject: subject, priority: priority)
+                        },
+                        onLockInWindow: { window in
+                            if let subject = topFocusSubject {
+                                lockInTarget = LockInTarget(
+                                    subject: subject,
+                                    priority: topOpenPriority(for: subject.id),
+                                    suggestedMinutes: window.suggestedBlockMinutes
+                                )
+                            }
+                        }
+                    )
                 }
 
                 if plan.priorities.isEmpty {
@@ -107,9 +130,24 @@ struct TodayView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .navigationTitle("Plan")
-        .sheet(item: $lockInSubject) { subject in
-            LockInSheet(model: model, subject: subject)
+        .sheet(item: $lockInTarget) { target in
+            LockInSheet(
+                model: model,
+                subject: target.subject,
+                initialPriority: target.priority,
+                suggestedMinutes: target.suggestedMinutes
+            )
         }
+    }
+
+    private var topFocusSubject: Subject? {
+        let prioritized = plan.priorities.first { !$0.isDone && $0.isAnchor }?.subjectID
+            ?? plan.priorities.first { !$0.isDone }?.subjectID
+        return prioritized.flatMap(model.subject(id:)) ?? model.data.subjects.first
+    }
+
+    private func topOpenPriority(for subjectID: UUID) -> Priority? {
+        plan.activePriority(for: subjectID)
     }
 
     @ViewBuilder private var forceBlockCountdownBanner: some View {
@@ -413,6 +451,20 @@ struct TodayView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
             } else if canEdit {
+                if let topSubject = topFocusSubject, shownDay == todayKey {
+                    let topPriority = topOpenPriority(for: topSubject.id)
+                    Button {
+                        lockInTarget = LockInTarget(subject: topSubject, priority: topPriority)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "lock.fill")
+                            Text("Lock in (⌘L)")
+                        }
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .keyboardShortcut("l", modifiers: .command)
+                    .help("Lock into \(topPriority?.title ?? topSubject.name)")
+                }
                 if model.canPlanToday {
                     Button("15m Planning") { Task { await model.startPlanningMode() } }
                         .buttonStyle(SecondaryButtonStyle())
@@ -683,9 +735,13 @@ struct TodayView: View {
             Spacer()
             if canEdit {
                 if !priority.isDone {
-                    let subject = priority.subjectID.flatMap(model.subject(id:)) ?? model.data.subjects.first
+                    let subject = priority.subjectID.flatMap(model.subject(id:))
+                        ?? DayPlanner.matchSubject(priority.title, subjects: model.data.subjects).flatMap(model.subject(id:))
+                        ?? model.data.subjects.first
                     if let subject {
-                        Button("Lock in") { lockInSubject = subject }
+                        Button("Lock in") {
+                            lockInTarget = LockInTarget(subject: subject, priority: priority)
+                        }
                             .font(.caption.weight(.semibold))
                             .padding(.horizontal, Theme.Space.m)
                             .padding(.vertical, 4)
@@ -1066,10 +1122,18 @@ private struct TodayScheduleView: View {
     let priorities: [Priority]
     let day: String
     let model: AppModel
-    var onLockIn: ((Subject) -> Void)? = nil
+    var onLockIn: ((Subject, Priority?) -> Void)? = nil
+    var onLockInWindow: ((OpenFocusWindow) -> Void)? = nil
 
     @State private var hoveredBlockID: String?
     @State private var showingAllAgenda = false
+
+    private var openWindows: [OpenFocusWindow] {
+        DayPlanner.availableFocusWindows(
+            calendarEvents: events,
+            isToday: day == DayKey.key(for: Date())
+        )
+    }
 
     private var layout: DayScheduleLayout {
         DayPlanner.computeScheduleLayout(
@@ -1178,6 +1242,10 @@ private struct TodayScheduleView: View {
             // Dynamic Hour Markers
             hourRuler
 
+            if !openWindows.isEmpty && day == DayKey.key(for: Date()) {
+                openWindowsStrip
+            }
+
             // Unified Chronological Agenda
             if !layout.chronologicalAgenda.isEmpty {
                 agendaList
@@ -1270,6 +1338,49 @@ private struct TodayScheduleView: View {
         }
     }
 
+    private var openWindowsStrip: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Theme.indigo)
+                Text("CLEAR FOCUS WINDOWS")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundStyle(Theme.indigo)
+                    .tracking(0.6)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.Space.s) {
+                    ForEach(openWindows.prefix(3)) { window in
+                        Button {
+                            onLockInWindow?(window)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(window.timeRangeLabel)
+                                    .font(.caption.weight(.medium).monospacedDigit())
+                                Text("· \(window.durationMinutes)m clear")
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                Text("Lock \(window.suggestedBlockMinutes)m")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1.5)
+                                    .background(Capsule().fill(Theme.indigo.opacity(0.14)))
+                                    .foregroundStyle(Theme.indigo)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.04)))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.indigo.opacity(0.22), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Start a \(window.suggestedBlockMinutes)m focus block inside this \(window.durationMinutes)m gap")
+                    }
+                }
+            }
+        }
+    }
+
     private func formatHour(_ h: Int) -> String {
         let normalized = (h % 24)
         let period = normalized >= 12 ? "PM" : "AM"
@@ -1352,13 +1463,14 @@ private struct TodayScheduleView: View {
                     Spacer()
 
                     // Quick lock in for planned priority
-                    if case .plannedPriority(_, let title, let subjectID, let isDone) = block.kind, !isDone {
+                    if case .plannedPriority(let priorityID, let title, let subjectID, let isDone) = block.kind, !isDone {
                         let targetSubject = subjectID.flatMap(model.subject(id:))
                             ?? DayPlanner.matchSubject(title, subjects: model.data.subjects).flatMap(model.subject(id:))
                             ?? model.data.subjects.first
+                        let matchedPriority = priorities.first(where: { $0.id == priorityID })
                         if let targetSubject {
                             Button("Lock in") {
-                                onLockIn?(targetSubject)
+                                onLockIn?(targetSubject, matchedPriority)
                             }
                             .buttonStyle(SecondaryButtonStyle())
                             .controlSize(.small)

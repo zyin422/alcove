@@ -629,7 +629,7 @@ enum TokenSource: Equatable {
     }
 
     /// Selects a specific unfinished priority as the active focus anchor for `subjectID` without interrupting the block.
-    func selectActivePriority(_ id: UUID, for subjectID: UUID, day: String) {
+    func selectActivePriority(_ id: UUID, for subjectID: UUID, day: String, notify: Bool = true) {
         var selectedTitle: String?
         updatePlan(day: day) { plan in
             guard let index = plan.priorities.firstIndex(where: { $0.id == id && !$0.isDone }) else { return }
@@ -640,7 +640,7 @@ enum TokenSource: Equatable {
             plan.priorities[index].isAnchor = true
             selectedTitle = plan.priorities[index].title
         }
-        if let selectedTitle {
+        if notify, let selectedTitle {
             ToastCenter.shared.show("Active focus switched to “\(selectedTitle)”.")
         }
     }

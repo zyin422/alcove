@@ -52,9 +52,12 @@ enum LockInOption: Hashable, CaseIterable, Identifiable {
 struct LockInSheet: View {
     let model: AppModel
     let subject: Subject
+    var initialPriority: Priority? = nil
+    var suggestedMinutes: Int? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var option: LockInOption = .openEnded
     @State private var customMinutes = 45
+    @State private var selectedPriorityID: UUID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
@@ -114,14 +117,29 @@ struct LockInSheet: View {
         .padding(Theme.Space.xl)
         .frame(width: 480)
         .onAppear {
-            if let est = activePriority?.estimatedMinutes {
+            if let initial = initialPriority, !initial.isDone {
+                selectedPriorityID = initial.id
+            } else {
+                selectedPriorityID = model.todayPlan().activePriority(for: subject.id)?.id
+            }
+            if let suggestedMinutes, suggestedMinutes > 0 {
+                applyEstimated(suggestedMinutes)
+            } else if let est = activePriority?.estimatedMinutes {
                 applyEstimated(est)
             }
         }
     }
 
+    private var subjectPriorities: [Priority] {
+        model.todayPlan().priorities.filter { $0.subjectID == subject.id && !$0.isDone }
+    }
+
     private var activePriority: Priority? {
-        model.todayPlan().activePriority(for: subject.id)
+        if let selectedPriorityID,
+           let matched = subjectPriorities.first(where: { $0.id == selectedPriorityID }) {
+            return matched
+        }
+        return initialPriority.flatMap { $0.isDone ? nil : $0 } ?? model.todayPlan().activePriority(for: subject.id)
     }
 
     private func targetPriorityBanner(_ priority: Priority) -> some View {
@@ -139,6 +157,32 @@ struct LockInSheet: View {
                         Text("· \(est)m planned")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
+                    }
+                    if subjectPriorities.count > 1 {
+                        Menu {
+                            ForEach(subjectPriorities) { item in
+                                Button {
+                                    selectedPriorityID = item.id
+                                    if let est = item.estimatedMinutes {
+                                        applyEstimated(est)
+                                    }
+                                } label: {
+                                    if item.id == priority.id {
+                                        Label(item.title, systemImage: "checkmark")
+                                    } else {
+                                        Text(item.title)
+                                    }
+                                }
+                            }
+                        } label: {
+                            Text("Switch (\(subjectPriorities.count))")
+                                .font(.system(size: 9.5, weight: .semibold))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Color.primary.opacity(0.08)))
+                        }
+                        .menuStyle(.borderlessButton)
+                        .help("Pick which priority for \(subject.name) this session targets")
                     }
                 }
                 Text(priority.title)
@@ -184,6 +228,9 @@ struct LockInSheet: View {
 
     /// Closes the sheet first so the window is free to move, then starts the session.
     private func lockIn() {
+        if let priority = activePriority {
+            model.selectActivePriority(priority.id, for: subject.id, day: model.todayPlan().day, notify: false)
+        }
         let mode = option.mode(customMinutes: customMinutes)
         let subjectID = subject.id
         let subjectName = subject.name
