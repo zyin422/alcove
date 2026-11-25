@@ -687,4 +687,19 @@ final class ChatAssistantTests: XCTestCase {
         rig.assistant.endSession()
         XCTAssertEqual(rig.assistant.subject, "")
     }
+
+    func testClearConversationKeepingSessionPreservesSubjectAndPendingSite() async {
+        let rig = makeRig([(200, chatTextBody("Try factoring."))])
+        rig.assistant.beginSession(subject: "MATH241")
+        rig.assistant.askAboutSite(question("overleaf.com", title: "HW"), subject: "MATH241")
+        await rig.assistant.send("How do I start?")
+        XCTAssertGreaterThan(rig.assistant.messages.count, 2)
+
+        rig.assistant.clearConversationKeepingSession()
+
+        XCTAssertEqual(rig.assistant.subject, "MATH241")
+        XCTAssertEqual(rig.assistant.pending.map(\.host), ["overleaf.com"])
+        XCTAssertEqual(rig.assistant.messages.count, 1)
+        XCTAssertTrue(rig.assistant.messages[0].text.contains("MATH241"))
+    }
 }

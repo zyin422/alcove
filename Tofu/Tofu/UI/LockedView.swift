@@ -1254,6 +1254,25 @@ private struct ParkedThoughtsView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(newThoughtText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                Button("+ Today") {
+                    let trimmed = newThoughtText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    let todayKey = DayKey.key(for: Date())
+                    let created = ThoughtParkingEngine.promoteThoughtToPriority(
+                        thought: trimmed,
+                        subjects: model.data.subjects,
+                        fallbackSubjectID: engine.subject?.id
+                    )
+                    model.updatePlan(day: todayKey) { $0.priorities.append(created) }
+                    newThoughtText = ""
+                    isFieldFocused = true
+                    ToastCenter.shared.show("Added to Today: \(created.title)")
+                }
+                .buttonStyle(.bordered)
+                .tint(Theme.emerald)
+                .disabled(newThoughtText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help("Add directly to Today's Plan (#subject and 30m supported)")
             }
             .padding(Theme.Space.m)
         }

@@ -96,6 +96,15 @@ import Observation
         onNeedsAttention?()
     }
 
+    /// Clears the visible message thread and model context while preserving active session & pending site checks.
+    func clearConversationKeepingSession() {
+        guard !isThinking else { return }
+        messages.removeAll()
+        history.removeAll()
+        let label = subject.isEmpty ? "your focus block" : subject
+        appendAssistant("Started a fresh thread for \(label). What's next?", remember: true)
+    }
+
     // MARK: - Sites
 
     func askAboutSite(_ question: SiteQuestion, subject: String) {

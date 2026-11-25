@@ -39,6 +39,7 @@ struct StatsView: View {
                                 }
                             )
                             if span == .day {
+                                dayGoalTargetStrip(totalSeconds: summary.total)
                                 if !period.isEmpty {
                                     DayChronologicalTimeline(
                                         sessions: period,
@@ -301,6 +302,45 @@ struct StatsView: View {
                 .opacity(future ? 0.35 : 1)
             }
         }
+    }
+
+    private func dayGoalTargetStrip(totalSeconds: TimeInterval) -> some View {
+        let targetMinutes = max(1, model.data.settings.dailyTargetMinutes)
+        let targetSeconds = TimeInterval(targetMinutes * 60)
+        let fraction = min(1.0, totalSeconds / targetSeconds)
+        let pct = Int(((totalSeconds / targetSeconds) * 100.0).rounded())
+        let isMet = totalSeconds >= targetSeconds
+        let accent: Color = isMet ? Theme.emerald : Theme.indigo
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                HStack(spacing: 5) {
+                    Image(systemName: isMet ? "checkmark.seal.fill" : "target")
+                        .font(.caption)
+                        .foregroundStyle(accent)
+                    Text("Daily Focus Target")
+                        .font(.caption.weight(.semibold))
+                }
+                Spacer()
+                Text(isMet
+                     ? "\(TimeFormat.short(totalSeconds)) · Goal met (\(pct)%)"
+                     : "\(TimeFormat.short(totalSeconds)) / \(targetMinutes / 60)h (\(pct)%)")
+                    .font(.caption.weight(.medium).monospacedDigit())
+                    .foregroundStyle(accent)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.08))
+                    Capsule()
+                        .fill(accent)
+                        .frame(width: max(0, geo.size.width * fraction))
+                }
+            }
+            .frame(height: 5)
+        }
+        .padding(Theme.Space.s)
+        .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Color.primary.opacity(0.025)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(accent.opacity(0.22), lineWidth: 1))
     }
 
     /// One card per subject: hours, share, and the session counts for that day.

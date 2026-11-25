@@ -84,6 +84,17 @@ struct ChatView: View {
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
+                if assistant.messages.count > 2 && !assistant.isThinking {
+                    Button {
+                        assistant.clearConversationKeepingSession()
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Start fresh conversation thread")
+                }
             }
             if let pending = assistant.pending.first {
                 HStack(spacing: Theme.Space.s) {
