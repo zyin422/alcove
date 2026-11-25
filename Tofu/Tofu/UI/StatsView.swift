@@ -1211,6 +1211,64 @@ private struct FocusTelemetrySection: View {
                         )
                 )
             }
+
+            let weekdayStats = stats.weekdayDistribution(sessions)
+            let maxWeekdayMins = max(1.0, weekdayStats.map(\.totalMinutes).max() ?? 1.0)
+            let bestWeekday = weekdayStats.max { $0.totalMinutes < $1.totalMinutes }
+            if weekdayStats.contains(where: { $0.totalMinutes > 0 }) {
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    HStack {
+                        Image(systemName: "calendar.badge.clock")
+                            .foregroundStyle(Theme.indigo)
+                        Text("Weekday Focus Rhythm (Mon – Sun)")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if let best = bestWeekday, best.totalMinutes > 0 {
+                            Text("Peak: \(best.label) (\(TimeFormat.short(best.totalMinutes * 60)))")
+                                .font(.caption2.weight(.bold).monospacedDigit())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Theme.indigo.opacity(0.12)))
+                                .foregroundStyle(Theme.indigo)
+                        }
+                    }
+                    HStack(spacing: Theme.Space.s) {
+                        ForEach(weekdayStats) { stat in
+                            let frac = max(0.08, stat.totalMinutes / maxWeekdayMins)
+                            let isBest = bestWeekday?.weekday == stat.weekday && stat.totalMinutes > 0
+                            VStack(spacing: 4) {
+                                ZStack(alignment: .bottom) {
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(Color.primary.opacity(0.05))
+                                        .frame(height: 36)
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(isBest ? Theme.indigo : (stat.totalMinutes > 0 ? Theme.indigo.opacity(0.45) : Color.clear))
+                                        .frame(height: stat.totalMinutes > 0 ? max(4, 36 * CGFloat(frac)) : 0)
+                                }
+                                Text(stat.label)
+                                    .font(.system(size: 10, weight: isBest ? .bold : .regular))
+                                    .foregroundStyle(isBest ? Theme.indigo : .secondary)
+                                Text(stat.totalMinutes > 0 ? TimeFormat.short(stat.totalMinutes * 60) : "—")
+                                    .font(.system(size: 9.5).monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .help("\(stat.label): \(TimeFormat.short(stat.totalMinutes * 60)) across \(stat.sessionCount) blocks")
+                        }
+                    }
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                        )
+                )
+            }
         }
     }
 }

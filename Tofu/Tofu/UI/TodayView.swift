@@ -1188,6 +1188,8 @@ struct TodayView: View {
                     .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
             }
 
+            durationChipsAndPreviewStrip
+
             if !model.data.subjects.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
@@ -1251,45 +1253,49 @@ struct TodayView: View {
                     .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
             }
 
-            HStack(spacing: 5) {
-                Text("Duration:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
-                    Button("\(mins)m") {
-                        appendOrSetDuration(mins)
-                    }
-                    .font(.system(size: 10.5, weight: .medium))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.primary.opacity(0.06)))
-                    .foregroundStyle(Color.primary)
-                    .buttonStyle(.plain)
-                    .help("Set duration to \(mins) minutes")
-                }
+            durationChipsAndPreviewStrip
+        }
+    }
 
-                let parsedDraft = DayPlanner.parsePriorityDetails(from: newTitle)
-                if parsedDraft.scheduledMinutes != nil || parsedDraft.estimatedMinutes != nil {
-                    Spacer(minLength: 4)
-                    HStack(spacing: 4) {
-                        if let sched = parsedDraft.scheduledMinutes {
-                            let h = (sched / 60) % 24
-                            let m = sched % 60
-                            let p = h >= 12 ? "PM" : "AM"
-                            let dh = h == 0 ? 12 : (h > 12 ? h - 12 : h)
-                            Text(String(format: "%d:%02d %@", dh, m, p))
-                                .foregroundStyle(Theme.indigo)
-                        }
-                        if let est = parsedDraft.estimatedMinutes {
-                            Text("· \(est)m")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .font(.caption2.weight(.semibold).monospacedDigit())
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Theme.indigo.opacity(0.10)))
+    private var durationChipsAndPreviewStrip: some View {
+        HStack(spacing: 5) {
+            Text("Duration:")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
+                Button("\(mins)m") {
+                    appendOrSetDuration(mins)
                 }
+                .font(.system(size: 10.5, weight: .medium))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                .foregroundStyle(Color.primary)
+                .buttonStyle(.plain)
+                .help("Set duration to \(mins) minutes")
+            }
+
+            let parsedDraft = DayPlanner.parsePriorityDetails(from: newTitle)
+            if parsedDraft.scheduledMinutes != nil || parsedDraft.estimatedMinutes != nil {
+                Spacer(minLength: 4)
+                HStack(spacing: 4) {
+                    if let sched = parsedDraft.scheduledMinutes {
+                        let h = (sched / 60) % 24
+                        let m = sched % 60
+                        let p = h >= 12 ? "PM" : "AM"
+                        let dh = h == 0 ? 12 : (h > 12 ? h - 12 : h)
+                        Text(String(format: "%d:%02d %@", dh, m, p))
+                            .foregroundStyle(Theme.indigo)
+                    }
+                    if let est = parsedDraft.estimatedMinutes {
+                        Text("· \(est)m")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption2.weight(.semibold).monospacedDigit())
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Theme.indigo.opacity(0.10)))
             }
         }
     }

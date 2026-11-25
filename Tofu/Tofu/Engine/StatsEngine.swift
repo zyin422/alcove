@@ -731,7 +731,37 @@ struct BestFocusDay: Equatable {
     let sessionCount: Int
 }
 
+/// Aggregated focus totals for one weekday (Monday through Sunday).
+struct WeekdayFocusStat: Identifiable, Equatable {
+    let weekday: Int // 2 = Monday ... 7 = Saturday, 1 = Sunday (Calendar weekday numbers)
+    let label: String
+    let totalMinutes: Double
+    let sessionCount: Int
+    var id: Int { weekday }
+}
+
 extension StatsEngine {
+    /// Returns Monday–Sunday focus volume distribution for `sessions` (ended, non-demo).
+    func weekdayDistribution(_ sessions: [Session]) -> [WeekdayFocusStat] {
+        let mondayFirst = [2, 3, 4, 5, 6, 7, 1]
+        let symbols = calendar.shortWeekdaySymbols
+        var minsByWeekday: [Int: Double] = [:]
+        var countByWeekday: [Int: Int] = [:]
+        for session in Self.ended(sessions) {
+            let wd = calendar.component(.weekday, from: session.start)
+            minsByWeekday[wd, default: 0] += session.duration / 60.0
+            countByWeekday[wd, default: 0] += 1
+        }
+        return mondayFirst.map { wd in
+            let label = (wd >= 1 && wd <= symbols.count) ? symbols[wd - 1] : "\(wd)"
+            return WeekdayFocusStat(
+                weekday: wd,
+                label: label,
+                totalMinutes: minsByWeekday[wd] ?? 0,
+                sessionCount: countByWeekday[wd] ?? 0
+            )
+        }
+    }
     /// Returns the single highest-volume completed focus day across `sessions`, breaking ties toward recent dates.
     func bestFocusDay(in sessions: [Session]) -> BestFocusDay? {
         var byDay: [Date: (seconds: TimeInterval, count: Int)] = [:]

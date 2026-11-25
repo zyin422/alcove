@@ -571,4 +571,19 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertEqual(best?.sessionCount, 1)
         XCTAssertEqual(best?.date, date(2026, 10, 9, 0))
     }
+
+    func testWeekdayDistributionOrdersMondayToSundayAndAggregatesDurations() {
+        // 2026-10-10 is Saturday (weekday 7); 2026-10-05 is Monday (weekday 2).
+        let mon = session("CS128", date(2026, 10, 5, 9), minutes: 60)
+        let sat1 = session("CS128", date(2026, 10, 10, 9), minutes: 30)
+        let sat2 = session("MATH241", date(2026, 10, 10, 15), minutes: 45)
+
+        let dist = engine.weekdayDistribution([mon, sat1, sat2])
+        XCTAssertEqual(dist.count, 7)
+        XCTAssertEqual(dist.first?.weekday, 2)
+        XCTAssertEqual(dist.last?.weekday, 1)
+        XCTAssertEqual(dist[0].totalMinutes, 60, accuracy: 0.01)
+        XCTAssertEqual(dist[5].totalMinutes, 75, accuracy: 0.01)
+        XCTAssertEqual(dist[5].sessionCount, 2)
+    }
 }

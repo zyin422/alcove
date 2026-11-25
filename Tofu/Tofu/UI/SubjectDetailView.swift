@@ -138,6 +138,29 @@ struct SubjectDetailView: View {
                     .buttonStyle(PrimaryButtonStyle())
                     .keyboardShortcut(.return, modifiers: .command)
 
+                    Menu {
+                        ForEach([25, 50, 90], id: \.self) { mins in
+                            Button("\(mins) min") {
+                                Task { await model.lockIn(subjectID: subject.id, mode: .goal(minutes: mins)) }
+                            }
+                        }
+                        Divider()
+                        Button("Open-ended") {
+                            Task { await model.lockIn(subjectID: subject.id, mode: .open) }
+                        }
+                    } label: {
+                        Label("Quick", systemImage: "bolt.fill")
+                            .font(.callout.weight(.semibold))
+                            .frame(minHeight: 56)
+                            .padding(.horizontal, Theme.Space.m)
+                            .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Color.primary.opacity(0.06)))
+                            .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.14), lineWidth: 1))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .disabled(model.engine.isLocked)
+                    .help("Immediately start a 25m, 50m, 90m, or open-ended Lock-In block")
+
                     Button {
                         let draft = form.errors.isEmpty
                             ? form.subject(id: subject.id, createdAt: subject.createdAt)
