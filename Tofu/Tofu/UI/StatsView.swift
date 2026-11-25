@@ -705,7 +705,19 @@ private struct TimeBlockList: View {
                                 .frame(width: 8, height: 8)
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(block.subjectName).lineLimit(1).font(.body.weight(.medium))
+                                if let subID = subjectIDForName?(block.subjectName), let onSelectSubject {
+                                    Button {
+                                        onSelectSubject(subID)
+                                    } label: {
+                                        Text(block.subjectName)
+                                            .lineLimit(1)
+                                            .font(.body.weight(.medium))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Open \(block.subjectName) setup")
+                                } else {
+                                    Text(block.subjectName).lineLimit(1).font(.body.weight(.medium))
+                                }
                                 Text(block.start.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)

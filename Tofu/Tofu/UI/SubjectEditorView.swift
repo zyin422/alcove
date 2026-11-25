@@ -441,6 +441,19 @@ struct SubjectForm: View {
                     TextField(index == 0 ? "e.g. cs128.org" : "Extra tab, e.g. prairielearn.org",
                               text: urlBinding(slot.id, index))
                         .textFieldStyle(.roundedBorder)
+                    let rawURL = (slot.urls.indices.contains(index) ? slot.urls[index] : "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !rawURL.isEmpty,
+                       let openURL = URL(string: rawURL.contains("://") ? rawURL : "https://\(rawURL)") {
+                        Button {
+                            NSWorkspace.shared.open(openURL)
+                        } label: {
+                            Image(systemName: "arrow.up.right.square")
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                        .help("Open \(openURL.absoluteString)")
+                    }
                     if index > 0 {
                         Button {
                             form.update(slot.id) {

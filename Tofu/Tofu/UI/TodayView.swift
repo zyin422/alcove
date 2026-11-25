@@ -1961,7 +1961,27 @@ private struct TodayScheduleView: View {
                             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.indigo.opacity(0.22), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
-                        .help("Start a \(window.suggestedBlockMinutes)m focus block inside this \(window.durationMinutes)m gap")
+                        .help("Start a \(window.suggestedBlockMinutes)m focus block inside this \(window.durationMinutes)m gap (right-click to schedule a priority)")
+                        .contextMenu {
+                            Button("Lock in \(window.suggestedBlockMinutes)m now") {
+                                onLockInWindow?(window)
+                            }
+                            let openTasks = priorities.filter { !$0.isDone }
+                            if !openTasks.isEmpty {
+                                Menu("Schedule task at \(OpenFocusWindow.formatMinutes(window.startMinutes))") {
+                                    ForEach(openTasks.prefix(8)) { item in
+                                        Button(item.title) {
+                                            model.updatePriorityDetails(
+                                                item.id,
+                                                day: day,
+                                                scheduledMinutesFromMidnight: .some(window.startMinutes)
+                                            )
+                                            ToastCenter.shared.show("Scheduled “\(item.title)” for \(OpenFocusWindow.formatMinutes(window.startMinutes))")
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
