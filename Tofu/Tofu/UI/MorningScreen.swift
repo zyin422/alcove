@@ -319,9 +319,15 @@ struct MorningView: View {
 
     /// Read-only list of the first few of today's Google Calendar events.
     private func eventsBlock(_ events: [GoogleEvent]) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+        let openMins = DayPlanner.availableFocusWindows(calendarEvents: events, isToday: true).reduce(0) { $0 + $1.durationMinutes }
+        return VStack(alignment: .leading, spacing: Theme.Space.xs) {
             HStack(spacing: Theme.Space.s) {
                 Text("Today's events").font(.headline)
+                if openMins > 0 {
+                    Text("· \(TimeFormat.short(TimeInterval(openMins * 60))) open")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
                 if let alert = DayPlanner.nextCalendarAlert(in: events, at: Date()) {
                     let urgent = !alert.isOngoing && alert.minutes <= 30
                     let tint: Color = alert.isOngoing ? Theme.cyan : (urgent ? Theme.amber : Theme.indigo)
@@ -400,6 +406,21 @@ struct MorningView: View {
                             }
                         } else {
                             Text("No setup yet").font(.callout).foregroundStyle(.secondary)
+                        }
+                        if let scheduled = priority.scheduledTimeLabel {
+                            let conflict = DayPlanner.scheduleConflictTitle(for: priority, in: model.googleSync?.todayEvents ?? [])
+                            let badgeTint = conflict != nil ? Theme.amber : Theme.indigo
+                            HStack(spacing: 3) {
+                                Image(systemName: conflict != nil ? "exclamationmark.triangle.fill" : "clock")
+                                    .font(.system(size: 8))
+                                Text(conflict != nil ? "\(scheduled) · Overlaps \(conflict!)" : scheduled)
+                                    .font(.caption.monospacedDigit())
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(badgeTint)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(RoundedRectangle(cornerRadius: 4).fill(badgeTint.opacity(0.12)))
                         }
                         if priority.isAnchor {
                             HStack(spacing: 2) {

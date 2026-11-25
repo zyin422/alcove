@@ -527,9 +527,24 @@ private struct TimeBlockList: View {
     let blocks: [TimeBlock]
     let onUpdateNotes: (UUID, String?) -> Void
     let onDelete: (UUID) -> Void
+    @State private var selectedSubjectFilter: String?
+
+    private var distinctSubjects: [String] {
+        var seen: Set<String> = []
+        return blocks.compactMap { block in
+            seen.insert(block.subjectName).inserted ? block.subjectName : nil
+        }
+    }
+
+    private var visibleBlocks: [TimeBlock] {
+        guard let filter = selectedSubjectFilter, distinctSubjects.contains(filter) else {
+            return blocks
+        }
+        return blocks.filter { $0.subjectName == filter }
+    }
 
     private var maxSeconds: TimeInterval {
-        max(60, blocks.map(\.seconds).max() ?? 60)
+        max(60, visibleBlocks.map(\.seconds).max() ?? 60)
     }
 
     var body: some View {
@@ -537,19 +552,34 @@ private struct TimeBlockList: View {
             HStack {
                 Text("Time blocks").font(Theme.captionFont).foregroundStyle(.secondary)
                 Spacer()
-                if !blocks.isEmpty {
-                    Text("\(blocks.count) blocks · \(TimeFormat.short(blocks.reduce(0) { $0 + $1.seconds })) total")
+                if !visibleBlocks.isEmpty {
+                    Text("\(visibleBlocks.count) blocks · \(TimeFormat.short(visibleBlocks.reduce(0) { $0 + $1.seconds })) total")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
             }
-            if blocks.isEmpty {
+            if distinctSubjects.count > 1 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        filterChip(title: "All", isSelected: selectedSubjectFilter == nil, tint: Theme.indigo) {
+                            selectedSubjectFilter = nil
+                        }
+                        ForEach(distinctSubjects, id: \.self) { name in
+                            let tint = Theme.subjectColor(SubjectColor.hex(for: name))
+                            filterChip(title: name, isSelected: selectedSubjectFilter == name, tint: tint) {
+                                selectedSubjectFilter = (selectedSubjectFilter == name) ? nil : name
+                            }
+                        }
+                    }
+                }
+            }
+            if visibleBlocks.isEmpty {
                 Text("No time blocks in this period")
                     .foregroundStyle(.secondary)
                     .padding(.vertical, Theme.Space.s)
             } else {
                 VStack(spacing: 2) {
-                    ForEach(blocks) { block in
+                    ForEach(visibleBlocks) { block in
                         let color = Theme.subjectColor(SubjectColor.hex(for: block.subjectName))
                         let barFraction = min(1.0, max(0.08, block.seconds / maxSeconds))
                         HStack(spacing: Theme.Space.m) {
@@ -592,6 +622,18 @@ private struct TimeBlockList: View {
                 }
             }
         }
+    }
+
+    private func filterChip(title: String, isSelected: Bool, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption2.weight(isSelected ? .bold : .medium))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(isSelected ? tint.opacity(0.18) : Color.primary.opacity(0.05)))
+                .foregroundStyle(isSelected ? tint : .secondary)
+        }
+        .buttonStyle(.plain)
     }
 }
 
