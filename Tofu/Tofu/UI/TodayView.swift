@@ -1603,9 +1603,10 @@ private struct TodayScheduleView: View {
                         // Track 1: Calendar Events
                         trackRow(blocks: layout.calendarBlocks, width: width, height: 14) { block in
                             RoundedRectangle(cornerRadius: 3)
-                                .fill(Theme.cyan.opacity(0.35))
-                                .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.cyan.opacity(0.6), lineWidth: 1))
+                                .fill(Theme.cyan.opacity(hoveredBlockID == block.id ? 0.55 : 0.35))
+                                .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.cyan.opacity(hoveredBlockID == block.id ? 0.95 : 0.6), lineWidth: hoveredBlockID == block.id ? 1.5 : 1))
                                 .help("\(block.title) (\(block.timeRangeLabel))")
+                                .onHover { hoveredBlockID = $0 ? block.id : nil }
                         }
 
                         // Track 2: Planned Priorities
@@ -1636,8 +1637,9 @@ private struct TodayScheduleView: View {
                             let color = subjectColor(id: block.subjectID, name: block.title)
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(color)
-                                .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.emerald.opacity(0.4), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.emerald.opacity(hoveredBlockID == block.id ? 0.9 : 0.4), lineWidth: hoveredBlockID == block.id ? 1.5 : 1))
                                 .help("\(block.title) (\(block.timeRangeLabel))")
+                                .onHover { hoveredBlockID = $0 ? block.id : nil }
                         }
                     }
                     .overlay(alignment: .leading) {
@@ -1654,6 +1656,23 @@ private struct TodayScheduleView: View {
 
             // Dynamic Hour Markers
             hourRuler
+
+            if let hovered = layout.chronologicalAgenda.first(where: { $0.id == hoveredBlockID }) {
+                HStack(spacing: 6) {
+                    Text(hovered.title)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    Text("· \(hovered.timeRangeLabel)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    if let conflict = hovered.conflictingEventTitle {
+                        Text("· Overlaps \(conflict)")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Theme.coral)
+                    }
+                    Spacer()
+                }
+            }
 
             if !openWindows.isEmpty && day == DayKey.key(for: Date()) {
                 openWindowsStrip

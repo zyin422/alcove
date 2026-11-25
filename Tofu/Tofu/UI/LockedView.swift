@@ -300,6 +300,7 @@ struct LockedView: View {
                                 .tracking(0.8)
                         }
                         if subjectQueue.count > 1 {
+                            let activeIdx = (subjectQueue.firstIndex(where: { $0.id == priority.id }) ?? 0) + 1
                             Menu {
                                 ForEach(subjectQueue) { item in
                                     Button {
@@ -313,7 +314,7 @@ struct LockedView: View {
                                     }
                                 }
                             } label: {
-                                Text("1/\(subjectQueue.count)")
+                                Text("\(activeIdx)/\(subjectQueue.count)")
                                     .font(.system(size: 8.5, weight: .semibold).monospacedDigit())
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 1.5)
@@ -370,6 +371,11 @@ struct LockedView: View {
                             .foregroundStyle(Color.primary)
                             .lineLimit(2)
                         Spacer(minLength: 0)
+                        if let scheduled = priority.scheduledTimeLabel {
+                            Text(scheduled)
+                                .font(.system(size: 9.5, weight: .medium).monospacedDigit())
+                                .foregroundStyle(Theme.indigo)
+                        }
                         if let est = priority.estimatedMinutes {
                             Text("\(est)m")
                                 .font(.system(size: 10, weight: .medium).monospacedDigit())

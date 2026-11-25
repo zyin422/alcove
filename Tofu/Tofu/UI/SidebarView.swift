@@ -32,7 +32,24 @@ struct SidebarView: View {
         List(selection: selectionBinding) {
             Section {
                 NavigationLink(value: SidebarItem.today) {
-                    Label("Plan", systemImage: "checklist")
+                    TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                        HStack {
+                            Label("Plan", systemImage: "checklist")
+                            Spacer()
+                            if !model.engine.isLocked,
+                               !model.isStudyCompleted(day: DayKey.key(for: context.date), now: context.date),
+                               let rem = model.secondsUntilNextForceBlock(at: context.date),
+                               rem > 0 {
+                                Text(TimeFormat.clock(rem))
+                                    .font(.caption2.weight(.bold).monospacedDigit())
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1.5)
+                                    .background(Capsule().fill(Theme.amber.opacity(0.16)))
+                                    .foregroundStyle(Theme.amber)
+                                    .help("Time until mandatory lock-in")
+                            }
+                        }
+                    }
                 }
             }
             Section {
