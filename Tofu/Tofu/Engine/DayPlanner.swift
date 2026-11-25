@@ -287,6 +287,29 @@ enum DayPlanner {
         return fillingUnassignedSetups(merged, subjects: subjects)
     }
 
+    /// Parses inline duration/schedule hints (e.g. "Finish MP3 45m") on reviewed priorities
+    /// without erasing explicit estimates or assigned setups.
+    static func normalizingReviewPriorities(_ priorities: [Priority], subjects: [Subject]) -> [Priority] {
+        let filled = fillingUnassignedSetups(priorities, subjects: subjects)
+        return filled.map { priority in
+            var normalized = priority
+            let (cleanedTitle, parsedEst, parsedSched) = parsePriorityDetails(from: priority.title)
+            if !cleanedTitle.isEmpty {
+                normalized.title = cleanedTitle
+            }
+            if normalized.estimatedMinutes == nil, let parsedEst {
+                normalized.estimatedMinutes = parsedEst
+            }
+            if normalized.scheduledMinutesFromMidnight == nil, let parsedSched {
+                normalized.scheduledMinutesFromMidnight = parsedSched
+            }
+            if normalized.subjectID == nil {
+                normalized.subjectID = matchSubject(normalized.title, subjects: subjects)
+            }
+            return normalized
+        }
+    }
+
     private static func normalized(_ title: String) -> String {
         title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }

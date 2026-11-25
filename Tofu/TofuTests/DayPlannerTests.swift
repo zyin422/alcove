@@ -869,4 +869,16 @@ final class DayPlanModelTests: XCTestCase {
         XCTAssertTrue(result.contains { $0.title == "Read paper" && $0.subjectID == research.id && $0.estimatedMinutes == 40 })
         XCTAssertTrue(result.contains { $0.title == "Write ablation notes" && $0.subjectID == research.id && $0.estimatedMinutes == 30 })
     }
+
+    func testNormalizingReviewPrioritiesExtractsInlineDurationAndAssignsSubject() {
+        let research = Subject(name: "Research", details: "ML ablations", sites: ["arxiv.org"])
+        let draft = Priority(title: "Write research ablation 60m", isAnchor: true)
+        let normalized = DayPlanner.normalizingReviewPriorities([draft], subjects: [research])
+
+        XCTAssertEqual(normalized.count, 1)
+        XCTAssertEqual(normalized[0].title, "Write research ablation")
+        XCTAssertEqual(normalized[0].estimatedMinutes, 60)
+        XCTAssertEqual(normalized[0].subjectID, research.id)
+        XCTAssertTrue(normalized[0].isAnchor)
+    }
 }

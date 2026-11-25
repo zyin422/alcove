@@ -118,6 +118,31 @@ enum StatsFormatting {
             }
             .map { TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration, notes: $0.notes) }
     }
+
+    /// Structured Markdown analytics recap including trend delta and per-subject distribution.
+    static func markdownRecap(
+        summary: StatsSummary,
+        shares: [SubjectShare],
+        comparison: PeriodComparison,
+        span: StatsSpan,
+        heading: String
+    ) -> String {
+        var lines: [String] = [
+            "### Tofu Focus Recap — \(heading) (\(span.title))",
+            "- **Total Focus:** \(TimeFormat.short(summary.total)) (\(comparison.trendLabel))",
+            "- **Deep Work (≥25m):** \(TimeFormat.short(summary.deepWorkSeconds))",
+            "- **Focus Purity Score:** \(summary.focusScore)%",
+            "- **Sessions:** \(summary.sessionCount) (Streak: \(summary.currentStreak)d · Best: \(summary.longestStreak)d)",
+            "- **Shield Interventions:** \(summary.blockedAttempts) apps blocked · \(summary.closedTabs) tabs closed · \(summary.bails) bails"
+        ]
+        if !shares.isEmpty {
+            lines.append("- **By Subject:**")
+            for share in shares {
+                lines.append("  - **\(share.name):** \(TimeFormat.short(share.seconds)) (\(percent(share.fraction))) · \(share.sessionCount) block\(share.sessionCount == 1 ? "" : "s")")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
 }
 
 /// One subject's hours in the period being viewed, with its blocks oldest first.

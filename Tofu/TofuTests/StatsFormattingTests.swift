@@ -163,4 +163,21 @@ final class StatsFormattingTests: XCTestCase {
         XCTAssertEqual(card.tint, Theme.emerald)
         XCTAssertEqual(card.icon, "chart.line.uptrend.xyaxis")
     }
+
+    func testStatsMarkdownRecapIncludesTrendAndSubjectBreakdown() {
+        let summary = StatsSummary(total: 7200, currentStreak: 3, longestStreak: 5, sessionCount: 2,
+                                   blockedAttempts: 1, closedTabs: 2, bails: 0, focusScore: 88, deepWorkSeconds: 5400)
+        let shares = [
+            SubjectShare(name: "CS128", seconds: 5400, fraction: 0.75, sessionCount: 1, average: 5400, longest: 5400),
+            SubjectShare(name: "Research", seconds: 1800, fraction: 0.25, sessionCount: 1, average: 1800, longest: 1800)
+        ]
+        let cmp = PeriodComparison(currentTotal: 7200, previousTotal: 3600, deltaSeconds: 3600,
+                                   deltaPercent: 100, trendLabel: "+1h (+100%) vs prev week")
+
+        let md = StatsFormatting.markdownRecap(summary: summary, shares: shares, comparison: cmp, span: .week, heading: "Oct 4 – Oct 10")
+        XCTAssertTrue(md.contains("### Tofu Focus Recap — Oct 4 – Oct 10 (Week)"))
+        XCTAssertTrue(md.contains("+1h (+100%) vs prev week"))
+        XCTAssertTrue(md.contains("**CS128:** 1h 30m (75%)"))
+        XCTAssertTrue(md.contains("**Research:** 30m (25%)"))
+    }
 }

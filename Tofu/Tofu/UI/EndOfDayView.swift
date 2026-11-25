@@ -446,7 +446,7 @@ struct EndOfDayView: View {
                     // Sync may have changed the plan while the sheet was open: tick the fresh plan, not the copy.
                     let fresh = DayPlanner.applyingTicks(edited: today, original: original,
                                                          to: model.todayPlan().priorities)
-                    let resolvedTomorrow = DayPlanner.fillingUnassignedSetups(tomorrow, subjects: model.data.subjects)
+                    let resolvedTomorrow = DayPlanner.normalizingReviewPriorities(tomorrow, subjects: model.data.subjects)
                     model.wrapUpDay(today: fresh, tomorrow: resolvedTomorrow)
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -484,6 +484,44 @@ private struct ReviewPriorityRow: View {
                 .onChange(of: priority.title) { _, newTitle in
                     applyAutoMatch(for: newTitle)
                 }
+            Button {
+                priority.isAnchor.toggle()
+            } label: {
+                Image(systemName: priority.isAnchor ? "star.fill" : "star")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(priority.isAnchor ? Theme.amber : .secondary)
+            }
+            .buttonStyle(.plain)
+            .help(priority.isAnchor ? "Anchored ★ priority" : "Mark as focus anchor (★)")
+
+            Menu {
+                ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
+                    Button {
+                        priority.estimatedMinutes = mins
+                    } label: {
+                        if priority.estimatedMinutes == mins {
+                            Label("\(mins)m", systemImage: "checkmark")
+                        } else {
+                            Text("\(mins)m")
+                        }
+                    }
+                }
+                if priority.estimatedMinutes != nil {
+                    Divider()
+                    Button("Clear") { priority.estimatedMinutes = nil }
+                }
+            } label: {
+                Text(priority.estimatedMinutes.map { "\($0)m" } ?? "+ Est")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(priority.estimatedMinutes != nil ? Color.primary : Color.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Set estimated focus time")
+
             SetupPicker(subjects: subjects, selection: setupSelection)
                 .frame(width: 150)
             Button(action: onDelete) {

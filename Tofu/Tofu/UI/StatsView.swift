@@ -21,7 +21,7 @@ struct StatsView: View {
 
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.l) {
-                tabHeader(summary: summary)
+                tabHeader(summary: summary, shares: shares, comparison: comparison, heading: stats.heading(span, containing: shown))
                         if StatsFormatting.hasTrackedSessions(sessions) {
                             periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
                             StatsSummaryGrid(summary: summary, comparison: comparison, subjectCount: shares.count)
@@ -69,13 +69,13 @@ struct StatsView: View {
             .navigationTitle("Stats")
         }
 
-    private func tabHeader(summary: StatsSummary) -> some View {
+    private func tabHeader(summary: StatsSummary, shares: [SubjectShare], comparison: PeriodComparison, heading: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Stats").font(Theme.titleFont)
             Spacer()
 
             Button {
-                copyRecap(summary: summary, span: span)
+                copyRecap(summary: summary, shares: shares, comparison: comparison, span: span, heading: heading)
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "doc.on.doc")
@@ -265,15 +265,14 @@ struct StatsView: View {
         span == .month ? min(buckets, 8) : buckets
     }
 
-    private func copyRecap(summary: StatsSummary, span: StatsSpan) {
-        let text = """
-        **Tofu Focus Recap (\(span.title))**
-        - Total Focus: \(TimeFormat.short(summary.total))
-        - Deep Work (≥25m): \(TimeFormat.short(summary.deepWorkSeconds))
-        - Focus Purity Score: \(summary.focusScore)%
-        - Sessions: \(summary.sessionCount) (Streak: \(summary.currentStreak)d)
-        - Interventions: \(summary.blockedAttempts) blocked apps, \(summary.closedTabs) closed tabs, \(summary.bails) bails
-        """
+    private func copyRecap(summary: StatsSummary, shares: [SubjectShare], comparison: PeriodComparison, span: StatsSpan, heading: String) {
+        let text = StatsFormatting.markdownRecap(
+            summary: summary,
+            shares: shares,
+            comparison: comparison,
+            span: span,
+            heading: heading
+        )
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         ToastCenter.shared.show("Recap copied to clipboard")

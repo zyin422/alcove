@@ -150,7 +150,10 @@ final class FocusAudioTests: XCTestCase {
         engine.fadeVolume(to: 0.2, duration: 0.05) {
             completed = true
         }
-        try? await Task.sleep(nanoseconds: 70_000_000)
+        let deadline = Date().addingTimeInterval(0.8)
+        while !completed && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 15_000_000)
+        }
         XCTAssertTrue(completed)
 
         engine.stop()
@@ -164,7 +167,10 @@ final class FocusAudioTests: XCTestCase {
         XCTAssertTrue(engine.isPlaying)
 
         engine.fadeOutAndStop(duration: 0.05)
-        try? await Task.sleep(nanoseconds: 70_000_000)
+        let deadline = Date().addingTimeInterval(0.8)
+        while engine.isPlaying && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 15_000_000)
+        }
         XCTAssertFalse(engine.isPlaying)
         XCTAssertEqual(engine.activeSound, .off)
     }

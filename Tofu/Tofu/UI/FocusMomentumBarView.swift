@@ -118,8 +118,11 @@ struct FocusMomentumBarView: View {
 
                                 // Filled focus bar
                                 if slice.focusSeconds > 0 {
+                                    let hitGoal = targetSeconds > 0 && slice.focusSeconds >= targetSeconds
                                     let barHeight = max(4.0, CGFloat(fraction) * 38.0)
-                                    let barColor: Color = slice.isToday ? (isTargetAchieved ? Theme.emerald : Theme.indigo) : Color.primary.opacity(0.4)
+                                    let barColor: Color = hitGoal
+                                        ? Theme.emerald
+                                        : (slice.isToday ? Theme.indigo : Theme.indigo.opacity(0.45))
                                     RoundedRectangle(cornerRadius: 3)
                                         .fill(barColor)
                                         .frame(width: 22, height: barHeight)
