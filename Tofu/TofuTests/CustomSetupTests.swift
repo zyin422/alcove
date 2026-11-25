@@ -479,4 +479,14 @@ final class CustomSetupTests: XCTestCase {
         }
         XCTAssertEqual(form.customSlots.count, SubjectValidator.maxWindows)
     }
+
+    @MainActor func testQuickAllowedDomainPresetValidatesAndDeduplicates() {
+        var form = SubjectFormState(subject: nil)
+        form.addAllowedDomainPreset("https://piazza.com")
+        form.addAllowedDomainPreset("PIAZZA.COM")
+        form.addAllowedDomainPreset("youtube.com")
+        form.addAllowedDomainPreset("google.com")
+
+        XCTAssertEqual(form.extraDomains, ["piazza.com"])
+    }
 }

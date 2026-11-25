@@ -363,9 +363,24 @@ struct SessionSummaryView: View {
     }
 
     private var relaunchList: some View {
-        VStack(alignment: .leading, spacing: Theme.Space.s) {
-            Text("Bring back")
-                .font(.system(size: 15, weight: .semibold))
+        let allSelected = model.engine.relaunchOffer.allSatisfy(\.selected)
+        return VStack(alignment: .leading, spacing: Theme.Space.s) {
+            HStack {
+                Text("Bring back")
+                    .font(.system(size: 15, weight: .semibold))
+                Spacer()
+                if model.engine.relaunchOffer.count > 1 {
+                    Button(allSelected ? "Deselect all" : "Select all") {
+                        let nextState = !allSelected
+                        for choice in model.engine.relaunchOffer {
+                            model.engine.setRelaunchSelection(choice.id, selected: nextState)
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.indigo)
+                }
+            }
             Text("Checked tabs and apps open again when you close this.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

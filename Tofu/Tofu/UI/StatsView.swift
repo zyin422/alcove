@@ -982,14 +982,16 @@ private struct FocusConsistencyHeatmap: View {
                     Text("12-Week Consistency Heatmap")
                         .font(.headline)
                     if activeCount > 0 {
-                        Text("· \(activeCount) active · \(goalMetCount) goal days")
+                        let goalRate = Int(((Double(goalMetCount) / Double(activeCount)) * 100.0).rounded())
+                        Text("· \(activeCount) active · \(goalMetCount) goal days (\(goalRate)%)")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
                 }
                 Spacer()
                 if let hovered = hoveredDay {
-                    Text("\(hovered.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())) · \(hovered.totalMinutes > 0 ? TimeFormat.short(hovered.totalMinutes * 60) : "0m") (\(hovered.sessionCount) blocks)")
+                    let targetPct = dailyTargetMinutes > 0 ? Int(((hovered.totalMinutes / Double(dailyTargetMinutes)) * 100.0).rounded()) : 0
+                    Text("\(hovered.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())) · \(hovered.totalMinutes > 0 ? TimeFormat.short(hovered.totalMinutes * 60) : "0m") (\(hovered.sessionCount) blocks · \(targetPct)% goal)")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 } else {

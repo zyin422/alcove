@@ -137,6 +137,27 @@ struct SubjectFormState: Equatable {
         guard customSlots.count < SubjectValidator.maxWindows else { return }
         customSlots.append(SetupSlot.website([""], frame: UnitRect(x: 0.08, y: 0.08, width: 0.84, height: 0.84)))
     }
+
+    /// Trusted reference domain presets for 1-click addition in Allowed sites.
+    static let quickAllowedDomainPresets: [(label: String, host: String)] = [
+        ("Piazza", "piazza.com"),
+        ("EdStem", "edstem.org"),
+        ("Stack Overflow", "stackoverflow.com"),
+        ("Python Docs", "docs.python.org"),
+        ("Wikipedia", "en.wikipedia.org"),
+    ]
+
+    /// Validates and appends a safe educational domain preset into `extraDomains`.
+    mutating func addAllowedDomainPreset(_ raw: String) {
+        guard let host = DomainMatcher.host(of: raw),
+              !host.isEmpty,
+              !DomainMatcher.isSearchEngine(host),
+              DistractionList.category(of: host) == nil,
+              !extraDomains.contains(where: { $0.caseInsensitiveCompare(host) == .orderedSame }) else {
+            return
+        }
+        extraDomains.append(host)
+    }
 }
 
 /// The subject form itself: windows (websites or apps), their layout (a preset or a custom layout
@@ -602,6 +623,26 @@ struct SubjectForm: View {
                 Button("Add") { addAllowedSite() }
                     .buttonStyle(SecondaryButtonStyle())
                     .disabled(siteDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.Space.xs) {
+                    Text("Trusted presets:")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    ForEach(SubjectFormState.quickAllowedDomainPresets, id: \.host) { preset in
+                        let alreadyAdded = form.extraDomains.contains { $0.caseInsensitiveCompare(preset.host) == .orderedSame }
+                        Button("+ \(preset.label)") {
+                            form.addAllowedDomainPreset(preset.host)
+                        }
+                        .font(.caption2.weight(.medium))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(alreadyAdded ? Theme.emerald.opacity(0.14) : Color.primary.opacity(0.06)))
+                        .foregroundStyle(alreadyAdded ? Theme.emerald : .secondary)
+                        .buttonStyle(.plain)
+                        .disabled(alreadyAdded)
+                    }
+                }
             }
             if let siteNote {
                 Text(siteNote)
