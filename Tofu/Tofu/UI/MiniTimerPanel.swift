@@ -102,6 +102,16 @@ enum MiniTimerLayout {
         resumeHitRect(in: size).contains(point)
     }
 
+    /// Clickable area covering the trailing `PASS MM:SS` badge shown during a 2-minute Grace Pass.
+    static func gracePassHitRect(in size: CGSize) -> CGRect {
+        CGRect(x: size.width - 104, y: 0, width: 104, height: size.height)
+    }
+
+    /// True when `point` (view coordinates) lands on the Grace Pass badge.
+    static func isGracePassHit(_ point: CGPoint, in size: CGSize) -> Bool {
+        gracePassHitRect(in: size).contains(point)
+    }
+
     /// Clickable area of the trailing +2m break extend button shown during breaks.
     static func extendBreakHitRect(in size: CGSize) -> CGRect {
         CGRect(x: size.width - 114, y: 0, width: 46, height: size.height)
@@ -810,7 +820,7 @@ struct MiniTimerView: View {
                     onOpen()
                 }
             } else if engine.isOnGracePass {
-                if MiniTimerLayout.isResumeHit(point, in: frame.size) {
+                if MiniTimerLayout.isGracePassHit(point, in: frame.size) {
                     engine.endGracePass()
                 } else {
                     onOpen()

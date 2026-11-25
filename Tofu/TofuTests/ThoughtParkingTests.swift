@@ -68,6 +68,17 @@ final class ThoughtParkingTests: XCTestCase {
         XCTAssertEqual(priorities[0].subjectID, subID)
         XCTAssertFalse(priorities[0].isDone)
         XCTAssertEqual(priorities[1].title, "Schedule team meeting")
+
+        let mathID = UUID()
+        let mathSub = Subject(id: mathID, name: "Math")
+        let smart = ThoughtParkingEngine.formatAsPriorities(
+            thoughts: ["#math Review chapter 4 45m"],
+            subjectID: subID,
+            subjects: [mathSub]
+        )
+        XCTAssertEqual(smart.first?.subjectID, mathID)
+        XCTAssertEqual(smart.first?.estimatedMinutes, 45)
+        XCTAssertEqual(smart.first?.title, "Review chapter 4")
     }
 
     func testPromoteThoughtToPriorityWithParsedDetails() {

@@ -252,6 +252,11 @@ final class MiniTimerLayoutTests: XCTestCase {
         XCTAssertTrue(MiniTimerLayout.isExtendBreakHit(CGPoint(x: 150, y: 32), in: panelSize))
         XCTAssertFalse(MiniTimerLayout.isExtendBreakHit(CGPoint(x: 200, y: 32), in: panelSize))
         XCTAssertFalse(MiniTimerLayout.isExtendBreakHit(CGPoint(x: 100, y: 32), in: panelSize))
+
+        // Full PASS MM:SS pill width is covered cleanly
+        XCTAssertTrue(MiniTimerLayout.isGracePassHit(CGPoint(x: 165, y: 32), in: panelSize))
+        XCTAssertTrue(MiniTimerLayout.isGracePassHit(CGPoint(x: 230, y: 32), in: panelSize))
+        XCTAssertFalse(MiniTimerLayout.isGracePassHit(CGPoint(x: 120, y: 32), in: panelSize))
     }
 
     func testIsNearTopWithGenerousThreshold() {

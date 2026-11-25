@@ -333,7 +333,11 @@ struct SessionSummaryView: View {
             if !addedThoughtsToPlan {
                 Button {
                     let todayKey = DayKey.key(for: Date())
-                    let priorities = ThoughtParkingEngine.formatAsPriorities(thoughts: session.parkedThoughts, subjectID: session.subjectID)
+                    let priorities = ThoughtParkingEngine.formatAsPriorities(
+                        thoughts: session.parkedThoughts,
+                        subjectID: session.subjectID,
+                        subjects: model.data.subjects
+                    )
                     model.updatePlan(day: todayKey) { plan in
                         plan.priorities.append(contentsOf: priorities)
                     }

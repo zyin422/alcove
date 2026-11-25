@@ -125,6 +125,19 @@ struct SidebarView: View {
                         }
                     }
                     .contextMenu {
+                        let openTasks = model.todayPlan().priorities.filter { $0.subjectID == subject.id && !$0.isDone }
+                        if !openTasks.isEmpty {
+                            Menu("Focus Task") {
+                                ForEach(openTasks.prefix(5)) { task in
+                                    Button("\(task.title)\(task.estimatedMinutes.map { " (\($0)m)" } ?? "")") {
+                                        let dayKey = DayKey.key(for: Date())
+                                        let mins = task.estimatedMinutes ?? 50
+                                        model.selectActivePriority(task.id, for: subject.id, day: dayKey, notify: false)
+                                        Task { await model.lockIn(subjectID: subject.id, mode: .goal(minutes: mins)) }
+                                    }
+                                }
+                            }
+                        }
                         Menu("Lock in “\(subject.name)”") {
                             ForEach([25, 50, 90], id: \.self) { mins in
                                 Button("\(mins) min") {

@@ -16,11 +16,11 @@ enum ThoughtParkingEngine {
     }
 
     /// Converts raw parked thoughts into structured priorities for today's or tomorrow's plan.
-    static func formatAsPriorities(thoughts: [String], subjectID: UUID? = nil) -> [Priority] {
+    static func formatAsPriorities(thoughts: [String], subjectID: UUID? = nil, subjects: [Subject] = []) -> [Priority] {
         thoughts
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            .map { Priority(title: $0, subjectID: subjectID) }
+            .map { promoteThoughtToPriority(thought: $0, subjects: subjects, fallbackSubjectID: subjectID) }
     }
 
     /// Extracts a hashtag subject prefix or suffix from a thought (e.g. "#cs128 fix parser" or "fix parser #cs128"),
