@@ -520,4 +520,18 @@ final class MorningTests: XCTestCase {
         let plan = DayPlan(day: "2026-11-25", priorities: [first, second])
         XCTAssertEqual(plan.activePriority(for: sub)?.id, second.id)
     }
+
+    func testRequirePriorityToLockInSettingEnforcement() throws {
+        var settings = AppSettings()
+        XCTAssertFalse(settings.requirePriorityToLockIn)
+        XCTAssertFalse(MorningWindowPolicy.requiresPriorityBeforeLockIn(settings: settings, openPrioritiesCount: 0))
+
+        settings.requirePriorityToLockIn = true
+        XCTAssertTrue(MorningWindowPolicy.requiresPriorityBeforeLockIn(settings: settings, openPrioritiesCount: 0))
+        XCTAssertFalse(MorningWindowPolicy.requiresPriorityBeforeLockIn(settings: settings, openPrioritiesCount: 1))
+
+        let legacy = "{}".data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: legacy)
+        XCTAssertFalse(decoded.requirePriorityToLockIn)
+    }
 }

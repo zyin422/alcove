@@ -45,6 +45,7 @@ struct StatsView: View {
                                     )
                                 }
                                 TimeBlockList(blocks: StatsFormatting.timeBlocks(period),
+                                              onUpdateNotes: { model.updateSessionNotes(id: $0, notes: $1) },
                                               onDelete: { model.deleteSession(id: $0) })
                             }
                             FocusConsistencyHeatmap(
@@ -236,6 +237,7 @@ struct StatsView: View {
             VStack(alignment: .leading, spacing: Theme.Space.m) {
                 ForEach(subjects) { subject in
                     DaySubjectCard(subject: subject, color: color(for: subject.name),
+                                   onUpdateNotes: { model.updateSessionNotes(id: $0, notes: $1) },
                                    onDelete: { model.deleteSession(id: $0) })
                 }
             }
@@ -283,6 +285,7 @@ struct StatsView: View {
 private struct DaySubjectCard: View {
     let subject: SubjectBlocks
     let color: Color
+    let onUpdateNotes: (UUID, String?) -> Void
     let onDelete: (UUID) -> Void
 
     var body: some View {
@@ -314,6 +317,9 @@ private struct DaySubjectCard: View {
                             Text(block.start.formatted(.dateTime.hour().minute()))
                                 .foregroundStyle(.secondary)
                             Spacer()
+                            TimeBlockNoteButton(initialNote: block.notes) { updated in
+                                onUpdateNotes(block.id, updated)
+                            }
                             Text(TimeFormat.short(block.seconds))
                                 .monospacedDigit()
                             SessionRemoveButton { onDelete(block.id) }
@@ -321,7 +327,7 @@ private struct DaySubjectCard: View {
                         if let notes = block.notes, !notes.isEmpty {
                             HStack(spacing: 3) {
                                 Image(systemName: "note.text").font(.system(size: 8))
-                                Text(notes).font(.caption2).lineLimit(1)
+                                Text(notes).font(.caption2).lineLimit(2)
                             }
                             .foregroundStyle(.secondary)
                         }
@@ -437,6 +443,7 @@ private struct DayChronologicalTimeline: View {
 /// Finished work blocks in the period on screen, newest first.
 private struct TimeBlockList: View {
     let blocks: [TimeBlock]
+    let onUpdateNotes: (UUID, String?) -> Void
     let onDelete: (UUID) -> Void
 
     private var maxSeconds: TimeInterval {
@@ -476,12 +483,16 @@ private struct TimeBlockList: View {
                                 if let notes = block.notes, !notes.isEmpty {
                                     HStack(spacing: 3) {
                                         Image(systemName: "note.text").font(.system(size: 8))
-                                        Text(notes).font(.caption2).lineLimit(1)
+                                        Text(notes).font(.caption2).lineLimit(2)
                                     }
                                     .foregroundStyle(.secondary)
                                 }
                             }
                             Spacer(minLength: Theme.Space.s)
+
+                            TimeBlockNoteButton(initialNote: block.notes) { updated in
+                                onUpdateNotes(block.id, updated)
+                            }
 
                             // Visual duration bar
                             RoundedRectangle(cornerRadius: 3)
@@ -498,6 +509,60 @@ private struct TimeBlockList: View {
                     }
                 }
             }
+        }
+    }
+}
+
+/// Popover editor to add or update reflection notes on any historical session block.
+private struct TimeBlockNoteButton: View {
+    let initialNote: String?
+    let onSave: (String?) -> Void
+
+    @State private var isEditing = false
+    @State private var draft = ""
+
+    var body: some View {
+        Button {
+            draft = initialNote ?? ""
+            isEditing = true
+        } label: {
+            Image(systemName: (initialNote?.isEmpty == false) ? "square.and.pencil" : "note.text.badge.plus")
+                .font(.caption)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle((initialNote?.isEmpty == false) ? Theme.indigo : .secondary)
+        .help((initialNote?.isEmpty == false) ? "Edit session note" : "Add session note")
+        .popover(isPresented: $isEditing, arrowEdge: .trailing) {
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
+                Text("Session note")
+                    .font(Theme.captionFont)
+                    .foregroundStyle(.secondary)
+                TextField("What did you accomplish or notice?", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 240)
+                    .onSubmit {
+                        onSave(draft)
+                        isEditing = false
+                    }
+                HStack {
+                    if initialNote?.isEmpty == false {
+                        Button("Clear") {
+                            onSave(nil)
+                            isEditing = false
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Save") {
+                        onSave(draft)
+                        isEditing = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+            .padding(Theme.Space.m)
         }
     }
 }

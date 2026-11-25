@@ -7,6 +7,11 @@ enum MorningWindowPolicy {
     static func frames(covering screens: [CGRect]) -> [CGRect] {
         screens.filter { $0.width >= 1 && $0.height >= 1 }
     }
+
+    /// True when strict priority mode blocks locking in until today has >= 1 open priority.
+    static func requiresPriorityBeforeLockIn(settings: AppSettings, openPrioritiesCount: Int) -> Bool {
+        settings.requirePriorityToLockIn && openPrioritiesCount == 0
+    }
 }
 
 /// Borderless windows can't become key by default, and the morning screen has text fields and buttons.
@@ -183,6 +188,13 @@ struct MorningView: View {
         return id.flatMap(model.subject(id:)) == nil ? nil : id
     }
 
+    private var needsPriorityFirst: Bool {
+        MorningWindowPolicy.requiresPriorityBeforeLockIn(
+            settings: model.data.settings,
+            openPrioritiesCount: open.count
+        )
+    }
+
     var body: some View {
         VStack(spacing: Theme.Space.xl) {
             Spacer()
@@ -211,7 +223,7 @@ struct MorningView: View {
                 eventsBlock(events)
             }
 
-            if open.isEmpty && otherSubjects.isEmpty {
+            if (open.isEmpty && otherSubjects.isEmpty) || needsPriorityFirst {
                 emptyState
             } else {
                 Text("What are you starting with?").font(.title2)

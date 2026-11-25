@@ -352,4 +352,22 @@ import XCTest
         XCTAssertTrue(description.contains("3 blocked"))
         XCTAssertTrue(description.contains("2 tabs closed"))
     }
+
+    @MainActor func testSyncNowUpdatesLastSyncedAt() async {
+        let api = FakeGoogleAPI()
+        let fixedNow = Date(timeIntervalSince1970: 1_760_005_000)
+        let sync = GoogleSync(
+            api: api,
+            settings: { AppSettings() },
+            isConnected: { true },
+            plan: { DayPlan(day: "2026-10-10") },
+            applyPlan: { _ in },
+            saveCalendarID: { _ in },
+            now: { fixedNow }
+        )
+        XCTAssertNil(sync.lastSyncedAt)
+        await sync.syncNow()
+        XCTAssertEqual(sync.lastSyncedAt, fixedNow)
+        XCTAssertFalse(sync.isSyncing)
+    }
 }

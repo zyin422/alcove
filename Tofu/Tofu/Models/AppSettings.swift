@@ -140,6 +140,8 @@ struct AppSettings: Codable, Equatable {
     var quickThoughtShortcut: QuickThoughtShortcut
     /// `DayKey` of the last day the "All study subjects completed" celebration toast fired.
     var lastStudyCelebratedDay: String?
+    /// Require at least one planned priority on today's list before locking in from Morning Screen.
+    var requirePriorityToLockIn: Bool
 
     init(displayName: String = NSFullUserName(), discordEnabled: Bool = false,
          giveUpTemplate: String = "I give up on {subject}", channelCache: [String: String] = [:],
@@ -165,7 +167,8 @@ struct AppSettings: Codable, Equatable {
          soundCuesEnabled: Bool = true,
          focusMusicMode: FocusMusicMode = .off,
          quickThoughtShortcut: QuickThoughtShortcut = .controlSpace,
-         lastStudyCelebratedDay: String? = nil) {
+         lastStudyCelebratedDay: String? = nil,
+         requirePriorityToLockIn: Bool = false) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
         self.giveUpTemplate = giveUpTemplate
@@ -202,6 +205,7 @@ struct AppSettings: Codable, Equatable {
         self.focusMusicMode = focusMusicMode
         self.quickThoughtShortcut = quickThoughtShortcut
         self.lastStudyCelebratedDay = lastStudyCelebratedDay
+        self.requirePriorityToLockIn = requirePriorityToLockIn
     }
 }
 
@@ -268,7 +272,9 @@ extension AppSettings {
             focusMusicMode: decodedMusicMode,
             quickThoughtShortcut: try container.decodeIfPresent(QuickThoughtShortcut.self, forKey: .quickThoughtShortcut)
                 ?? defaults.quickThoughtShortcut,
-            lastStudyCelebratedDay: try container.decodeIfPresent(String.self, forKey: .lastStudyCelebratedDay))
+            lastStudyCelebratedDay: try container.decodeIfPresent(String.self, forKey: .lastStudyCelebratedDay),
+            requirePriorityToLockIn: try container.decodeIfPresent(Bool.self, forKey: .requirePriorityToLockIn)
+                ?? defaults.requirePriorityToLockIn)
     }
 }
 

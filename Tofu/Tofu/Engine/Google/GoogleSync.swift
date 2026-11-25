@@ -14,8 +14,9 @@ import Observation
     private let now: () -> Date
 
     private(set) var todayEvents: [GoogleEvent] = []
+    private(set) var isSyncing = false
+    private(set) var lastSyncedAt: Date?
     @ObservationIgnored private var pendingSessions: [Session] = []
-    @ObservationIgnored private var isSyncing = false
     @ObservationIgnored private var isApplyingRemote = false
     @ObservationIgnored private var lastCycleFailed = false
     @ObservationIgnored private var timer: Timer?
@@ -74,6 +75,7 @@ import Observation
             if current.googleSessionLogEnabled { try await pushPendingSessions() }
             if current.googleShowEventsEnabled { try await pullEvents() }
             lastCycleFailed = false
+            lastSyncedAt = now()
         } catch GoogleAuthError.revoked {
             // The auth already dropped the token; the UI shows Connect again. Stay quiet.
         } catch {

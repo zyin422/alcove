@@ -283,7 +283,30 @@ struct SettingsView: View {
     private var googleSection: some View {
         Section {
             if model.isGoogleConnected {
-                Label("Connected", systemImage: "checkmark.circle.fill")
+                HStack {
+                    Label("Connected", systemImage: "checkmark.circle.fill")
+                    Spacer()
+                    if let sync = model.googleSync {
+                        if sync.isSyncing {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text("Syncing…")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else if let syncedAt = sync.lastSyncedAt {
+                            Text("Synced \(syncedAt, style: .relative) ago")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Button("Sync now") {
+                            Task { await sync.syncNow() }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(sync.isSyncing)
+                    }
+                }
                 Toggle("Sync tasks with Google Tasks", isOn: googleTasksSyncEnabled)
                 Toggle("Log sessions to Google Calendar", isOn: googleSessionLogEnabled)
                 Toggle("Show today's events", isOn: googleShowEventsEnabled)
@@ -324,10 +347,11 @@ struct SettingsView: View {
         Section {
             Toggle("Launch at login", isOn: autoLaunchAtLogin)
             Toggle("Always-on daytime guardian", isOn: dayGuardianEnabled)
+            Toggle("Require at least 1 priority before Lock-In", isOn: requirePriorityToLockIn)
         } header: {
             Text("Anti-Avoidance & Startup")
         } footer: {
-            Text("Starts Tofu on login and keeps it active between 04:00 and 23:00 so you cannot derail your day by avoiding the app.")
+            Text("Starts Tofu on login and keeps it active between 04:00 and 23:00 so you cannot derail your day by avoiding the app. Enabling priority enforcement requires adding at least one focus priority before locking in from the morning screen.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -562,6 +586,11 @@ struct SettingsView: View {
     private var dayGuardianEnabled: Binding<Bool> {
         Binding(get: { model.data.settings.dayGuardianEnabled },
                 set: { newValue in model.updateSettings { $0.dayGuardianEnabled = newValue } })
+    }
+
+    private var requirePriorityToLockIn: Binding<Bool> {
+        Binding(get: { model.data.settings.requirePriorityToLockIn },
+                set: { newValue in model.updateSettings { $0.requirePriorityToLockIn = newValue } })
     }
 
     private var companionEnabled: Binding<Bool> {
