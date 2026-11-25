@@ -233,6 +233,8 @@ struct SettingsView: View {
                 LabeledContent("Quick Lock In (Top Task)") { Text("⌘L").font(.caption.monospaced()) }
                 LabeledContent("Add Subject") { Text("⌘N").font(.caption.monospaced()) }
                 LabeledContent("Locked Panes (Buddy / Plan / Thoughts / Shield)") { Text("⌘1 – ⌘4").font(.caption.monospaced()) }
+                LabeledContent("Global: Toggle Focus Music Mute") { Text("⌃⌥M").font(.caption.monospaced()) }
+                LabeledContent("Global: Tuck / Reveal Mini HUD") { Text("⌃⌥H").font(.caption.monospaced()) }
             }
         } header: {
             Text("Global Shortcuts")

@@ -135,8 +135,11 @@ private struct TofuMenuBarContent: View {
         let targetSeconds = TimeInterval(max(1, model.data.settings.dailyTargetMinutes) * 60)
         let pct = min(100, Int(((focusedToday / targetSeconds) * 100).rounded()))
         let openPriorities = model.todayPlan().priorities.filter { !$0.isDone }
+        let streak = StatsEngine(now: max(model.engine.now, Date())).summary(model.data.sessions).currentStreak
 
-        Text("Today: \(TimeFormat.short(focusedToday)) / \(TimeFormat.short(targetSeconds)) (\(pct)%)")
+        Text(streak > 0
+             ? "Today: \(TimeFormat.short(focusedToday)) / \(TimeFormat.short(targetSeconds)) (\(pct)%) · 🔥 \(streak)d"
+             : "Today: \(TimeFormat.short(focusedToday)) / \(TimeFormat.short(targetSeconds)) (\(pct)%)")
         if let top = openPriorities.first {
             Text("Up next: \(top.title)")
         }
@@ -235,7 +238,16 @@ private struct TofuMenuBarContent: View {
 
         Divider()
 
-        Menu("Music: \(model.data.settings.focusMusicMode.rawValue)") {
+        Menu("Music: \(FocusAudioEngine.shared.currentTrackTitle ?? model.data.settings.focusMusicMode.rawValue)") {
+            Button("Toggle Mute (⌃⌥M)") {
+                let targetMode: FocusMusicMode = model.data.settings.focusMusicMode == .off ? .adaptive : .off
+                model.updateSettings {
+                    $0.focusMusicMode = targetMode
+                    if targetMode == .off { $0.focusSound = .off }
+                }
+                model.syncBackgroundMusic()
+            }
+            Divider()
             ForEach(FocusMusicMode.allCases) { mode in
                 Button {
                     model.updateSettings {
