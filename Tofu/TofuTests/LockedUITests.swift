@@ -154,6 +154,22 @@ final class LockedUITests: XCTestCase {
         XCTAssertEqual(info.trustedDomains, ["cppreference.com", "swift.org"])
     }
 
+    func testFollowUpPriorityParsesNoteWithFallbackSubject() {
+        let cs = Subject(name: "CS128")
+        let math = Subject(name: "MATH241")
+
+        let created = SessionSummaryText.followUpPriority(
+            from: "Finish integration problem 45m",
+            fallbackSubjectID: math.id,
+            subjects: [cs, math]
+        )
+
+        XCTAssertEqual(created?.title, "Finish integration problem")
+        XCTAssertEqual(created?.estimatedMinutes, 45)
+        XCTAssertEqual(created?.subjectID, math.id)
+        XCTAssertNil(SessionSummaryText.followUpPriority(from: "   \n ", fallbackSubjectID: cs.id, subjects: [cs]))
+    }
+
     private func session(_ outcome: SessionOutcome?) -> Session {
         Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
                 start: Date(timeIntervalSince1970: 0), outcome: outcome)

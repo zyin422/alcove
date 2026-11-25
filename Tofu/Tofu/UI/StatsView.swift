@@ -52,6 +52,7 @@ struct StatsView: View {
                             FocusConsistencyHeatmap(
                                 columns: heatmapColumns,
                                 selectedDay: shown,
+                                dailyTargetMinutes: model.data.settings.dailyTargetMinutes,
                                 onSelectDay: { date in
                                     span = .day
                                     anchor = min(date, latest)
@@ -817,11 +818,15 @@ private struct StatsSubjectBreakdown: View {
 private struct FocusConsistencyHeatmap: View {
     let columns: [[ConsistencyHeatmapDay]]
     let selectedDay: Date
+    var dailyTargetMinutes: Int = 240
     let onSelectDay: (Date) -> Void
     @State private var hoveredDay: ConsistencyHeatmapDay?
 
     var body: some View {
         let cal = Calendar.current
+        let flatDays = columns.flatMap { $0 }
+        let activeCount = flatDays.filter { $0.sessionCount > 0 }.count
+        let goalMetCount = flatDays.filter { Int($0.totalMinutes.rounded()) >= dailyTargetMinutes }.count
         VStack(alignment: .leading, spacing: Theme.Space.s) {
             HStack {
                 HStack(spacing: 6) {
@@ -829,6 +834,11 @@ private struct FocusConsistencyHeatmap: View {
                         .foregroundStyle(Theme.indigo)
                     Text("12-Week Consistency Heatmap")
                         .font(.headline)
+                    if activeCount > 0 {
+                        Text("· \(activeCount) active · \(goalMetCount) goal days")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Spacer()
                 if let hovered = hoveredDay {
@@ -853,6 +863,8 @@ private struct FocusConsistencyHeatmap: View {
                     VStack(spacing: 5) {
                         ForEach(week) { day in
                             let isSelected = cal.isDate(day.date, inSameDayAs: selectedDay)
+                            let metGoal = Int(day.totalMinutes.rounded()) >= dailyTargetMinutes
+                            let borderColor: Color = isSelected ? Theme.amber : (metGoal ? Theme.emerald.opacity(0.8) : Color.primary.opacity(0.06))
                             Button {
                                 onSelectDay(day.date)
                             } label: {
@@ -861,7 +873,7 @@ private struct FocusConsistencyHeatmap: View {
                                     .frame(maxWidth: .infinity, minHeight: 14, maxHeight: 16)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 3)
-                                            .stroke(isSelected ? Theme.amber : Color.primary.opacity(0.06), lineWidth: isSelected ? 1.5 : 0.5)
+                                            .stroke(borderColor, lineWidth: (isSelected || metGoal) ? 1.5 : 0.5)
                                     )
                             }
                             .buttonStyle(.plain)

@@ -38,6 +38,21 @@ enum SessionSummaryText {
             isMet: total >= target
         )
     }
+
+    /// Turns a non-empty post-session reflection note into a Today priority, defaulting to the block's subject.
+    static func followUpPriority(
+        from note: String,
+        fallbackSubjectID: UUID,
+        subjects: [Subject]
+    ) -> Priority? {
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return ThoughtParkingEngine.promoteThoughtToPriority(
+            thought: trimmed,
+            subjects: subjects,
+            fallbackSubjectID: fallbackSubjectID
+        )
+    }
     /// "Completed" / "Bailed" / "Interrupted"; "Ended" when the session has no outcome yet.
     static func outcome(_ outcome: SessionOutcome?) -> String {
         switch outcome {
@@ -98,6 +113,7 @@ struct SessionSummaryView: View {
     @State private var answered = false
     @State private var addedThoughtsToPlan = false
     @State private var notesText: String = ""
+    @State private var addedNoteAsPriority = false
     @State private var copiedMarkdown = false
     @State private var copiedDiscord = false
 
@@ -138,8 +154,38 @@ struct SessionSummaryView: View {
                 TextField("Add reflection or notes...", text: $notesText)
                     .textFieldStyle(.roundedBorder)
                     .onChange(of: notesText) { _, val in
+                        addedNoteAsPriority = false
                         model.updateSessionNotes(id: session.id, notes: val)
                     }
+                if !notesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    HStack {
+                        if addedNoteAsPriority {
+                            Label("Added to Today's Plan ✓", systemImage: "checkmark.circle.fill")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(Theme.emerald)
+                        } else {
+                            Button {
+                                if let created = SessionSummaryText.followUpPriority(
+                                    from: notesText,
+                                    fallbackSubjectID: session.subjectID,
+                                    subjects: model.data.subjects
+                                ) {
+                                    let day = DayKey.key(for: Date())
+                                    model.updatePlan(day: day) { $0.priorities.append(created) }
+                                    addedNoteAsPriority = true
+                                    ToastCenter.shared.show("Added follow-up priority: \(created.title)")
+                                }
+                            } label: {
+                                Label("Add note as follow-up priority", systemImage: "plus.circle")
+                                    .font(.caption2.weight(.medium))
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(Theme.indigo)
+                        }
+                        Spacer()
+                    }
+                    .padding(.top, 2)
+                }
             }
 
             HStack(spacing: Theme.Space.m) {
@@ -401,6 +447,24 @@ struct SessionSummaryView: View {
                         .tracking(1)
                 }
                 Spacer()
+                if next.isAnchor {
+                    HStack(spacing: 3) {
+                        Image(systemName: "star.fill").font(.system(size: 8))
+                        Text("Anchor").font(.system(size: 9.5, weight: .bold))
+                    }
+                    .foregroundStyle(Theme.amber)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.amber.opacity(0.15)))
+                }
+                if let est = next.estimatedMinutes {
+                    Text("\(est)m")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)))
+                }
                 if let subject {
                     let col = Theme.subjectColor(subject.colorHex)
                     HStack(spacing: 4) {

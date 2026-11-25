@@ -222,6 +222,7 @@ struct LockedView: View {
             Spacer(minLength: Theme.Space.s)
             VStack(alignment: .trailing, spacing: Theme.Space.s) {
                 countersText(engine: engine)
+                focusSoundControl
                 endButton
             }
         }
