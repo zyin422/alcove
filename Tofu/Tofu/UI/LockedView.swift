@@ -688,21 +688,19 @@ struct LockedView: View {
                             }
                             model.syncBackgroundMusic()
                         }
-                        Button("25% Volume") {
-                            model.updateSettings { $0.focusSoundVolume = 0.25 }
-                            FocusAudioEngine.shared.volume = 0.25
-                        }
-                        Button("50% Volume") {
-                            model.updateSettings { $0.focusSoundVolume = 0.50 }
-                            FocusAudioEngine.shared.volume = 0.50
-                        }
-                        Button("75% Volume") {
-                            model.updateSettings { $0.focusSoundVolume = 0.75 }
-                            FocusAudioEngine.shared.volume = 0.75
-                        }
-                        Button("100% Volume") {
-                            model.updateSettings { $0.focusSoundVolume = 1.00 }
-                            FocusAudioEngine.shared.volume = 1.00
+                        let currentVol = model.data.settings.focusSoundVolume
+                        ForEach([0.25, 0.50, 0.75, 1.00], id: \.self) { level in
+                            let labelText = "\(Int((level * 100).rounded()))% Volume"
+                            Button {
+                                model.updateSettings { $0.focusSoundVolume = level }
+                                FocusAudioEngine.shared.volume = Float(level)
+                            } label: {
+                                if abs(currentVol - level) < 0.05 {
+                                    Label(labelText, systemImage: "checkmark")
+                                } else {
+                                    Text(labelText)
+                                }
+                            }
                         }
                     }
                 }

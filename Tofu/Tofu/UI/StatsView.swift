@@ -542,9 +542,13 @@ private struct DayChronologicalTimeline: View {
                     .font(.headline)
                 Spacer()
                 if let hovered = hoveredSession {
-                    Text("\(hovered.subjectName) · \(hovered.start.formatted(.dateTime.hour().minute())) - \((hovered.end ?? hovered.lastHeartbeat).formatted(.dateTime.hour().minute())) (\(TimeFormat.short(hovered.duration)))")
+                    let deflections = hovered.blockedAttempts + hovered.closedTabs
+                    let suffix = hovered.outcome == .bailed
+                        ? " · bailed"
+                        : (deflections > 0 ? " · \(deflections) deflected" : "")
+                    Text("\(hovered.subjectName) · \(hovered.start.formatted(.dateTime.hour().minute())) - \((hovered.end ?? hovered.lastHeartbeat).formatted(.dateTime.hour().minute())) (\(TimeFormat.short(hovered.duration))\(suffix))")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(hovered.outcome == .bailed ? Theme.coral : .secondary)
                         .monospacedDigit()
                 } else {
                     Text("24-hour distribution")
@@ -566,6 +570,10 @@ private struct DayChronologicalTimeline: View {
                         let x = (startSec / 86400.0) * width
                         let w = max(4.0, (durSec / 86400.0) * width)
                         let isHovered = hoveredSession?.id == session.id
+                        let deflections = session.blockedAttempts + session.closedTabs
+                        let borderTint: Color = isHovered
+                            ? Color.primary.opacity(0.6)
+                            : (session.outcome == .bailed ? Theme.coral : (deflections > 0 ? Theme.amber : .clear))
                         Button {
                             onSelectSubjectName?(session.subjectName)
                         } label: {
@@ -573,7 +581,7 @@ private struct DayChronologicalTimeline: View {
                                 .fill(color(session.subjectName))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 3)
-                                        .stroke(Color.primary.opacity(isHovered ? 0.5 : 0), lineWidth: 1)
+                                        .stroke(borderTint, lineWidth: isHovered || session.outcome == .bailed || deflections > 0 ? 1.5 : 0)
                                 )
                                 .frame(width: min(w, max(0, width - x)), height: 20)
                         }

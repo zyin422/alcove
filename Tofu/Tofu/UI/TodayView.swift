@@ -2037,6 +2037,19 @@ private struct TodayScheduleView: View {
                                     .font(.system(size: 8))
                                 Text(block.conflictingEventTitle.map { "Conflict: \($0)" } ?? "Overlap")
                                     .font(.system(size: 9, weight: .bold))
+                                if let firstGap = openWindows.first {
+                                    Button("Fix → \(OpenFocusWindow.formatMinutes(firstGap.startMinutes))") {
+                                        model.updatePriorityDetails(
+                                            priorityID,
+                                            day: day,
+                                            scheduledMinutesFromMidnight: .some(firstGap.startMinutes)
+                                        )
+                                        ToastCenter.shared.show("Moved “\(title)” to \(OpenFocusWindow.formatMinutes(firstGap.startMinutes))")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .font(.system(size: 9, weight: .bold))
+                                    .underline()
+                                }
                             }
                             .foregroundStyle(Theme.coral)
                             .padding(.horizontal, 4)
