@@ -238,6 +238,11 @@ struct LockInSheet: View {
                     Text(priority.isAnchor ? "FOCUS ANCHOR" : "TARGET PRIORITY")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(priority.isAnchor ? Theme.amber : Theme.subjectColor(subject.colorHex))
+                    if let sched = priority.scheduledTimeLabel {
+                        Text("· \(sched)")
+                            .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(Theme.indigo)
+                    }
                     if let est = priority.estimatedMinutes {
                         Text("· \(est)m planned")
                             .font(.system(size: 10, weight: .medium))

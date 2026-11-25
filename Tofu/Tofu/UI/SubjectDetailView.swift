@@ -87,6 +87,7 @@ struct SubjectDetailView: View {
     @State private var isChoosingMode = false
     @State private var targetPriorityForLockIn: Priority?
     @State private var quickPriorityDraft = ""
+    @State private var quickPriorityIsAnchor = false
     @State private var isTestingWorkspace = false
     @State private var editingPriorityID: UUID?
     @State private var editingPriorityTitle = ""
@@ -252,7 +253,9 @@ struct SubjectDetailView: View {
                 }
                 Spacer()
                 let openCount = tasks.filter { !$0.isDone }.count
-                Text(tasks.isEmpty ? "No tasks planned" : "\(openCount) open · \(tasks.count - openCount) done")
+                let openEst = tasks.filter { !$0.isDone }.compactMap(\.estimatedMinutes).reduce(0, +)
+                let openEstLabel = openEst > 0 ? " · ~\(TimeFormat.short(TimeInterval(openEst * 60)))" : ""
+                Text(tasks.isEmpty ? "No tasks planned" : "\(openCount) open\(openEstLabel) · \(tasks.count - openCount) done")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -268,13 +271,28 @@ struct SubjectDetailView: View {
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08), lineWidth: 1))
             }
 
+            let trimmedDraft = quickPriorityDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+            let parsedDraft = trimmedDraft.isEmpty
+                ? nil
+                : ThoughtParkingEngine.promoteThoughtToPriority(thought: trimmedDraft, subjects: model.data.subjects, fallbackSubjectID: subject.id)
+            let parsedSched = parsedDraft?.scheduledMinutesFromMidnight.map { OpenFocusWindow.formatMinutes($0) }
             HStack(spacing: Theme.Space.s) {
+                Button {
+                    quickPriorityIsAnchor.toggle()
+                } label: {
+                    Image(systemName: quickPriorityIsAnchor ? "star.fill" : "star")
+                        .font(.system(size: 13))
+                        .foregroundStyle(quickPriorityIsAnchor ? Theme.amber : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Mark new priority as ★ Focus Anchor")
+
                 TextField("Add priority for \(subject.name) (e.g. Finish problem set 45m)", text: $quickPriorityDraft)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(addSubjectPriority)
                 Button("Add", action: addSubjectPriority)
                     .buttonStyle(SecondaryButtonStyle())
-                    .disabled(quickPriorityDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(trimmedDraft.isEmpty)
             }
             HStack(spacing: Theme.Space.xs) {
                 ForEach([25, 45, 60], id: \.self) { mins in
@@ -288,6 +306,28 @@ struct SubjectDetailView: View {
                     .background(Capsule().fill(Color.primary.opacity(0.06)))
                     .foregroundStyle(.secondary)
                     .buttonStyle(.plain)
+                }
+                if parsedSched != nil || parsedDraft?.estimatedMinutes != nil || quickPriorityIsAnchor {
+                    HStack(spacing: 4) {
+                        if quickPriorityIsAnchor {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(Theme.amber)
+                        }
+                        if let sched = parsedSched {
+                            Text(sched)
+                                .font(.caption2.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(Theme.indigo)
+                        }
+                        if let mins = parsedDraft?.estimatedMinutes {
+                            Text("\(mins)m")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
                 }
                 Spacer()
             }
@@ -303,11 +343,24 @@ struct SubjectDetailView: View {
     private func addSubjectPriority() {
         let raw = quickPriorityDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !raw.isEmpty else { return }
-        var priority = ThoughtParkingEngine.promoteThoughtToPriority(thought: raw, subjects: model.data.subjects)
+        var priority = ThoughtParkingEngine.promoteThoughtToPriority(
+            thought: raw,
+            subjects: model.data.subjects,
+            fallbackSubjectID: subject.id,
+            isAnchor: quickPriorityIsAnchor
+        )
         priority.subjectID = subject.id
         let todayKey = DayKey.key(for: Date())
-        model.updatePlan(day: todayKey) { $0.priorities.append(priority) }
+        model.updatePlan(day: todayKey) { current in
+            if quickPriorityIsAnchor {
+                for idx in current.priorities.indices where current.priorities[idx].subjectID == subject.id {
+                    current.priorities[idx].isAnchor = false
+                }
+            }
+            current.priorities.append(priority)
+        }
         quickPriorityDraft = ""
+        quickPriorityIsAnchor = false
     }
 
     @ViewBuilder

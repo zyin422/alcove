@@ -938,7 +938,7 @@ private struct StatsSummaryGrid: View {
                     Text(TimeFormat.short(summary.total))
                         .font(.system(size: 30, weight: .bold, design: .rounded))
                         .monospacedDigit()
-                    Text("\(summary.sessionCount) sessions · \(subjectCount) subjects")
+                    Text("\(summary.sessionCount) sessions · \(subjectCount) subjects\(summary.bails > 0 ? " · \(summary.bails) bailed" : "")")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
