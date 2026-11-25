@@ -1015,4 +1015,16 @@ final class DayPlanModelTests: XCTestCase {
         let clear = Priority(title: "Study", estimatedMinutes: 45, scheduledMinutesFromMidnight: 15 * 60)
         XCTAssertNil(DayPlanner.scheduleConflictTitle(for: clear, in: [event]))
     }
+
+    func testWorkloadCapacityFitComputesClearTimeMarginAndOverage() {
+        let fits = DayPlanner.workloadCapacityFit(openEstimatedMinutes: 90, clearMinutes: 150)
+        XCTAssertEqual(fits?.fits, true)
+        XCTAssertEqual(fits?.overageMinutes, 0)
+
+        let tight = DayPlanner.workloadCapacityFit(openEstimatedMinutes: 185, clearMinutes: 150)
+        XCTAssertEqual(tight?.fits, false)
+        XCTAssertEqual(tight?.overageMinutes, 35)
+
+        XCTAssertNil(DayPlanner.workloadCapacityFit(openEstimatedMinutes: 0, clearMinutes: 150))
+    }
 }

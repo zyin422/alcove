@@ -1752,7 +1752,10 @@ private struct TodayScheduleView: View {
     }
 
     private var openWindowsStrip: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let openTaskMinutes = priorities.filter { !$0.isDone }.compactMap(\.estimatedMinutes).reduce(0, +)
+        let clearMinutes = openWindows.reduce(0) { $0 + $1.durationMinutes }
+        let capacityFit = DayPlanner.workloadCapacityFit(openEstimatedMinutes: openTaskMinutes, clearMinutes: clearMinutes)
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 10, weight: .bold))
@@ -1761,6 +1764,17 @@ private struct TodayScheduleView: View {
                     .font(.system(size: 9.5, weight: .bold))
                     .foregroundStyle(Theme.indigo)
                     .tracking(0.6)
+                Spacer()
+                if let fit = capacityFit {
+                    Text(fit.fits
+                         ? "\(TimeFormat.short(TimeInterval(fit.openEstimatedMinutes * 60))) tasks · fits cleanly"
+                         : "Over clear time by \(TimeFormat.short(TimeInterval(fit.overageMinutes * 60)))")
+                        .font(.caption2.weight(.semibold).monospacedDigit())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill((fit.fits ? Theme.emerald : Theme.amber).opacity(0.14)))
+                        .foregroundStyle(fit.fits ? Theme.emerald : Theme.amber)
+                }
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Theme.Space.s) {

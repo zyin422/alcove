@@ -359,6 +359,40 @@ struct EndOfDayView: View {
                 .frame(minHeight: usesConversation ? 72 : 120)
                 .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
 
+            let previewItems = DayPlanner.localPriorities(from: spoken, subjects: model.data.subjects)
+            if !previewItems.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        Text("Detected (\(previewItems.count)):")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        ForEach(previewItems) { item in
+                            let sub = item.subjectID.flatMap(model.subject(id:))
+                            let tint = sub.map { Theme.subjectColor($0.colorHex) } ?? Theme.indigo
+                            HStack(spacing: 4) {
+                                if let sub {
+                                    Circle().fill(tint).frame(width: 5, height: 5)
+                                    Text(sub.name)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(tint)
+                                }
+                                Text(item.title)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                                if let est = item.estimatedMinutes {
+                                    Text("\(est)m")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.primary.opacity(0.05)))
+                        }
+                    }
+                }
+            }
+
             HStack {
                 Button("Back") { step = .recap }.buttonStyle(SecondaryButtonStyle())
                 Spacer()

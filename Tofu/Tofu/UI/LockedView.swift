@@ -1131,6 +1131,8 @@ private struct ClosedTabsRecoveryView: View {
     let model: AppModel
     let engine: SessionEngine
     @State private var trustedFeedback: String?
+    @State private var domainDraft = ""
+    @State private var domainError: String?
 
     private var closed: [String] { engine.session?.closedTabHistory ?? [] }
     private var blocked: [String] { engine.session?.blockedAppHistory ?? [] }
@@ -1161,6 +1163,21 @@ private struct ClosedTabsRecoveryView: View {
                     Text(trustedFeedback)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Theme.emerald)
+                }
+                HStack(spacing: Theme.Space.xs) {
+                    TextField("Allow a study site (e.g. docs.rs)…", text: $domainDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .controlSize(.small)
+                        .onSubmit(trustManualDomain)
+                    Button("Trust") { trustManualDomain() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(domainDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                if let domainError {
+                    Text(domainError)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.amber)
                 }
             }
             .padding(.horizontal, Theme.Space.m)
@@ -1335,6 +1352,26 @@ private struct ClosedTabsRecoveryView: View {
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.03)))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.08), lineWidth: 1))
             }
+        }
+    }
+
+    private func trustManualDomain() {
+        domainError = nil
+        let result = engine.allowDeflectedSite(domainDraft, reopen: false)
+        switch result {
+        case .allowed(let host):
+            domainDraft = ""
+            let msg = "Trusted \(host) for \(engine.session?.subjectName ?? "subject")"
+            trustedFeedback = msg
+            ToastCenter.shared.show(msg)
+        case .rejectedDistraction(let category):
+            domainError = "Cannot whitelist distracted site (\(category))."
+        case .rejectedSearchEngine:
+            domainError = "Search engines stay query-judged automatically."
+        case .invalidHost:
+            domainError = "Enter a valid domain like docs.rs or piazza.com."
+        case .noActiveSession:
+            domainError = "No active lock-in session."
         }
     }
 

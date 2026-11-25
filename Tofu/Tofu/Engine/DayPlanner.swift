@@ -883,6 +883,19 @@ extension DayPlanner {
         }
         return nil
     }
+
+    struct WorkloadCapacityFit: Equatable {
+        let openEstimatedMinutes: Int
+        let clearMinutes: Int
+        var fits: Bool { openEstimatedMinutes <= clearMinutes }
+        var overageMinutes: Int { max(0, openEstimatedMinutes - clearMinutes) }
+    }
+
+    /// Compares open estimated task workload against total available focus window minutes today.
+    static func workloadCapacityFit(openEstimatedMinutes: Int, clearMinutes: Int) -> WorkloadCapacityFit? {
+        guard openEstimatedMinutes > 0, clearMinutes > 0 else { return nil }
+        return WorkloadCapacityFit(openEstimatedMinutes: openEstimatedMinutes, clearMinutes: clearMinutes)
+    }
 }
 
 // MARK: - Schedule Types
