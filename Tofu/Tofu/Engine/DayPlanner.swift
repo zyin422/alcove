@@ -782,6 +782,38 @@ enum DayPlanner {
         }
         return windows
     }
+
+    /// Returns the currently ongoing timed meeting or the nearest upcoming timed meeting within the next 2 hours.
+    static func nextCalendarAlert(in calendarEvents: [GoogleEvent], at now: Date = Date()) -> CalendarEventAlert? {
+        var upcoming: (title: String, delta: TimeInterval)?
+        for event in calendarEvents {
+            guard let start = event.start.parsed, let end = event.end.parsed, end > start else { continue }
+            let title = (event.summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = title.isEmpty ? "Calendar event" : title
+            if start <= now && now < end {
+                let mins = max(1, Int(ceil(end.timeIntervalSince(now) / 60)))
+                return CalendarEventAlert(title: label, minutes: mins, isOngoing: true)
+            }
+            let wait = start.timeIntervalSince(now)
+            if wait > 0 && wait <= 120 * 60 {
+                if upcoming == nil || wait < upcoming!.delta {
+                    upcoming = (label, wait)
+                }
+            }
+        }
+        if let upcoming {
+            let mins = max(1, Int(ceil(upcoming.delta / 60)))
+            return CalendarEventAlert(title: upcoming.title, minutes: mins, isOngoing: false)
+        }
+        return nil
+    }
+}
+
+/// Immediate calendar awareness pill for Today's Schedule header.
+struct CalendarEventAlert: Equatable {
+    let title: String
+    let minutes: Int
+    let isOngoing: Bool
 }
 
 // MARK: - Schedule Types

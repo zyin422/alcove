@@ -1425,11 +1425,31 @@ private struct TodayScheduleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
             // Header stats
-            HStack {
+            HStack(alignment: .center, spacing: Theme.Space.s) {
                 Text("Today's Schedule")
                     .font(.headline)
+                if day == DayKey.key(for: Date()),
+                   let alert = DayPlanner.nextCalendarAlert(in: events, at: Date()) {
+                    let urgent = !alert.isOngoing && alert.minutes <= 30
+                    let tint: Color = alert.isOngoing ? Theme.cyan : (urgent ? Theme.amber : Theme.indigo)
+                    HStack(spacing: 4) {
+                        Image(systemName: alert.isOngoing ? "video.fill" : "bell.fill")
+                            .font(.system(size: 9))
+                        Text(alert.isOngoing
+                             ? "Now: \(alert.title) (\(alert.minutes)m left)"
+                             : "\(alert.title) in \(alert.minutes)m")
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(tint.opacity(0.14)))
+                    .foregroundStyle(tint)
+                }
                 Spacer()
-                Text("\(events.count) events (\(TimeFormat.short(totalMeetingSeconds))) · \(totalPlannedMinutes)m planned · \(TimeFormat.short(totalFocusSeconds)) focused")
+                let openMins = openWindows.reduce(0) { $0 + $1.durationMinutes }
+                let openTag = (day == DayKey.key(for: Date()) && openMins > 0) ? " · \(TimeFormat.short(TimeInterval(openMins * 60))) open" : ""
+                Text("\(events.count) events (\(TimeFormat.short(totalMeetingSeconds))) · \(totalPlannedMinutes)m planned · \(TimeFormat.short(totalFocusSeconds)) focused\(openTag)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }

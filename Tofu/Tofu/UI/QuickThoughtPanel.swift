@@ -45,7 +45,8 @@ private final class QuickThoughtPanel: NSPanel {
             previousApplication = frontmost
         }
 
-        let size = CGSize(width: 530, height: 52)
+        let hasSubjects = !(model?.data.subjects.isEmpty ?? true)
+        let size = CGSize(width: 530, height: hasSubjects ? 82 : 52)
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         let visible = screen.visibleFrame
         let x = visible.midX - (size.width / 2)
@@ -173,90 +174,136 @@ struct QuickThoughtView: View {
 
     var body: some View {
         let preview = parsedPreview
-        HStack(spacing: Theme.Space.s) {
-            Image(systemName: "lightbulb.fill")
-                .foregroundStyle(Theme.amber)
-                .font(.system(size: 15))
+        VStack(spacing: 6) {
+            HStack(spacing: Theme.Space.s) {
+                Image(systemName: "lightbulb.fill")
+                    .foregroundStyle(Theme.amber)
+                    .font(.system(size: 15))
 
-            TextField("Park stray thought… (⏎ park, ⌘⏎ add to today)", text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .medium))
-                .focused($isFocused)
-                .onSubmit {
+                TextField("Park stray thought… (⏎ park, ⌘⏎ add to today)", text: $text)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, weight: .medium))
+                    .focused($isFocused)
+                    .onSubmit {
+                        onCommit(text)
+                    }
+                    .onExitCommand {
+                        onCancel()
+                    }
+
+                if preview.subject != nil || preview.minutes != nil {
+                    HStack(spacing: 4) {
+                        if let sub = preview.subject {
+                            Circle()
+                                .fill(Theme.subjectColor(sub.colorHex))
+                                .frame(width: 6, height: 6)
+                            Text(sub.name)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Theme.subjectColor(sub.colorHex))
+                                .lineLimit(1)
+                        }
+                        if let mins = preview.minutes {
+                            Text("\(mins)m")
+                                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+                    .fixedSize()
+                }
+
+                if !text.isEmpty {
+                    Button {
+                        text = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Color.secondary)
+                            .font(.system(size: 13))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if onPromote != nil {
+                    Button {
+                        onPromote?(text)
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "plus.circle.fill")
+                            Text("Today")
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.emerald)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.emerald.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.return, modifiers: [.command])
+                    .help("Park and add to Today's Plan (⌘⏎)")
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
+                Button {
                     onCommit(text)
-                }
-                .onExitCommand {
-                    onCancel()
-                }
-
-            if preview.subject != nil || preview.minutes != nil {
-                HStack(spacing: 4) {
-                    if let sub = preview.subject {
-                        Circle()
-                            .fill(Theme.subjectColor(sub.colorHex))
-                            .frame(width: 6, height: 6)
-                        Text(sub.name)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Theme.subjectColor(sub.colorHex))
-                            .lineLimit(1)
-                    }
-                    if let mins = preview.minutes {
-                        Text("\(mins)m")
-                            .font(.system(size: 10, weight: .medium).monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(Color.primary.opacity(0.06)))
-                .fixedSize()
-            }
-
-            if !text.isEmpty {
-                Button {
-                    text = ""
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(Color.secondary)
-                        .font(.system(size: 13))
+                    Image(systemName: "return")
+                        .font(.system(size: 11, weight: .bold))
+                        .padding(5)
+                        .background(Circle().fill(Color.primary.opacity(0.1)))
                 }
                 .buttonStyle(.plain)
-            }
-
-            if onPromote != nil {
-                Button {
-                    onPromote?(text)
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Today")
-                    }
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.emerald)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Theme.emerald.opacity(0.12)))
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.return, modifiers: [.command])
-                .help("Park and add to Today's Plan (⌘⏎)")
+                .help("Park thought for later review (⏎)")
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
 
-            Button {
-                onCommit(text)
-            } label: {
-                Image(systemName: "return")
-                    .font(.system(size: 11, weight: .bold))
-                    .padding(5)
-                    .background(Circle().fill(Color.primary.opacity(0.1)))
+            if !subjects.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 5) {
+                        ForEach(subjects.prefix(5)) { sub in
+                            let tag = "#" + sub.name.lowercased().replacingOccurrences(of: " ", with: "")
+                            Button {
+                                if !text.localizedCaseInsensitiveContains(tag) {
+                                    text = text.isEmpty ? "\(tag) " : "\(text) \(tag) "
+                                }
+                                isFocused = true
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Circle()
+                                        .fill(Theme.subjectColor(sub.colorHex))
+                                        .frame(width: 5, height: 5)
+                                    Text(tag)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.primary.opacity(0.05)))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        ForEach([25, 45, 60], id: \.self) { mins in
+                            Button {
+                                text = text.isEmpty ? "\(mins)m " : "\(text) \(mins)m"
+                                isFocused = true
+                            } label: {
+                                Text("+\(mins)m")
+                                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Color.primary.opacity(0.05)))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
             }
-            .buttonStyle(.plain)
-            .help("Park thought for later review (⏎)")
-            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(.horizontal, Theme.Space.m)
-        .frame(height: 52)
+        .padding(.vertical, subjects.isEmpty ? 0 : 8)
+        .frame(height: subjects.isEmpty ? 52 : 82)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color(nsColor: .windowBackgroundColor))

@@ -934,4 +934,27 @@ final class DayPlanModelTests: XCTestCase {
         XCTAssertEqual(model.plan(for: day)?.priorities.map(\.title), ["Done 1"])
         XCTAssertEqual(model.plan(for: next)?.priorities.map(\.title), ["Open Anchor", "Open Regular"])
     }
+
+    func testNextCalendarAlertReportsOngoingAndUpcomingWithinTwoHours() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let iso = ISO8601DateFormatter()
+
+        let upcomingEvent = GoogleEvent(
+            id: "u1",
+            summary: "Lab Sync",
+            start: GoogleEventTime(dateTime: iso.string(from: now.addingTimeInterval(22 * 60)), date: nil),
+            end: GoogleEventTime(dateTime: iso.string(from: now.addingTimeInterval(52 * 60)), date: nil)
+        )
+        let upcomingAlert = DayPlanner.nextCalendarAlert(in: [upcomingEvent], at: now)
+        XCTAssertEqual(upcomingAlert, CalendarEventAlert(title: "Lab Sync", minutes: 22, isOngoing: false))
+
+        let ongoingEvent = GoogleEvent(
+            id: "o1",
+            summary: "Lecture",
+            start: GoogleEventTime(dateTime: iso.string(from: now.addingTimeInterval(-10 * 60)), date: nil),
+            end: GoogleEventTime(dateTime: iso.string(from: now.addingTimeInterval(15 * 60)), date: nil)
+        )
+        let ongoingAlert = DayPlanner.nextCalendarAlert(in: [ongoingEvent, upcomingEvent], at: now)
+        XCTAssertEqual(ongoingAlert, CalendarEventAlert(title: "Lecture", minutes: 15, isOngoing: true))
+    }
 }
