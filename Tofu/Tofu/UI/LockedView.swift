@@ -746,6 +746,9 @@ private struct PlanningPriorityView: View {
     @State private var newSubjectID: UUID?
     @State private var userSelectedSubject = false
     @State private var lastAutoMatchedSubjectID: UUID?
+    @State private var editingPriorityID: UUID?
+    @State private var editingTitle = ""
+    @State private var hideCompleted = false
 
     private var draftSetupSelection: Binding<UUID?> {
         Binding(
@@ -762,7 +765,9 @@ private struct PlanningPriorityView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
             let openCount = plan.priorities.filter { !$0.isDone }.count
+            let doneCount = plan.priorities.count - openCount
             let estimatedTotal = plan.priorities.filter { !$0.isDone }.compactMap(\.estimatedMinutes).reduce(0, +)
+            let visiblePriorities = hideCompleted ? plan.priorities.filter { !$0.isDone } : plan.priorities
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
                 HStack(spacing: Theme.Space.xs) {
                     Text("DAY PRIORITIES")
@@ -778,6 +783,15 @@ private struct PlanningPriorityView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    Spacer()
+                    if doneCount > 0 {
+                        Button(hideCompleted ? "Show done (\(doneCount))" : "Hide done") {
+                            hideCompleted.toggle()
+                        }
+                        .buttonStyle(.borderless)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(hideCompleted ? Theme.indigo : .secondary)
+                    }
                 }
                 Text("Check off tasks or add priorities for today while your 15m timer runs.")
                     .font(.caption)
@@ -788,11 +802,11 @@ private struct PlanningPriorityView: View {
 
             ScrollView {
                 VStack(spacing: Theme.Space.xs) {
-                    ForEach(plan.priorities) { priority in
+                    ForEach(visiblePriorities) { priority in
                         priorityRow(priority)
                     }
-                    if plan.priorities.isEmpty {
-                        Text("No priorities set yet. Add one below.")
+                    if visiblePriorities.isEmpty {
+                        Text(plan.priorities.isEmpty ? "No priorities set yet. Add one below." : "All \(doneCount) priorities done!")
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -876,11 +890,41 @@ private struct PlanningPriorityView: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(priority.title)
-                    .strikethrough(priority.isDone)
-                    .foregroundStyle(priority.isDone ? .secondary : .primary)
+                if editingPriorityID == priority.id {
+                    TextField("Priority title", text: $editingTitle)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.callout)
+                        .onSubmit {
+                            let trimmed = editingTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmed.isEmpty {
+                                model.updatePriorityDetails(priority.id, day: plan.day, title: trimmed)
+                            }
+                            editingPriorityID = nil
+                        }
+                        .onExitCommand { editingPriorityID = nil }
+                } else {
+                    HStack(spacing: 5) {
+                        Text(priority.title)
+                            .strikethrough(priority.isDone)
+                            .foregroundStyle(priority.isDone ? .secondary : .primary)
+                        if !priority.isDone {
+                            Button {
+                                editingTitle = priority.title
+                                editingPriorityID = priority.id
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Rename task")
+                        }
+                    }
+                }
                 HStack(spacing: 6) {
-                    if let subject = priority.subjectID.flatMap(model.subject(id:)) {
+                    if !priority.isDone {
+                        planningSubjectMenu(for: priority)
+                    } else if let subject = priority.subjectID.flatMap(model.subject(id:)) {
                         let color = Theme.subjectColor(subject.colorHex)
                         HStack(spacing: 4) {
                             Circle().fill(color).frame(width: 5, height: 5)
@@ -939,6 +983,43 @@ private struct PlanningPriorityView: View {
         .padding(.horizontal, Theme.Space.s)
         .padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.03)))
+    }
+
+    @ViewBuilder private func planningSubjectMenu(for priority: Priority) -> some View {
+        let assigned = priority.subjectID.flatMap(model.subject(id:))
+        Menu {
+            ForEach(model.data.subjects) { subject in
+                Button {
+                    model.updatePriorityDetails(priority.id, day: plan.day, subjectID: .some(subject.id))
+                } label: {
+                    if priority.subjectID == subject.id {
+                        Label(subject.name, systemImage: "checkmark")
+                    } else {
+                        Text(subject.name)
+                    }
+                }
+            }
+            if priority.subjectID != nil {
+                Divider()
+                Button("No setup") {
+                    model.updatePriorityDetails(priority.id, day: plan.day, subjectID: .some(nil))
+                }
+            }
+        } label: {
+            if let assigned {
+                let color = Theme.subjectColor(assigned.colorHex)
+                HStack(spacing: 4) {
+                    Circle().fill(color).frame(width: 5, height: 5)
+                    Text(assigned.name).font(.caption.weight(.semibold)).foregroundStyle(color)
+                }
+            } else {
+                Text("+ Setup")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .help("Assign or switch subject")
     }
 
     @ViewBuilder private func planningScheduleMenu(for priority: Priority) -> some View {

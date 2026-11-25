@@ -148,6 +148,14 @@ struct StatsView: View {
                         .font(.title3)
                         .monospacedDigit()
                         .frame(maxWidth: .infinity)
+                    Button("View Plan →") {
+                        model.jumpToPlanDayKey = DayKey.key(for: shown)
+                        model.selection = .today
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.indigo)
+                    .help("Open \(stats.monthDay(shown)) in Plan / Today")
                     Button("Today") { anchor = latest }
                         .buttonStyle(.borderless)
                         .disabled(shown >= latest)

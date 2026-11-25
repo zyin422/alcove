@@ -267,6 +267,18 @@ struct TodayView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .navigationTitle("Plan")
+        .onAppear {
+            if let key = model.jumpToPlanDayKey {
+                showDay(key)
+                model.jumpToPlanDayKey = nil
+            }
+        }
+        .onChange(of: model.jumpToPlanDayKey) { _, key in
+            if let key {
+                showDay(key)
+                model.jumpToPlanDayKey = nil
+            }
+        }
         .sheet(item: $lockInTarget) { target in
             LockInSheet(
                 model: model,
@@ -994,6 +1006,7 @@ struct TodayView: View {
                         ?? DayPlanner.matchSubject(priority.title, subjects: model.data.subjects).flatMap(model.subject(id:))
                         ?? model.data.subjects.first
                     if let subject {
+                        priorityQuickStartMenu(for: priority, subject: subject)
                         Button("Lock in") {
                             lockInTarget = LockInTarget(subject: subject, priority: priority)
                         }
@@ -1117,6 +1130,33 @@ struct TodayView: View {
         }
         .menuStyle(.borderlessButton)
         .help("Change assigned subject")
+    }
+
+    @ViewBuilder private func priorityQuickStartMenu(for priority: Priority, subject: Subject) -> some View {
+        Menu {
+            ForEach([25, 50, 90], id: \.self) { mins in
+                Button("\(mins)m") {
+                    model.selectActivePriority(priority.id, for: subject.id, day: plan.day, notify: false)
+                    Task { await model.lockIn(subjectID: subject.id, mode: .goal(minutes: mins)) }
+                }
+            }
+            Divider()
+            Button("Open-ended") {
+                model.selectActivePriority(priority.id, for: subject.id, day: plan.day, notify: false)
+                Task { await model.lockIn(subjectID: subject.id, mode: .open) }
+            }
+        } label: {
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.indigo)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 5).fill(Theme.indigo.opacity(0.10)))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(model.engine.isLocked)
+        .help("Quick-start “\(priority.title)” (25m, 50m, 90m, or Open)")
     }
 
     @ViewBuilder private func priorityScheduleMenu(for priority: Priority, openWindows: [OpenFocusWindow], calendarEvents: [GoogleEvent]) -> some View {

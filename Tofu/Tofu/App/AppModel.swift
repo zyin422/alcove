@@ -42,6 +42,8 @@ enum TokenSource: Equatable {
 @Observable @MainActor final class AppModel {
     var data: StoreData
     var selection: SidebarItem?
+    /// One-shot day key set by StatsView to jump TodayView directly to that day's plan.
+    var jumpToPlanDayKey: String?
     let store: Store
     let engine: SessionEngine
     /// The chat screen's assistant (gpt-4.1-mini). Wired to Chrome and the session by AppModel.
