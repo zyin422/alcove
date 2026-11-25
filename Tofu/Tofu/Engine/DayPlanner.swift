@@ -807,6 +807,31 @@ enum DayPlanner {
         }
         return nil
     }
+
+    /// True when recording `completedSession` pushes that working day's total across `dailyTargetMinutes`.
+    static func didCrossDailyGoal(
+        previousSessions: [Session],
+        completedSession: Session,
+        dailyTargetMinutes: Int,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard completedSession.outcome == .completed,
+              completedSession.end != nil,
+              !completedSession.isDemo,
+              dailyTargetMinutes > 0 else { return false }
+        let day = DayKey.key(for: completedSession.start, calendar: calendar)
+        let targetSeconds = TimeInterval(dailyTargetMinutes * 60)
+        let priorTotal = previousSessions
+            .filter {
+                $0.id != completedSession.id
+                    && $0.outcome == .completed
+                    && $0.end != nil
+                    && !$0.isDemo
+                    && DayKey.key(for: $0.start, calendar: calendar) == day
+            }
+            .reduce(0.0) { $0 + $1.duration }
+        return priorTotal < targetSeconds && (priorTotal + completedSession.duration) >= targetSeconds
+    }
 }
 
 /// Immediate calendar awareness pill for Today's Schedule header.

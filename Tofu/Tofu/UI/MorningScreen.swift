@@ -407,6 +407,29 @@ struct MorningView: View {
                     }
                 }
                 Spacer()
+                HStack(spacing: Theme.Space.xs) {
+                    Button {
+                        model.togglePriorityAnchor(priority.id, day: plan.day)
+                    } label: {
+                        Image(systemName: priority.isAnchor ? "star.fill" : "star")
+                            .font(.system(size: 12))
+                            .foregroundStyle(priority.isAnchor ? Theme.amber : .secondary.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .help(priority.isAnchor ? "Remove focus anchor" : "Mark as focus anchor (★)")
+
+                    if !model.data.settings.requirePriorityToLockIn || open.count > 1 {
+                        Button {
+                            model.setPriority(priority.id, done: true, day: plan.day)
+                        } label: {
+                            Image(systemName: "checkmark.circle")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Mark “\(priority.title)” done")
+                    }
+                }
             }
             .padding(Theme.Space.m)
             .background(

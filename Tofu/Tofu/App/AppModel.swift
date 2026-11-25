@@ -512,6 +512,8 @@ enum TokenSource: Equatable {
 
     /// Inserts a new session or replaces the one with the same id, then saves.
     func upsertSession(_ session: Session) {
+        let wasCompletedBefore = data.sessions.first(where: { $0.id == session.id })?.outcome == .completed
+        let priorSessions = data.sessions
         if let index = data.sessions.firstIndex(where: { $0.id == session.id }) {
             data.sessions[index] = session
         } else {
@@ -520,6 +522,13 @@ enum TokenSource: Equatable {
         save()
         if session.end != nil, session.outcome != nil {
             googleSync?.sessionEnded(session)
+            if !wasCompletedBefore,
+               DayPlanner.didCrossDailyGoal(previousSessions: priorSessions,
+                                            completedSession: session,
+                                            dailyTargetMinutes: data.settings.dailyTargetMinutes) {
+                let targetHours = data.settings.dailyTargetMinutes / 60
+                ToastCenter.shared.show("🎯 Daily focus goal reached! (\(targetHours)h today)")
+            }
         }
     }
 

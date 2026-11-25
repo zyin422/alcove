@@ -958,4 +958,20 @@ final class DayPlanModelTests: XCTestCase {
         let ongoingAlert = DayPlanner.nextCalendarAlert(in: [ongoingEvent, upcomingEvent], at: now)
         XCTAssertEqual(ongoingAlert, CalendarEventAlert(title: "Lecture", minutes: 15, isOngoing: true))
     }
+
+    func testDidCrossDailyGoalFiresOnceWhenCrossingThreshold() {
+        let subID = UUID()
+        let cal = Calendar.current
+        let morning = cal.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 9, minute: 0))!
+        let prior = Session(subjectID: subID, subjectName: "CS128", mode: .goal(minutes: 90),
+                            start: morning, end: morning.addingTimeInterval(5400), outcome: .completed)
+        let finisher = Session(subjectID: subID, subjectName: "CS128", mode: .goal(minutes: 30),
+                               start: morning.addingTimeInterval(6000), end: morning.addingTimeInterval(7800), outcome: .completed)
+
+        XCTAssertTrue(DayPlanner.didCrossDailyGoal(previousSessions: [prior], completedSession: finisher, dailyTargetMinutes: 120))
+        XCTAssertFalse(DayPlanner.didCrossDailyGoal(previousSessions: [prior, finisher],
+                                                    completedSession: Session(subjectID: subID, subjectName: "CS128", mode: .goal(minutes: 30),
+                                                                            start: morning.addingTimeInterval(8000), end: morning.addingTimeInterval(9800), outcome: .completed),
+                                                    dailyTargetMinutes: 120))
+    }
 }

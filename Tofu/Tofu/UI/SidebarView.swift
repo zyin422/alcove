@@ -74,7 +74,20 @@ struct SidebarView: View {
                         }
                     }
                     .contextMenu {
-                        Button("Lock in “\(subject.name)”…") { lockInSubject = subject }
+                        Menu("Lock in “\(subject.name)”") {
+                            ForEach([25, 50, 90], id: \.self) { mins in
+                                Button("\(mins) min") {
+                                    Task { await model.lockIn(subjectID: subject.id, mode: .goal(minutes: mins)) }
+                                }
+                            }
+                            Divider()
+                            Button("Choose Duration…") { lockInSubject = subject }
+                        }
+                        Button("Test Setup Workspace") {
+                            Task { await model.previewWorkspace(for: subject) }
+                        }
+                        .disabled(model.engine.isLocked)
+                        Divider()
                         Button("Duplicate “\(subject.name)”") { model.duplicateSubject(id: subject.id) }
                         Divider()
                         Button("Delete “\(subject.name)”…", role: .destructive) { subjectToDelete = subject }
