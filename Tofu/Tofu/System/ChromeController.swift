@@ -111,8 +111,12 @@ extension ChromeControlling {
     /// session's watch has ended, is ignored.
     private var acceptsSiteDecisions = false
     private var isPrompting = false
-    /// Hosts handed to the assistant this watch: a host is asked about at most once.
+    /// Hosts handed to the assistant this watch: a host is asked about at most once (except search engines, keyed by URL).
     private var askedAssistantHosts: Set<String> = []
+    /// Search engine URLs handed to the assistant this watch: keyed by exact URL so distinct queries get checked.
+    private var askedAssistantURLs: Set<String> = []
+    /// Pending search engine URLs handed to the assistant, keyed by normalized host for allow/close resolution.
+    private var pendingSearchURLsByHost: [String: [String]] = [:]
 
     static var isInstalled: Bool {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: ChromeScripts.bundleID) != nil
@@ -356,6 +360,8 @@ extension ChromeControlling {
         promptQueue = []
         promptedHosts = []
         askedAssistantHosts = []
+        askedAssistantURLs = []
+        pendingSearchURLsByHost = [:]
         isPrompting = false
         lastTabs = []
     }
@@ -500,10 +506,16 @@ extension ChromeControlling {
         }
     }
 
-    /// Hands the tab's host to the chat assistant; each host is asked about at most once per watch.
+    /// Hands the tab's host to the chat assistant; non-search hosts are asked at most once per watch,
+    /// while search engine URLs are tracked per URL so separate queries can still be evaluated.
     private func askAssistant(about tab: ChromeTab, relevance: Double) {
         let host = DomainMatcher.host(of: tab.url) ?? tab.url
-        guard askedAssistantHosts.insert(host).inserted else { return }
+        if DomainMatcher.isSearchEngine(host) {
+            guard askedAssistantURLs.insert(tab.url).inserted else { return }
+            pendingSearchURLsByHost[host, default: []].append(tab.url)
+        } else {
+            guard askedAssistantHosts.insert(host).inserted else { return }
+        }
         asker?.askAboutSite(SiteQuestion(host: host, url: tab.url, title: tab.title, relevance: relevance),
                             subject: subjectName)
     }
@@ -537,9 +549,16 @@ extension ChromeControlling {
     // MARK: SiteVerdictReceiving
 
     /// The assistant allowed the site: every tab on `host` stays for the rest of the watch.
+    /// Search engines only allow the specific pending search URLs, never the entire domain.
     func allowHost(_ host: String) {
         let host = DomainMatcher.normalize(host)
         guard acceptsSiteDecisions, !host.isEmpty else { return }
+        if DomainMatcher.isSearchEngine(host) {
+            for url in pendingSearchURLsByHost.removeValue(forKey: host) ?? [] {
+                triage.keepURL(url)
+            }
+            return
+        }
         if let cat = DistractionList.category(of: host), cat != .video {
             return
         }
@@ -550,11 +569,18 @@ extension ChromeControlling {
 
     /// The assistant closed the site: every open tab on `host` is closed now (from a fresh tab list, so a tab the
     /// user already closed is not counted), and the host is closed on every later poll too.
+    /// Search engines close only the pending search URLs so legitimate work searches later are not banned.
     func closeHost(_ host: String) {
         let host = DomainMatcher.normalize(host)
         guard acceptsSiteDecisions, !host.isEmpty else { return }
-        sessionAnswers[host] = false
-        triage.closeHost(host)
+        if DomainMatcher.isSearchEngine(host) {
+            for url in pendingSearchURLsByHost.removeValue(forKey: host) ?? [] {
+                triage.closeURL(url)
+            }
+        } else {
+            sessionAnswers[host] = false
+            triage.closeHost(host)
+        }
         guard tabTimer != nil, chromeIsRunning(), case .success(let output) = listTabsNow(arcListing: .everySpace) else { return }
         let tabs = ChromeScripts.parseTabs(output, browser: browser)
         lastTabs = tabs

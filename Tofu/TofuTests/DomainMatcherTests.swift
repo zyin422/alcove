@@ -177,6 +177,75 @@ final class DomainMatcherTests: XCTestCase {
         }
     }
 
+    func testIsSearchEngineHomepageOnlyAllowsBareLandingPages() {
+        let homepages = [
+            "https://www.google.com",
+            "https://www.google.com/",
+            "https://www.google.com/?gws_rd=ssl&hl=en",
+            "https://www.google.com/webhp",
+            "https://duckduckgo.com/",
+            "https://www.bing.com/",
+            "https://kagi.com",
+            "https://search.brave.com/",
+        ]
+        for url in homepages {
+            XCTAssertTrue(DomainMatcher.isSearchEngineHomepage(url), "\(url) must be treated as homepage")
+        }
+
+        let nonHomepages = [
+            "https://www.google.com/search?q=minecraft+ai+videos",
+            "https://www.google.com/search?q=swift+concurrency",
+            "https://www.google.com/search?q=minecraft+ai+videos&udm=7#fpstate=ive&vld=cid:123",
+            "https://www.google.com/doodles",
+            "https://duckduckgo.com/?q=swift",
+            "https://www.bing.com/search?q=swift",
+            "https://www.bing.com/videos/search?q=minecraft",
+            "https://reddit.com/r/all",
+        ]
+        for url in nonHomepages {
+            XCTAssertFalse(DomainMatcher.isSearchEngineHomepage(url), "\(url) must NOT be treated as bare homepage")
+        }
+    }
+
+    func testIsSearchVideoOrMediaBypassDetectsGoogleVideoPreviewAndTabs() {
+        let bypasses = [
+            "https://www.google.com/search?q=minecraft+ai+videos#fpstate=ive&vld=cid:abc,vid:xyz,st:0",
+            "https://www.google.com/search?q=cs128#vld=cid:abc,vid:xyz",
+            "https://www.google.com/search?q=minecraft+ai+videos&tbm=vid",
+            "https://www.google.com/search?q=minecraft+ai+videos&udm=7",
+            "https://www.google.com/search?q=minecraft+shorts&udm=39",
+            "https://www.google.com/search?q=gaming+pc&tbm=shop",
+            "https://www.google.com/search?q=laptop&udm=28",
+            "https://www.google.com/search?fbx=snake_arcade",
+            "https://www.google.com/doodles",
+            "https://www.google.com/logos/2024/game/index.html",
+            "https://www.bing.com/videos/search?q=minecraft",
+            "https://duckduckgo.com/?q=minecraft&iax=videos&ia=videos",
+        ]
+        for url in bypasses {
+            XCTAssertTrue(DomainMatcher.isSearchVideoOrMediaBypass(url), "\(url) must be flagged as video/media bypass")
+        }
+
+        let cleanSearches = [
+            "https://www.google.com/",
+            "https://www.google.com/search?q=swift+concurrency",
+            "https://www.google.com/search?q=minecraft+ai+videos",
+            "https://duckduckgo.com/?q=swift+actors",
+            "https://youtube.com/watch?v=123",
+        ]
+        for url in cleanSearches {
+            XCTAssertFalse(DomainMatcher.isSearchVideoOrMediaBypass(url), "\(url) must NOT be flagged as search video bypass")
+        }
+    }
+
+    func testSearchQueryExtractionHandlesLongTrackingURLs() {
+        let url = "https://www.google.com/search?sca_esv=12345&sxsrf=abcdef&source=hp&q=minecraft+ai+videos&oq=minecraft&ved=2ah"
+        XCTAssertEqual(DomainMatcher.searchQuery(of: url), "minecraft ai videos")
+        XCTAssertEqual(DomainMatcher.searchQuery(of: "https://duckduckgo.com/?q=swift%20actors&ia=web"), "swift actors")
+        XCTAssertNil(DomainMatcher.searchQuery(of: "https://www.google.com/"))
+        XCTAssertNil(DomainMatcher.searchQuery(of: "https://example.org/search?q=not-a-search-engine"))
+    }
+
     // MARK: - AllowedAppDomains
 
     func testAllowedAppDomainsKnownApps() {

@@ -137,10 +137,11 @@ import XCTest
         let controller: ChromeController
         private(set) var closedHosts: [String] = []
 
-        init(tabs: [ChromeTab]) {
+        init(tabs: [ChromeTab], alwaysBlocked: [String] = []) {
             log.tabs = tabs
             let log = self.log
             controller = ChromeController(judge: judge, prompter: prompter,
+                                          alwaysBlocked: alwaysBlocked,
                                           runScript: { log.run($0) }, chromeIsRunning: { log.isRunning })
             controller.onTabClosed = { [unowned self] host in self.closedHosts.append(host) }
             controller.asker = asker
@@ -770,5 +771,44 @@ import XCTest
         XCTAssertEqual(listings.count, ChromeController.arcFullSweepEvery)
         XCTAssertTrue(listings.last?.contains("spaces of w") == true)
         XCTAssertFalse(listings.last?.contains("focus") == true)
+    }
+
+    func testGoogleSearchIsJudgedAndVideoPreviewClosesImmediatelyWithoutAllowingDomain() async {
+        let search = tab("https://www.google.com/search?q=minecraft+ai+videos", id: 10, title: "minecraft ai videos - Google Search")
+        let videoPreview = tab("https://www.google.com/search?q=cs128#fpstate=ive&vld=cid:1,vid:2", id: 11, title: "cs128 - Google Search")
+        let h = WatchHarness(tabs: [search, videoPreview], alwaysBlocked: DistractionList.hosts)
+        h.judge.verdicts[search.url] = .offTask
+        h.start()
+        defer { h.controller.stopTabWatch() }
+        h.controller.pollTabs()
+        await settle()
+
+        XCTAssertEqual(h.judge.judgedURLs, [search.url], "video preview closes immediately; search query is judged")
+        XCTAssertTrue(h.log.closeScripts.contains(ChromeScripts.closeTab(windowID: 1, tabID: 10)))
+        XCTAssertTrue(h.log.closeScripts.contains(ChromeScripts.closeTab(windowID: 1, tabID: 11)))
+    }
+
+    func testAllowHostOnGoogleOnlyKeepsPendingQueryAndNeverPersistsOrWhitelistsDomain() async {
+        let borderline = tab("https://www.google.com/search?q=c%2B%2B+memory+model", id: 10, title: "c++ memory model - Google Search")
+        let h = WatchHarness(tabs: [borderline])
+        var persistedHosts: [String] = []
+        h.controller.onHostAllowed = { persistedHosts.append($0) }
+        h.judge.verdicts[borderline.url] = .unsure(relevance: 0.5)
+        h.start()
+        defer { h.controller.stopTabWatch() }
+        h.controller.pollTabs()
+        await settle()
+
+        h.controller.allowHost("google.com")
+        XCTAssertTrue(persistedHosts.isEmpty, "google.com must never be persisted to subject extraDomains")
+
+        let offTaskSearch = tab("https://www.google.com/search?q=minecraft+ai+videos", id: 12, title: "minecraft ai videos - Google Search")
+        h.judge.verdicts[offTaskSearch.url] = .offTask
+        h.log.tabs = [borderline, offTaskSearch]
+        h.controller.pollTabs()
+        await settle()
+
+        XCTAssertEqual(h.judge.judgedURLs, [borderline.url, offTaskSearch.url])
+        XCTAssertEqual(h.log.closeScripts, [ChromeScripts.closeTab(windowID: 1, tabID: 12)])
     }
 }

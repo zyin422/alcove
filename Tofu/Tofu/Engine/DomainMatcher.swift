@@ -123,6 +123,80 @@ enum DomainMatcher {
         return isGoogleSearchDomain(host)
     }
 
+    /// True ONLY when `urlString` is a bare search engine homepage (no active search query, no video/media bypass,
+    /// and no non-homepage path like `/doodles`). Safe to keep open before the user types a search.
+    static func isSearchEngineHomepage(_ urlString: String) -> Bool {
+        guard isSearchEngine(urlString), !isSearchVideoOrMediaBypass(urlString) else { return false }
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = normalizedURL(trimmed) ?? URL(string: trimmed),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return !trimmed.contains("?") && !trimmed.contains("#")
+        }
+        let path = components.path.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let allowedPaths: Set<String> = ["", "webhp", "index.html", "search"]
+        guard allowedPaths.contains(path) else { return false }
+        if searchQuery(of: urlString) != nil { return false }
+        let modeParams: Set<String> = ["tbm", "udm", "iax", "ia", "fbx"]
+        if let items = components.queryItems,
+           items.contains(where: { modeParams.contains($0.name.lowercased()) && !($0.value ?? "").isEmpty }) {
+            return false
+        }
+        if path == "search", let frag = components.fragment?.lowercased(), !frag.isEmpty {
+            return false
+        }
+        return true
+    }
+
+    /// True when a search engine URL is an embedded video player/preview, video search feed, shorts feed,
+    /// shopping tab, or playable game (e.g. Google `#fpstate=ive`, `vld=`, `tbm=vid`, `udm=7`, `udm=39`).
+    static func isSearchVideoOrMediaBypass(_ urlString: String) -> Bool {
+        guard isSearchEngine(urlString) else { return false }
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowered = trimmed.lowercased()
+        // Google inline video preview modal updates the URL fragment with `#fpstate=ive` and/or `vld=`.
+        if lowered.contains("fpstate=ive") || lowered.contains("#vld=") || lowered.contains("&vld=") {
+            return true
+        }
+        guard let url = normalizedURL(trimmed) ?? URL(string: trimmed),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return false
+        }
+        let path = components.path.lowercased()
+        let blockedPathPrefixes = ["/videos", "/logos/", "/doodles", "/shopping", "/games"]
+        if blockedPathPrefixes.contains(where: { path == $0 || path.hasPrefix($0 + "/") || ($0.hasSuffix("/") && path.hasPrefix($0)) }) {
+            return true
+        }
+        let items = components.queryItems ?? []
+        for item in items {
+            let name = item.name.lowercased()
+            let val = (item.value ?? "").lowercased()
+            if name == "tbm" && (val == "vid" || val == "shop") { return true }
+            if name == "udm" && (val == "7" || val == "39" || val == "28") { return true }
+            if name == "iax" && val == "videos" { return true }
+            if name == "ia" && (val == "videos" || val == "games") { return true }
+            if name == "fbx" && !val.isEmpty { return true }
+        }
+        return false
+    }
+
+    /// Extracts the decoded user search query (`q`, `query`, `p`, `text`, `k`) from a search engine URL, if non-empty.
+    static func searchQuery(of urlString: String) -> String? {
+        guard isSearchEngine(urlString) else { return nil }
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = normalizedURL(trimmed) ?? URL(string: trimmed),
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedQueryItems else {
+            return nil
+        }
+        let queryKeys: Set<String> = ["q", "query", "p", "text", "k"]
+        for item in items where queryKeys.contains(item.name.lowercased()) {
+            let plusDecoded = (item.value ?? "").replacingOccurrences(of: "+", with: " ")
+            let decoded = (plusDecoded.removingPercentEncoding ?? plusDecoded)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !decoded.isEmpty { return decoded }
+        }
+        return nil
+    }
+
     private static func isGoogleSearchDomain(_ host: String) -> Bool {
         let parts = host.split(separator: ".")
         guard let googleIndex = parts.firstIndex(of: "google") else { return false }

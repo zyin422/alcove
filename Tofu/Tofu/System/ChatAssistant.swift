@@ -99,9 +99,15 @@ import Observation
 
     func askAboutSite(_ question: SiteQuestion, subject: String) {
         let host = Self.normalizeHost(question.host)
-        guard !host.isEmpty, !handledHosts.contains(host) else { return }
-        handledHosts.insert(host)
         let title = Self.clean(question.title, limit: 80)
+        let isSearch = DomainMatcher.isSearchEngine(host)
+        guard !host.isEmpty else { return }
+        if isSearch {
+            guard !pending.contains(where: { $0.host == host && $0.title == title }) else { return }
+        } else {
+            guard !handledHosts.contains(host) else { return }
+            handledHosts.insert(host)
+        }
         let site = PendingSite(host: host, title: title, relevance: question.relevance,
                                deadline: clock().addingTimeInterval(siteAnswerTimeout))
         pending.append(site)
@@ -258,7 +264,9 @@ import Observation
         }
         guard let sites else { return "Error: the browser is not connected." }
 
-        handledHosts.insert(host)
+        if !DomainMatcher.isSearchEngine(host) {
+            handledHosts.insert(host)
+        }
         pending.removeAll { $0.host == host }
         if name == "allow_site" {
             if let category = DistractionList.category(of: host),

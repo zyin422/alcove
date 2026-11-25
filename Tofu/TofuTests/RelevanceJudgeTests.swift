@@ -195,4 +195,23 @@ final class RelevanceJudgeTests: XCTestCase {
         XCTAssertTrue(input.contains("Title: Injected"))
         XCTAssertTrue(input.contains("Description: From closure"))
     }
+
+    func testSearchEngineSkipsMetadataFetchAndIncludesSearchQuery() async throws {
+        let transport = routedTransport(probability: 0.98)
+        var fetched: [String] = []
+        let judge = RelevanceJudge(apiKey: { "sk-test" }, transport: transport, metadataFetcher: { url in
+            fetched.append(url)
+            return (title: "Wrong", description: nil, siteName: nil)
+        })
+        let searchPage = PageInfo(url: "https://www.google.com/search?q=minecraft+ai+videos",
+                                  title: "minecraft ai videos - Google Search",
+                                  description: nil, siteName: nil)
+        let verdict = await judge.judge(page: searchPage, subject: "CS128")
+
+        XCTAssertEqual(verdict, .offTask)
+        XCTAssertTrue(fetched.isEmpty, "search engine pages should not fetch raw HTML over unauthenticated HTTP")
+        let input = try decisionsInput(transport)
+        XCTAssertTrue(input.contains("Search Query: minecraft ai videos"))
+        XCTAssertTrue(input.contains("Title: minecraft ai videos - Google Search"))
+    }
 }

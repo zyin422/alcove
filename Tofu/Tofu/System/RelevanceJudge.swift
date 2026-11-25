@@ -36,7 +36,7 @@ import Foundation
             return .unknown("No OpenAI API key")
         }
         var page = page
-        if page.description == nil && page.siteName == nil {
+        if page.description == nil && page.siteName == nil && !DomainMatcher.isSearchEngine(page.url) {
             let metadata = await metadataFetcher(page.url)
             page.description = metadata.description
             page.siteName = metadata.siteName

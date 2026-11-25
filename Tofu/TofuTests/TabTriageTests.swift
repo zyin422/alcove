@@ -362,27 +362,61 @@ final class TabTriageTests: XCTestCase {
         XCTAssertFalse(triage.isRelated(redditTab))
     }
 
-    func testGoogleSearchAndSearchEnginesAreKeptAndNeverClosed() {
+    func testSearchEngineHomepagesAreKeptWhileSearchQueriesAreJudged() {
         var triage = blockingTriage()
         let googleHome = tab("https://www.google.com", id: 1)
-        let googleSearch = tab("https://www.google.com/search?q=swift+concurrency", id: 2)
-        let duckduckgo = tab("https://duckduckgo.com/?q=swift", id: 3)
-        let bing = tab("https://www.bing.com/search?q=swift", id: 4)
+        let duckduckgoHome = tab("https://duckduckgo.com/", id: 2)
+        let bingHome = tab("https://www.bing.com/", id: 3)
+        let offTaskSearch = tab("https://www.google.com/search?q=minecraft+ai+videos", id: 4)
+        let workSearch = tab("https://www.google.com/search?q=swift+concurrency", id: 5)
 
-        // Search engine tabs must not be queued for AI off-task judging
-        XCTAssertEqual(triage.tabsToCheck([googleHome, googleSearch, duckduckgo, bing]), [])
-
-        // Search engine tabs must never be closed immediately
+        // Bare homepages stay unchecked so users can type a query; active search URLs MUST go to the AI judge.
+        XCTAssertEqual(triage.tabsToCheck([googleHome, duckduckgoHome, bingHome, offTaskSearch, workSearch]),
+                       [offTaskSearch, workSearch])
         XCTAssertFalse(triage.shouldCloseImmediately(googleHome))
-        XCTAssertFalse(triage.shouldCloseImmediately(googleSearch))
-        XCTAssertFalse(triage.shouldCloseImmediately(duckduckgo))
-        XCTAssertFalse(triage.shouldCloseImmediately(bing))
-
-        // Search engine tabs must be recognized as related during break recovery
         XCTAssertTrue(triage.isRelated(googleHome))
-        XCTAssertTrue(triage.isRelated(googleSearch))
-        XCTAssertTrue(triage.isRelated(duckduckgo))
-        XCTAssertTrue(triage.isRelated(bing))
+        XCTAssertFalse(triage.isRelated(offTaskSearch), "unjudged search query should not survive break recovery automatically")
+
+        // Judging the queries sets per-URL status accurately.
+        triage.record(url: offTaskSearch.url, verdict: .offTask)
+        triage.record(url: workSearch.url, verdict: .relevant)
+        XCTAssertTrue(triage.shouldCloseImmediately(offTaskSearch))
+        XCTAssertFalse(triage.shouldCloseImmediately(workSearch))
+        XCTAssertTrue(triage.isRelated(workSearch))
+    }
+
+    func testGoogleVideoPreviewAndVideoSearchTabsAreAlwaysBlocked() {
+        var triage = blockingTriage()
+        let previewModal = tab("https://www.google.com/search?q=minecraft+ai+videos#fpstate=ive&vld=cid:a,vid:b", id: 1)
+        let videoTabUDM7 = tab("https://www.google.com/search?q=minecraft+ai+videos&udm=7", id: 2)
+        let videoTabTBM = tab("https://www.google.com/search?q=minecraft+ai+videos&tbm=vid", id: 3)
+        let shortVideos = tab("https://www.google.com/search?q=minecraft&udm=39", id: 4)
+        let ytEmbed = tab("https://www.youtube-nocookie.com/embed/abc", id: 5)
+        let bingVideos = tab("https://www.bing.com/videos/search?q=minecraft", id: 6)
+
+        for page in [previewModal, videoTabUDM7, videoTabTBM, shortVideos, ytEmbed, bingVideos] {
+            XCTAssertTrue(triage.shouldCloseImmediately(page), page.url)
+            XCTAssertFalse(triage.isRelated(page), page.url)
+        }
+        XCTAssertEqual(triage.tabsToCheck([previewModal, videoTabUDM7, videoTabTBM, shortVideos, ytEmbed, bingVideos]), [])
+    }
+
+    func testAllowOrCloseHostNeverBlanketWhitelistsOrBansSearchEngines() {
+        var triage = blockingTriage()
+        triage.allowHost("google.com")
+        let distractedSearch = tab("https://www.google.com/search?q=minecraft+ai+videos", id: 1)
+        XCTAssertEqual(triage.tabsToCheck([distractedSearch]), [distractedSearch],
+                       "allowing google.com must never whitelist future unrelated search queries")
+
+        triage.closeHost("google.com")
+        let workSearch = tab("https://www.google.com/search?q=cs128+pointers", id: 2)
+        XCTAssertFalse(triage.shouldCloseImmediately(workSearch),
+                       "closing google.com must not ban unrelated work searches; use keepURL/closeURL per URL")
+
+        triage.closeURL(distractedSearch.url)
+        triage.keepURL(workSearch.url)
+        XCTAssertTrue(triage.shouldCloseImmediately(distractedSearch))
+        XCTAssertFalse(triage.shouldCloseImmediately(workSearch))
     }
 
     func testDistractionsUnderGoogleDomainRemainBlocked() {

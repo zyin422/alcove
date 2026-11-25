@@ -64,9 +64,9 @@ struct TabTriage {
         }
     }
 
-    /// True when the tab can be closed without another check: its host is always blocked, its URL was judged
-    /// off-task, or the user said "Close tab" for its host. Never true for study sites, Chrome internals or hosts
-    /// the user said are needed; protected pre-existing tabs are only closed when always blocked.
+    /// True when the tab can be closed without another check: its host or media bypass is always blocked, its URL
+    /// was judged off-task, or the user said "Close tab" for its host. Never true for study sites, Chrome internals
+    /// or hosts the user said are needed; protected pre-existing tabs are only closed when always blocked.
     func shouldCloseImmediately(_ tab: ChromeTab) -> Bool {
         guard let host = DomainMatcher.host(of: tab.url) else { return false }
         if neededHosts.contains(host) { return false }
@@ -75,19 +75,30 @@ struct TabTriage {
         return closeURLs.contains(tab.url) || closedHosts.contains(host)
     }
 
-    /// An http(s) tab on an always-blocked domain that is not one of the study sites.
+    /// An http(s) tab on an always-blocked domain (or search-engine video/media bypass when video is blocked)
+    /// that is not one of the study sites.
     func isAlwaysBlocked(_ tab: ChromeTab) -> Bool {
         guard !alwaysBlocked.isEmpty,
               !DomainMatcher.isAllowed(tab.url, allowed: studyDomains),
               let host = DomainMatcher.host(of: tab.url),
               !DistractionList.matches(host, any: DistractionList.exceptions) else { return false }
-        return DistractionList.matches(host, any: alwaysBlocked)
+        if DistractionList.matches(host, any: alwaysBlocked) { return true }
+        if DomainMatcher.isSearchVideoOrMediaBypass(tab.url) {
+            // Mirror YouTube blocking: if youtube.com isn't explicitly allowed by study sites or the user,
+            // Google/Bing/DuckDuckGo video preview modals & video tabs cannot bypass the block.
+            let videoAllowed = neededHosts.contains("youtube.com")
+                || DomainMatcher.isAllowed("https://youtube.com/", allowed: studyDomains)
+            return !videoAllowed || !alwaysBlocked.contains("youtube.com")
+        }
+        return false
     }
 
     /// Stores the user's answer for `host`. A newer answer replaces an older one.
+    /// General search engines (`google.com`, etc.) are never added to `neededHosts` or `closedHosts` because
+    /// each search query has distinct relevance.
     mutating func recordAnswer(host: String, needed: Bool) {
         let host = DomainMatcher.normalize(host)
-        guard !host.isEmpty else { return }
+        guard !host.isEmpty, !DomainMatcher.isSearchEngine(host) else { return }
         if needed {
             if !alwaysBlocked.isEmpty && DistractionList.matches(host, any: alwaysBlocked) {
                 if let cat = DistractionList.category(of: host), cat != .video {
@@ -102,6 +113,24 @@ struct TabTriage {
         }
     }
 
+    /// Keeps one specific URL (e.g. an allowed search query) without whitelisting the entire search host.
+    mutating func keepURL(_ url: String) {
+        inFlightURLs.remove(url)
+        awaitingPromptURLs.remove(url)
+        awaitingAssistantURLs.remove(url)
+        closeURLs.remove(url)
+        keptURLs.insert(url)
+    }
+
+    /// Marks one specific URL as off-task (e.g. a rejected search query) without banning the entire search host.
+    mutating func closeURL(_ url: String) {
+        inFlightURLs.remove(url)
+        awaitingPromptURLs.remove(url)
+        awaitingAssistantURLs.remove(url)
+        keptURLs.remove(url)
+        closeURLs.insert(url)
+    }
+
     /// Keeps every tab on `host` for the rest of the session (the chat assistant allowed the site).
     mutating func allowHost(_ host: String) {
         recordAnswer(host: host, needed: true)
@@ -112,10 +141,13 @@ struct TabTriage {
         recordAnswer(host: host, needed: false)
     }
 
-    /// A study site, a search engine, or a host the user allowed during this block. Everything else is closed when a break ends.
+    /// A study site, a bare search engine homepage, a judged-relevant URL, or a host the user allowed during this block.
+    /// Everything else is closed when a break ends.
     func isRelated(_ tab: ChromeTab) -> Bool {
         if DomainMatcher.isAllowed(tab.url, allowed: studyDomains) { return true }
-        if DomainMatcher.isSearchEngine(tab.url) { return true }
+        if isAlwaysBlocked(tab) { return false }
+        if DomainMatcher.isSearchEngineHomepage(tab.url) { return true }
+        if keptURLs.contains(tab.url) { return true }
         guard let host = DomainMatcher.host(of: tab.url) else { return false }
         return neededHosts.contains(host)
     }
@@ -126,10 +158,11 @@ struct TabTriage {
         return neededHosts.contains(host) || closedHosts.contains(host)
     }
 
-    /// Not a Chrome internal / blank / unparseable page, not a study site, not a protected pre-existing tab, and not a search engine.
+    /// Not a Chrome internal / blank / unparseable page, not a study site, not a protected pre-existing tab,
+    /// and not a bare search engine homepage.
     private func isCandidate(_ tab: ChromeTab) -> Bool {
         !protected.contains(ChromeScripts.protectionKey(tab))
             && !DomainMatcher.isAllowed(tab.url, allowed: studyDomains)
-            && !DomainMatcher.isSearchEngine(tab.url)
+            && !DomainMatcher.isSearchEngineHomepage(tab.url)
     }
 }

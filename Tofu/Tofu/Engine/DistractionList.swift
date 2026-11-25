@@ -23,7 +23,7 @@ enum DistractionList {
                      "messenger.com", "web.telegram.org", "discord.com", "groupme.com"],
         .streaming: ["netflix.com", "twitch.tv", "kick.com", "hulu.com", "disneyplus.com", "max.com", "hbomax.com",
                      "primevideo.com", "peacocktv.com", "paramountplus.com", "crunchyroll.com"],
-        .video: ["youtube.com", "youtu.be"],
+        .video: ["youtube.com", "youtu.be", "youtube-nocookie.com", "video.google.com", "tv.google.com"],
         .shopping: ["amazon.com", "ebay.com", "etsy.com", "shein.com", "temu.com", "aliexpress.com",
                     "walmart.com", "target.com", "bestbuy.com"],
         .gambling: ["pokerstars.com", "pokerstars.net", "pokernow.club", "wsop.com", "ggpoker.com",

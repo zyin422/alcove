@@ -8,6 +8,8 @@ final class DistractionListTests: XCTestCase {
         XCTAssertEqual(DistractionList.category(of: "www.instagram.com"), .social)
         XCTAssertEqual(DistractionList.category(of: "www.netflix.com"), .streaming)
         XCTAssertEqual(DistractionList.category(of: "m.youtube.com"), .video)
+        XCTAssertEqual(DistractionList.category(of: "www.youtube-nocookie.com"), .video)
+        XCTAssertEqual(DistractionList.category(of: "video.google.com"), .video)
         XCTAssertEqual(DistractionList.category(of: "www.amazon.com"), .shopping)
         XCTAssertEqual(DistractionList.category(of: "www.pokerstars.com"), .gambling)
         XCTAssertEqual(DistractionList.category(of: "pokernow.club"), .gambling)
