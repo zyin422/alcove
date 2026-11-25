@@ -343,20 +343,38 @@ struct TodayView: View {
 
                     Spacer()
 
-                    Button {
-                        model.startMyDay()
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "lock.shield.fill")
-                            Text("Lock In Now")
+                    if let topSubject = topFocusSubject {
+                        Button {
+                            lockInTarget = LockInTarget(subject: topSubject, priority: topOpenPriority(for: topSubject.id))
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "lock.shield.fill")
+                                Text("Lock In Now")
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(.horizontal, Theme.Space.m)
+                            .padding(.vertical, 8)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.amber))
+                            .foregroundStyle(Color(red: 0.1, green: 0.07, blue: 0.01))
                         }
-                        .font(.system(size: 13, weight: .semibold))
-                        .padding(.horizontal, Theme.Space.m)
-                        .padding(.vertical, 8)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.amber))
-                        .foregroundStyle(Color(red: 0.1, green: 0.07, blue: 0.01))
+                        .buttonStyle(.plain)
+                        .help("Open Lock In sheet for \(topOpenPriority(for: topSubject.id)?.title ?? topSubject.name)")
+                    } else {
+                        Button {
+                            model.startMyDay()
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "lock.shield.fill")
+                                Text("Lock In Now")
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(.horizontal, Theme.Space.m)
+                            .padding(.vertical, 8)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.amber))
+                            .foregroundStyle(Color(red: 0.1, green: 0.07, blue: 0.01))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding(Theme.Space.m)
                 .background(

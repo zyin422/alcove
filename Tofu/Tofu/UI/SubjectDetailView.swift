@@ -484,7 +484,27 @@ struct SubjectDetailView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+
+                Button {
+                    model.deferPriorityToTomorrow(priority.id, from: todayKey)
+                } label: {
+                    Image(systemName: "arrow.right.to.line")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Defer priority to tomorrow")
             }
+
+            Button {
+                model.updatePlan(day: todayKey) { $0.priorities.removeAll { $0.id == priority.id } }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Remove priority")
         }
         .padding(.horizontal, Theme.Space.m)
         .padding(.vertical, 7)
