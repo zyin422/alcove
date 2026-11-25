@@ -258,91 +258,7 @@ struct SubjectDetailView: View {
             if !tasks.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(tasks) { priority in
-                        HStack(spacing: Theme.Space.s) {
-                            Button {
-                                model.setPriority(priority.id, done: !priority.isDone, day: todayKey)
-                            } label: {
-                                Image(systemName: priority.isDone ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(priority.isDone ? Theme.emerald : Color.secondary)
-                            }
-                            .buttonStyle(.plain)
-
-                            Text(priority.title)
-                                .strikethrough(priority.isDone)
-                                .foregroundStyle(priority.isDone ? .secondary : .primary)
-                                .lineLimit(1)
-
-                            if priority.isAnchor {
-                                Image(systemName: "star.fill")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(Theme.amber)
-                            }
-                            if let est = priority.estimatedMinutes {
-                                Text("\(est)m")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            if !priority.isDone {
-                                Menu {
-                                    ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
-                                        Button("\(mins)m") {
-                                            model.updatePriorityDetails(
-                                                priority.id,
-                                                day: todayKey,
-                                                title: priority.title,
-                                                subjectID: priority.subjectID,
-                                                estimatedMinutes: mins
-                                            )
-                                        }
-                                    }
-                                    if priority.estimatedMinutes != nil {
-                                        Divider()
-                                        Button("Clear") {
-                                            model.updatePriorityDetails(
-                                                priority.id,
-                                                day: todayKey,
-                                                title: priority.title,
-                                                subjectID: priority.subjectID,
-                                                estimatedMinutes: nil
-                                            )
-                                        }
-                                    }
-                                } label: {
-                                    Text(priority.estimatedMinutes.map { "\($0)m" } ?? "+ Est")
-                                        .font(.caption2.monospacedDigit())
-                                        .foregroundStyle(.secondary)
-                                        .padding(.horizontal, 5)
-                                        .padding(.vertical, 2)
-                                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
-                                }
-                                .menuStyle(.borderlessButton)
-                                .fixedSize()
-                                .help("Adjust estimated minutes")
-
-                                Button {
-                                    model.togglePriorityAnchor(priority.id, day: todayKey)
-                                } label: {
-                                    Image(systemName: priority.isAnchor ? "star.fill" : "star")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(priority.isAnchor ? Theme.amber : .secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Toggle focus anchor")
-
-                                Button("Lock in") {
-                                    targetPriorityForLockIn = priority
-                                    isChoosingMode = true
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            }
-                        }
-                        .padding(.horizontal, Theme.Space.m)
-                        .padding(.vertical, 7)
+                        subjectPriorityRow(priority, todayKey: todayKey)
                         if priority.id != tasks.last?.id { Divider() }
                     }
                 }
@@ -390,6 +306,145 @@ struct SubjectDetailView: View {
         let todayKey = DayKey.key(for: Date())
         model.updatePlan(day: todayKey) { $0.priorities.append(priority) }
         quickPriorityDraft = ""
+    }
+
+    @ViewBuilder
+    private func subjectPriorityRow(_ priority: Priority, todayKey: String) -> some View {
+        HStack(spacing: Theme.Space.s) {
+            Button {
+                model.setPriority(priority.id, done: !priority.isDone, day: todayKey)
+            } label: {
+                Image(systemName: priority.isDone ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(priority.isDone ? Theme.emerald : Color.secondary)
+            }
+            .buttonStyle(.plain)
+
+            Text(priority.title)
+                .strikethrough(priority.isDone)
+                .foregroundStyle(priority.isDone ? .secondary : .primary)
+                .lineLimit(1)
+
+            if priority.isAnchor {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.amber)
+            }
+            if let sched = priority.scheduledTimeLabel {
+                let conflict = DayPlanner.scheduleConflictTitle(for: priority, in: model.googleSync?.todayEvents ?? [])
+                let schedTint = conflict != nil ? Theme.amber : Theme.indigo
+                Text(conflict != nil ? "\(sched) · ⚠️" : sched)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(schedTint)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(schedTint.opacity(0.10)))
+            }
+            if let est = priority.estimatedMinutes {
+                Text("\(est)m")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            if !priority.isDone {
+                subjectPriorityScheduleMenu(priority, todayKey: todayKey)
+                subjectPriorityDurationMenu(priority, todayKey: todayKey)
+
+                Button {
+                    model.togglePriorityAnchor(priority.id, day: todayKey)
+                } label: {
+                    Image(systemName: priority.isAnchor ? "star.fill" : "star")
+                        .font(.system(size: 11))
+                        .foregroundStyle(priority.isAnchor ? Theme.amber : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Toggle focus anchor")
+
+                Button("Lock in") {
+                    targetPriorityForLockIn = priority
+                    isChoosingMode = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, Theme.Space.m)
+        .padding(.vertical, 7)
+    }
+
+    @ViewBuilder
+    private func subjectPriorityScheduleMenu(_ priority: Priority, todayKey: String) -> some View {
+        let anchors = [9 * 60, 10 * 60 + 30, 13 * 60, 14 * 60 + 30, 16 * 60, 19 * 60, 20 * 60 + 30]
+        Menu {
+            ForEach(anchors, id: \.self) { mins in
+                Button {
+                    model.updatePriorityDetails(priority.id, day: todayKey, scheduledMinutesFromMidnight: .some(mins))
+                } label: {
+                    if priority.scheduledMinutesFromMidnight == mins {
+                        Label(OpenFocusWindow.formatMinutes(mins), systemImage: "checkmark")
+                    } else {
+                        Text(OpenFocusWindow.formatMinutes(mins))
+                    }
+                }
+            }
+            if priority.scheduledMinutesFromMidnight != nil {
+                Divider()
+                Button("Clear time") {
+                    model.updatePriorityDetails(priority.id, day: todayKey, scheduledMinutesFromMidnight: .some(nil))
+                }
+            }
+        } label: {
+            Text(priority.scheduledMinutesFromMidnight == nil ? "+ Time" : "Time")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Schedule start time")
+    }
+
+    @ViewBuilder
+    private func subjectPriorityDurationMenu(_ priority: Priority, todayKey: String) -> some View {
+        Menu {
+            ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
+                Button("\(mins)m") {
+                    model.updatePriorityDetails(
+                        priority.id,
+                        day: todayKey,
+                        title: priority.title,
+                        subjectID: priority.subjectID,
+                        estimatedMinutes: .some(mins)
+                    )
+                }
+            }
+            if priority.estimatedMinutes != nil {
+                Divider()
+                Button("Clear") {
+                    model.updatePriorityDetails(
+                        priority.id,
+                        day: todayKey,
+                        title: priority.title,
+                        subjectID: priority.subjectID,
+                        estimatedMinutes: .some(nil)
+                    )
+                }
+            }
+        } label: {
+            Text(priority.estimatedMinutes.map { "\($0)m" } ?? "+ Est")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Adjust estimated minutes")
     }
 
     private func summaryBadge(icon: String, text: String) -> some View {

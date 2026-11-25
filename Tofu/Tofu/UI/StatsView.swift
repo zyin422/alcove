@@ -23,7 +23,7 @@ struct StatsView: View {
 
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.l) {
-                tabHeader(summary: summary, period: period, allSessions: sessions, shares: shares, comparison: comparison, heading: stats.heading(span, containing: shown))
+                tabHeader(summary: summary, overallSummary: overallSummary, period: period, allSessions: sessions, shares: shares, comparison: comparison, heading: stats.heading(span, containing: shown))
                         if StatsFormatting.hasTrackedSessions(sessions) {
                             periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
                             let bestDay = span == .day ? nil : stats.bestFocusDay(in: period)
@@ -93,9 +93,14 @@ struct StatsView: View {
             .navigationTitle("Stats")
         }
 
-    private func tabHeader(summary: StatsSummary, period: [Session], allSessions: [Session], shares: [SubjectShare], comparison: PeriodComparison, heading: String) -> some View {
+    private func tabHeader(summary: StatsSummary, overallSummary: StatsSummary, period: [Session], allSessions: [Session], shares: [SubjectShare], comparison: PeriodComparison, heading: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Stats").font(Theme.titleFont)
+            if overallSummary.total > 0 {
+                Text("· All time: \(TimeFormat.short(overallSummary.total)) (\(overallSummary.sessionCount) blocks)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
 
             Menu {

@@ -19,6 +19,7 @@ struct TodayView: View {
     @State private var editingPriorityID: UUID?
     @State private var editingPriorityTitle = ""
     @State private var hideCompletedPriorities = false
+    @State private var prioritySubjectFilter: UUID?
     /// Nil shows the current day. Set when the user steps or jumps to a day.
     @State private var selectedDay: String?
     /// Nil follows the shown day's month. Set when the user pages the calendar or chooses a day.
@@ -131,7 +132,16 @@ struct TodayView: View {
                     let openCount = plan.priorities.filter { !$0.isDone }.count
                     let doneCount = plan.priorities.count - openCount
                     let estimatedTotal = plan.priorities.filter { !$0.isDone }.compactMap(\.estimatedMinutes).reduce(0, +)
-                    let visibleEntries = plan.priorities.enumerated().filter { !(hideCompletedPriorities && $0.element.isDone) }
+                    let filterSubjectIDs: [UUID] = {
+                        var seen: Set<UUID> = []
+                        return plan.priorities.compactMap(\.subjectID).filter { seen.insert($0).inserted }
+                    }()
+                    let activeSubjectFilter = filterSubjectIDs.contains(where: { $0 == prioritySubjectFilter }) ? prioritySubjectFilter : nil
+                    let visibleEntries = plan.priorities.enumerated().filter { entry in
+                        let matchDone = !(hideCompletedPriorities && entry.element.isDone)
+                        let matchSubject = activeSubjectFilter == nil || entry.element.subjectID == activeSubjectFilter
+                        return matchDone && matchSubject
+                    }
 
                     VStack(alignment: .leading, spacing: Theme.Space.xs) {
                         HStack(spacing: Theme.Space.s) {
@@ -193,6 +203,28 @@ struct TodayView: View {
                                 .fixedSize()
                                 .help("Priority actions")
                             }
+                        }
+
+                        if plan.priorities.count >= 4 && filterSubjectIDs.count >= 2 {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    priorityFilterChip(title: "All", isSelected: activeSubjectFilter == nil, color: Theme.indigo) {
+                                        prioritySubjectFilter = nil
+                                    }
+                                    ForEach(filterSubjectIDs, id: \.self) { subID in
+                                        if let sub = model.subject(id: subID) {
+                                            priorityFilterChip(
+                                                title: sub.name,
+                                                isSelected: activeSubjectFilter == subID,
+                                                color: Theme.subjectColor(sub.colorHex)
+                                            ) {
+                                                prioritySubjectFilter = (activeSubjectFilter == subID) ? nil : subID
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.bottom, 2)
                         }
 
                         if visibleEntries.isEmpty {
@@ -838,6 +870,21 @@ struct TodayView: View {
         }
         model.clearParkedThoughts(day: shownDay)
         ToastCenter.shared.show("Converted \(items.count) thoughts to priorities 🎯")
+    }
+
+    private func priorityFilterChip(title: String, isSelected: Bool, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Circle().fill(color).frame(width: 5, height: 5)
+                Text(title)
+                    .font(.caption2.weight(isSelected ? .bold : .medium))
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(isSelected ? color.opacity(0.18) : Color.primary.opacity(0.05)))
+            .foregroundStyle(isSelected ? color : .secondary)
+        }
+        .buttonStyle(.plain)
     }
 
     private func row(_ priority: Priority, index: Int = 0, count: Int = 1, openWindows: [OpenFocusWindow] = [], calendarEvents: [GoogleEvent] = []) -> some View {
