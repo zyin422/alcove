@@ -33,6 +33,7 @@ struct SidebarView: View {
                 }
                 ForEach(model.data.subjects) { subject in
                     let counts = model.todayPriorityCounts(for: subject.id)
+                    let isActiveLock = model.engine.isLocked && model.engine.subject?.id == subject.id
                     NavigationLink(value: SidebarItem.subject(subject.id)) {
                         HStack(spacing: 6) {
                             Circle()
@@ -40,6 +41,18 @@ struct SidebarView: View {
                                 .frame(width: 8, height: 8)
                             Text(subject.name).lineLimit(1)
                             Spacer()
+                            if isActiveLock {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 8))
+                                    Text("LIVE")
+                                        .font(.system(size: 9, weight: .bold))
+                                }
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Theme.indigo.opacity(0.16)))
+                                .foregroundStyle(Theme.indigo)
+                            }
                             if counts.open > 0 {
                                 Text("\(counts.open)")
                                     .font(.system(size: 10, weight: .bold).monospacedDigit())
@@ -89,6 +102,7 @@ struct SidebarView: View {
                         .padding(.bottom, Theme.Space.s)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+                todayProgressPill
                 pinnedRow("Stats", systemImage: "chart.bar", item: .stats)
                 pinnedRow("Settings", systemImage: "gearshape", item: .settings)
                 Button {
@@ -147,5 +161,46 @@ struct SidebarView: View {
     private func totalTime(of subjectID: UUID) -> TimeInterval {
         let stats = StatsEngine(now: max(model.engine.now, Date()))
         return stats.seconds(for: subjectID, in: model.data.sessions, window: .week)
+    }
+
+    private var todayProgressPill: some View {
+        let dayKey = DayKey.key(for: max(model.engine.now, Date()))
+        let focused = model.data.sessions
+            .filter { $0.outcome == .completed && !$0.isDemo && DayKey.key(for: $0.start) == dayKey }
+            .reduce(0.0) { $0 + $1.duration }
+        let target = TimeInterval(max(1, model.data.settings.dailyTargetMinutes) * 60)
+        let fraction = min(1.0, focused / target)
+        let met = focused >= target
+
+        return Button {
+            model.selection = .today
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Today")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(TimeFormat.short(focused)) / \(TimeFormat.short(target))")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(met ? Theme.emerald : .secondary)
+                }
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.primary.opacity(0.08))
+                        Capsule()
+                            .fill(met ? Theme.emerald : Theme.indigo)
+                            .frame(width: max(0, geo.size.width * fraction))
+                    }
+                }
+                .frame(height: 4)
+            }
+            .padding(.horizontal, Theme.Space.s)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, Theme.Space.xs)
+        .help("Today's focus toward daily target (\(model.data.settings.dailyTargetMinutes / 60)h)")
     }
 }

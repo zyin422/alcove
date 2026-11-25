@@ -1,7 +1,43 @@
 import SwiftUI
 
+struct DailyGoalProgressSnapshot: Equatable {
+    let dayTotalSeconds: TimeInterval
+    let targetSeconds: TimeInterval
+    let fraction: Double
+    let percent: Int
+    let isMet: Bool
+}
+
 /// Text and presentation rules for the end-of-session summary (unit-tested).
 enum SessionSummaryText {
+    /// Today's cumulative progress toward the user's daily target after completing a block.
+    static func dailyGoalProgress(
+        for session: Session,
+        allSessions: [Session],
+        dailyTargetMinutes: Int,
+        calendar: Calendar = .current
+    ) -> DailyGoalProgressSnapshot {
+        let dayKey = DayKey.key(for: session.start, calendar: calendar)
+        var includedCurrent = false
+        var total: TimeInterval = 0
+        for item in allSessions where item.outcome == .completed && !item.isDemo {
+            if DayKey.key(for: item.start, calendar: calendar) == dayKey {
+                total += item.duration
+                if item.id == session.id { includedCurrent = true }
+            }
+        }
+        if !includedCurrent && session.outcome == .completed && !session.isDemo {
+            total += session.duration
+        }
+        let target = TimeInterval(max(1, dailyTargetMinutes) * 60)
+        return DailyGoalProgressSnapshot(
+            dayTotalSeconds: total,
+            targetSeconds: target,
+            fraction: min(1.0, total / target),
+            percent: Int(((total / target) * 100).rounded()),
+            isMet: total >= target
+        )
+    }
     /// "Completed" / "Bailed" / "Interrupted"; "Ended" when the session has no outcome yet.
     static func outcome(_ outcome: SessionOutcome?) -> String {
         switch outcome {
@@ -92,6 +128,7 @@ struct SessionSummaryView: View {
                     StatCard(title: "Apps blocked", value: "\(session.blockedAttempts)", tint: session.blockedAttempts > 0 ? Theme.rose : nil, icon: "shield.fill")
                     StatCard(title: "Tabs closed", value: "\(session.closedTabs)", tint: session.closedTabs > 0 ? Theme.rose : nil, icon: "xmark.circle.fill")
                 }
+                dailyGoalProgressCard
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -162,6 +199,44 @@ struct SessionSummaryView: View {
             notesText = session.notes ?? ""
         }
         .onDisappear { model.engine.applyRelaunch() }
+    }
+
+    private var dailyGoalProgressCard: some View {
+        let goal = SessionSummaryText.dailyGoalProgress(
+            for: session,
+            allSessions: model.data.sessions,
+            dailyTargetMinutes: model.data.settings.dailyTargetMinutes
+        )
+        let accent: Color = goal.isMet ? Theme.emerald : Theme.indigo
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                HStack(spacing: 5) {
+                    Image(systemName: goal.isMet ? "checkmark.seal.fill" : "flame.fill")
+                        .font(.caption)
+                        .foregroundStyle(accent)
+                    Text("Today's Daily Goal")
+                        .font(.caption.weight(.semibold))
+                }
+                Spacer()
+                Text(goal.isMet
+                     ? "\(TimeFormat.short(goal.dayTotalSeconds)) · Met (\(goal.percent)%)"
+                     : "\(TimeFormat.short(goal.dayTotalSeconds)) / \(TimeFormat.short(goal.targetSeconds)) (\(goal.percent)%)")
+                    .font(.caption.weight(.medium).monospacedDigit())
+                    .foregroundStyle(accent)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.08))
+                    Capsule()
+                        .fill(accent)
+                        .frame(width: max(0, geo.size.width * goal.fraction))
+                }
+            }
+            .frame(height: 6)
+        }
+        .padding(Theme.Space.s)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.03)))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(accent.opacity(0.22), lineWidth: 1))
     }
 
     private var parkedThoughtsSection: some View {

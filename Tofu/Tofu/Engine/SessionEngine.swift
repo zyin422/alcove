@@ -19,7 +19,12 @@ enum CompanionViolation: Equatable {
     func sessionDidStart(subject: String, goalSeconds: TimeInterval?)
     /// `violations` is the session's running total of blocked apps plus closed tabs.
     func violationOccurred(_ kind: CompanionViolation, subject: String, violations: Int)
+    func priorityCompleted(title: String)
     func sessionDidEnd(outcome: SessionOutcome, subject: String)
+}
+
+extension CompanionReacting {
+    func priorityCompleted(title: String) {}
 }
 
 /// Moves the app's own windows in and out of lock-in mode.

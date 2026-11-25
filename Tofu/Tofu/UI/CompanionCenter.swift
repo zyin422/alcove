@@ -63,6 +63,11 @@ import Foundation
         }
     }
 
+    func priorityCompleted(title: String) {
+        guard panel != nil else { return }
+        say(.priorityCompleted(title: title))
+    }
+
     func sessionDidEnd(outcome: SessionOutcome, subject: String) {
         idleTask?.cancel()
         idleTask = nil

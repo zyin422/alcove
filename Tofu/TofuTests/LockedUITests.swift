@@ -76,6 +76,26 @@ final class LockedUITests: XCTestCase {
         XCTAssertTrue(recap.contains("  - Email TA"))
     }
 
+    func testDailyGoalProgressSnapshotCountsCompletedDaySessions() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let current = Session(subjectID: UUID(), subjectName: "CS128", mode: .goal(minutes: 60),
+                              start: base, end: base.addingTimeInterval(3600), outcome: .completed)
+        let earlier = Session(subjectID: UUID(), subjectName: "Math", mode: .goal(minutes: 60),
+                              start: base.addingTimeInterval(-7200), end: base.addingTimeInterval(-3600), outcome: .completed)
+        let bailed = Session(subjectID: UUID(), subjectName: "Other", mode: .open,
+                             start: base.addingTimeInterval(-10800), end: base.addingTimeInterval(-9000), outcome: .bailed)
+
+        let snap = SessionSummaryText.dailyGoalProgress(
+            for: current,
+            allSessions: [earlier, bailed, current],
+            dailyTargetMinutes: 120
+        )
+
+        XCTAssertEqual(snap.dayTotalSeconds, 7200, accuracy: 0.1)
+        XCTAssertEqual(snap.percent, 100)
+        XCTAssertTrue(snap.isMet)
+    }
+
     private func session(_ outcome: SessionOutcome?) -> Session {
         Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
                 start: Date(timeIntervalSince1970: 0), outcome: outcome)

@@ -116,4 +116,14 @@ final class CompanionScriptTests: XCTestCase {
                                  pick: { count in seenCount = count; return 0 })
         XCTAssertGreaterThanOrEqual(seenCount, 2)
     }
+
+    func testPriorityCompletedCelebratesInBothMoods() {
+        let tsundere = CompanionScript.line(for: .priorityCompleted(title: "Finish lab"), personality: .tsundere, violations: 0, pick: first)
+        XCTAssertEqual(tsundere.expression, .pleased)
+        XCTAssertTrue(tsundere.text.contains("Finish lab"))
+
+        let yandere = CompanionScript.line(for: .priorityCompleted(title: "Finish lab"), personality: .yandere, violations: 0, pick: first)
+        XCTAssertEqual(yandere.expression, .pleased)
+        XCTAssertTrue(yandere.text.contains("Finish lab"))
+    }
 }

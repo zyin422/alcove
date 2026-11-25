@@ -28,6 +28,7 @@ enum CompanionEvent: Equatable {
     case sessionStart(subject: String)
     case blockedApp(name: String)
     case closedTab(host: String)
+    case priorityCompleted(title: String)
     case halfway
     case completed
     case forfeit
@@ -100,6 +101,14 @@ enum CompanionScript {
                    .pleased)
                 : (["Halfway already…? I-I guess you're not completely hopeless.",
                     "Half done. D-don't get cocky! It's not like I'm impressed or anything."],
+                   .pleased)
+        case .priorityCompleted(let title):
+            return yandere
+                ? (["Finished “\(title)”~ Look at us crushing everything together. ♥",
+                    "“\(title)” is checked off~ Stay with me for the next one too. ♥"],
+                   .pleased)
+                : (["“\(title)” done already? W-well… don't celebrate too hard, keep moving!",
+                    "Hmph. You knocked out “\(title)” pretty fast. I-I guess that wasn't bad."],
                    .pleased)
         case .completed:
             return yandere

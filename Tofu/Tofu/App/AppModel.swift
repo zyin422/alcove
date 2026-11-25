@@ -744,6 +744,9 @@ enum TokenSource: Equatable {
     func completeActivePriorityAndAdvance(_ id: UUID, subjectID: UUID, day: String) -> Priority? {
         let completedTitle = plan(for: day)?.priorities.first(where: { $0.id == id })?.title
         setPriority(id, done: true, day: day)
+        if let completedTitle {
+            engine.companion?.priorityCompleted(title: completedTitle)
+        }
         let next = plan(for: day)?.activePriority(for: subjectID)
         if !isStudyCompleted(day: day) {
             if let completedTitle, let next {
