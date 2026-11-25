@@ -976,7 +976,10 @@ private struct ClosedTabsRecoveryView: View {
                     Text("Clean focus. Zero distractions deflected so far.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                    trustedPerimeterSection
+                        .padding(.top, Theme.Space.s)
                 }
+                .padding(.horizontal, Theme.Space.m)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
@@ -1002,6 +1005,8 @@ private struct ClosedTabsRecoveryView: View {
                                 }
                             }
                         }
+
+                        trustedPerimeterSection
                     }
                     .padding(.horizontal, Theme.Space.m)
                     .padding(.bottom, Theme.Space.m)
@@ -1101,6 +1106,38 @@ private struct ClosedTabsRecoveryView: View {
         .padding(.horizontal, Theme.Space.m)
         .padding(.vertical, 8)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+    }
+
+    @ViewBuilder
+    private var trustedPerimeterSection: some View {
+        if let subject = engine.subject {
+            let trustedSites = Array(Set(subject.sites + subject.extraDomains + Array(engine.sessionAllowedSites)))
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                .sorted()
+            let trustedApps = Array(Set((subject.allowedApps + subject.slotApps).map(\.name))).sorted()
+
+            if !trustedSites.isEmpty || !trustedApps.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("ACTIVE SHIELD PERIMETER")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.secondary)
+                    if !trustedApps.isEmpty {
+                        Text("Allowed apps: \(trustedApps.joined(separator: ", "))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !trustedSites.isEmpty {
+                        Text("Trusted domains: \(trustedSites.joined(separator: ", "))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(Theme.Space.s)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.03)))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+            }
+        }
     }
 
     private func badgePill(_ text: String, color: Color) -> some View {

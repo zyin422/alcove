@@ -129,6 +129,31 @@ final class LockedUITests: XCTestCase {
         XCTAssertEqual(idleWithFocus.title, "Tofu · 1h 30m")
     }
 
+    func testLockInWorkspaceSummaryDescribesSetupCleanly() {
+        let xcode = AllowedApp(bundleID: "com.apple.dt.Xcode", name: "Xcode")
+        let subject = Subject(
+            name: "CS128",
+            preset: .split,
+            sites: ["swift.org"],
+            allowedApps: [xcode],
+            extraDomains: ["cppreference.com"],
+            slots: [
+                SetupSlot(kind: .website, urls: ["https://swift.org", "https://docs.swift.org"]),
+                SetupSlot(kind: .app, app: xcode, folder: "~/cs128"),
+            ],
+            browser: .arc,
+            unusedApps: .quit
+        )
+
+        let info = LockInWorkspaceSummary.describe(subject: subject)
+        XCTAssertEqual(info.layoutLabel, LayoutPreset.split.title)
+        XCTAssertEqual(info.browserTitle, "Arc")
+        XCTAssertEqual(info.urlCount, 2)
+        XCTAssertEqual(info.appNames, ["Xcode"])
+        XCTAssertEqual(info.unusedPolicyLabel, "Quit other apps")
+        XCTAssertEqual(info.trustedDomains, ["cppreference.com", "swift.org"])
+    }
+
     private func session(_ outcome: SessionOutcome?) -> Session {
         Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
                 start: Date(timeIntervalSince1970: 0), outcome: outcome)

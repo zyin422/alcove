@@ -191,6 +191,8 @@ struct BedtimeView: View {
                     }
                 }
 
+                nightfallSummaryCard(now: context.date)
+
                 VStack(spacing: Theme.Space.m) {
                     Button {
                         Task { await model.startPlanningFromBedtime() }
@@ -273,6 +275,57 @@ struct BedtimeView: View {
             FocusAudioEngine.shared.stop()
             VoiceOutput.shared.speak("It is past midnight. The day is complete. Time to sleep and protect your energy.")
         }
+    }
+
+    private func nightfallSummaryCard(now: Date) -> some View {
+        let workingDay = DayKey.key(for: now)
+        let workingPlan = model.plan(for: workingDay) ?? DayPlan(day: workingDay)
+        let telemetry = DayPlanner.wrapUpTelemetry(
+            for: workingDay,
+            sessions: model.data.sessions,
+            priorities: workingPlan.priorities,
+            subjects: model.data.subjects,
+            dailyTargetMinutes: model.data.settings.dailyTargetMinutes
+        )
+        let nextDayKey = DayKey.next(workingDay)
+        let tomorrowOpen = (model.plan(for: nextDayKey)?.priorities ?? []).filter { !$0.isDone }
+
+        return VStack(alignment: .leading, spacing: Theme.Space.s) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: telemetry.isTargetMet ? "checkmark.seal.fill" : "moon.fill")
+                        .foregroundStyle(telemetry.isTargetMet ? Theme.emerald : Theme.amber)
+                    Text(TimeFormat.short(telemetry.focusedSeconds))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .monospacedDigit()
+                    Text("focused today · \(telemetry.completedSessions) \(telemetry.completedSessions == 1 ? "block" : "blocks")")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.65))
+                }
+                Spacer()
+                if telemetry.prioritiesTotal > 0 {
+                    Text("\(telemetry.prioritiesDone)/\(telemetry.prioritiesTotal) tasks")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+            }
+            if let nextTop = tomorrowOpen.first {
+                HStack(spacing: 5) {
+                    Image(systemName: "sunrise.fill")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.amber)
+                    Text("First up tomorrow: \(nextTop.title)")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(Theme.Space.m)
+        .frame(width: 360, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.12), lineWidth: 1))
     }
 
     private func sleepDisplay() {

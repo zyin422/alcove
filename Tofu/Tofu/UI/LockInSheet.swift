@@ -48,6 +48,34 @@ enum LockInOption: Hashable, CaseIterable, Identifiable {
     }
 }
 
+/// Summary of what a subject launches when locking in (unit-tested).
+struct LockInWorkspaceSummary: Equatable {
+    let layoutLabel: String
+    let browserTitle: String
+    let urlCount: Int
+    let appNames: [String]
+    let unusedPolicyLabel: String
+    let trustedDomains: [String]
+
+    static func describe(subject: Subject) -> LockInWorkspaceSummary {
+        let layoutLabel = subject.usesCustomLayout ? "Custom layout" : subject.preset.title
+        let urlCount = subject.slots.filter { $0.kind == .website }.flatMap(\.urls).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
+        let appNames = subject.slotApps.map(\.name) + subject.allowedApps.map(\.name)
+        let dedupApps = Array(NSOrderedSet(array: appNames)) as? [String] ?? appNames
+        let domains = (subject.sites + subject.extraDomains)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return LockInWorkspaceSummary(
+            layoutLabel: layoutLabel,
+            browserTitle: subject.browser.title,
+            urlCount: urlCount,
+            appNames: dedupApps,
+            unusedPolicyLabel: subject.unusedApps == .quit ? "Quit other apps" : "Hide other apps",
+            trustedDomains: Array(Set(domains)).sorted()
+        )
+    }
+}
+
 /// Mode choice before locking in: open-ended or a goal, then LOCK IN.
 struct LockInSheet: View {
     let model: AppModel
@@ -89,9 +117,9 @@ struct LockInSheet: View {
                 CustomMinutesField(minutes: $customMinutes)
             }
 
+            workspacePreviewCard
+
             VStack(alignment: .leading, spacing: Theme.Space.s) {
-                note("Other apps will be hidden. Google Chrome, Finder\(subject.allowedApps.isEmpty ? "" : " and your allowed apps") stay available.")
-                note("Tabs unrelated to \(subject.name) are closed automatically (checked by AI).")
                 note(model.data.settings.discordEnabled
                      ? "Your Discord servers will see that you locked in."
                      : "Discord announcements are off (turn them on in Settings).")
@@ -217,6 +245,50 @@ struct LockInSheet: View {
             option = suggestion.option
             customMinutes = suggestion.customMinutes
         }
+    }
+
+    private var workspacePreviewCard: some View {
+        let info = LockInWorkspaceSummary.describe(subject: subject)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                HStack(spacing: 5) {
+                    Image(systemName: "macwindow.on.rectangle")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.subjectColor(subject.colorHex))
+                    Text("Workspace Launch")
+                        .font(.caption.weight(.semibold))
+                }
+                Spacer()
+                Text("\(info.layoutLabel) · \(info.browserTitle)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: Theme.Space.s) {
+                Text(info.urlCount > 0 ? "\(info.urlCount) start \(info.urlCount == 1 ? "tab" : "tabs")" : "Clean browser")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text("·").foregroundStyle(.tertiary)
+                Text(info.unusedPolicyLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                if !info.appNames.isEmpty {
+                    Text("·").foregroundStyle(.tertiary)
+                    Text("Apps: \(info.appNames.prefix(3).joined(separator: ", "))\(info.appNames.count > 3 ? " +\(info.appNames.count - 3)" : "")")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            if !info.trustedDomains.isEmpty {
+                Text("Trusted domains: \(info.trustedDomains.prefix(4).joined(separator: ", "))\(info.trustedDomains.count > 4 ? " +\(info.trustedDomains.count - 4)" : "")")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(Theme.Space.s)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.03)))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.08), lineWidth: 1))
     }
 
     private func note(_ text: String) -> some View {
