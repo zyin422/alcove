@@ -360,6 +360,7 @@ private struct MessageRow: View {
     let message: ChatMessage
     var isSpeaking: Bool = false
     var onSpeak: (() -> Void)? = nil
+    @State private var copied = false
 
     var body: some View {
         switch message.role {
@@ -372,16 +373,35 @@ private struct MessageRow: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, Theme.Space.s)
                     .background(RoundedRectangle(cornerRadius: 14).fill(Color.primary.opacity(0.08)))
-                if let onSpeak {
-                    Button(action: onSpeak) {
-                        Image(systemName: isSpeaking ? "stop.circle.fill" : "speaker.wave.2")
-                            .font(.system(size: 13))
-                            .foregroundStyle(isSpeaking ? Color.accentColor : Color.secondary)
+                VStack(spacing: 4) {
+                    if let onSpeak {
+                        Button(action: onSpeak) {
+                            Image(systemName: isSpeaking ? "stop.circle.fill" : "speaker.wave.2")
+                                .font(.system(size: 13))
+                                .foregroundStyle(isSpeaking ? Color.accentColor : Color.secondary)
+                                .frame(width: 22, height: 22)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(isSpeaking ? "Stop" : "Read aloud")
+                    }
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(message.text, forType: .string)
+                        copied = true
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            copied = false
+                        }
+                    } label: {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 11))
+                            .foregroundStyle(copied ? Theme.emerald : Color.secondary)
                             .frame(width: 22, height: 22)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help(isSpeaking ? "Stop" : "Read aloud")
+                    .help("Copy reply")
                 }
                 Spacer(minLength: 40)
             }

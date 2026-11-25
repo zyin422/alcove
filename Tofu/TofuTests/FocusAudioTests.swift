@@ -200,5 +200,8 @@ final class FocusAudioTests: XCTestCase {
         let relaxed = FocusAudioEngine.tracks(for: .relaxed, bundle: Bundle.main)
         XCTAssertGreaterThanOrEqual(focus.count, 3)
         XCTAssertGreaterThanOrEqual(relaxed.count, 3)
+
+        let engine = FocusAudioEngine.shared
+        XCTAssertNil(engine.selectTrack(at: 999))
     }
 }

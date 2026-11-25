@@ -115,12 +115,35 @@ struct SettingsView: View {
                         Button("Next track") {
                             _ = FocusAudioEngine.shared.nextTrack()
                         }
-                        if let track = FocusAudioEngine.shared.currentTrackTitle {
+                        let tracks = FocusAudioEngine.shared.availableTrackTitles
+                        if tracks.count > 1 {
+                            Menu(FocusAudioEngine.shared.currentTrackTitle ?? "Select Track") {
+                                ForEach(Array(tracks.enumerated()), id: \.offset) { idx, title in
+                                    Button {
+                                        _ = FocusAudioEngine.shared.selectTrack(at: idx)
+                                    } label: {
+                                        if FocusAudioEngine.shared.currentTrackTitle == title {
+                                            Label(title, systemImage: "checkmark")
+                                        } else {
+                                            Text(title)
+                                        }
+                                    }
+                                }
+                            }
+                        } else if let track = FocusAudioEngine.shared.currentTrackTitle {
                             Text(track)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    Spacer()
+                    Button("Custom Audio Folder") {
+                        let root = FocusAudioEngine.audioDirectory
+                        try? FileManager.default.createDirectory(at: root.appendingPathComponent("Focus"), withIntermediateDirectories: true)
+                        try? FileManager.default.createDirectory(at: root.appendingPathComponent("Relaxed"), withIntermediateDirectories: true)
+                        NSWorkspace.shared.open(root)
+                    }
+                    .font(.caption)
                 }
             }
             Toggle("Acoustic audio cues", isOn: soundCuesBinding)

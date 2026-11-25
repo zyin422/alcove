@@ -246,6 +246,20 @@ struct MusicTrack: Equatable {
         startCurrentPlaylistTrack(fadeIn: fadeIn)
     }
 
+    /// Titles of all tracks loaded in the active playlist.
+    var availableTrackTitles: [String] {
+        playlistTracks.map(\.title)
+    }
+
+    /// Jumps directly to track `index` in the currently active playlist.
+    @discardableResult
+    func selectTrack(at index: Int) -> String? {
+        guard playlistTracks.indices.contains(index), activePlaylist != nil else { return nil }
+        playlistIndex = index
+        startCurrentPlaylistTrack(fadeIn: false)
+        return currentTrackTitle
+    }
+
     /// Advances to the next instrumental track in the current playlist.
     @discardableResult
     func nextTrack() -> String? {

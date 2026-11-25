@@ -613,8 +613,17 @@ struct LockedView: View {
                 }
                 if FocusAudioEngine.shared.isPlaying && FocusAudioEngine.shared.activePlaylist != nil {
                     Section("Track") {
-                        if let title = FocusAudioEngine.shared.currentTrackTitle {
-                            Text("Playing: \(title)")
+                        let titles = FocusAudioEngine.shared.availableTrackTitles
+                        ForEach(Array(titles.enumerated()), id: \.offset) { idx, title in
+                            Button {
+                                _ = FocusAudioEngine.shared.selectTrack(at: idx)
+                            } label: {
+                                if FocusAudioEngine.shared.currentTrackTitle == title {
+                                    Label(title, systemImage: "checkmark")
+                                } else {
+                                    Text(title)
+                                }
+                            }
                         }
                         Button("Next track") {
                             _ = FocusAudioEngine.shared.nextTrack()
