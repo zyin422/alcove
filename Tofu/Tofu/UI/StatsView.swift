@@ -15,6 +15,8 @@ struct StatsView: View {
         let shown = min(stats.startOf(span, containing: anchor), latest)
         let period = stats.matching(sessions, span: span, containing: shown)
         let summary = stats.summary(period)
+        let comparison = stats.periodComparison(sessions, span: span, containing: shown)
+        let heatmapColumns = stats.consistencyHeatmap(sessions: sessions, weeks: 12)
         let shares = stats.shares(period)
 
         ScrollView {
@@ -22,6 +24,7 @@ struct StatsView: View {
                 tabHeader(summary: summary)
                         if StatsFormatting.hasTrackedSessions(sessions) {
                             periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
+                            StatsSummaryGrid(summary: summary, comparison: comparison, subjectCount: shares.count)
                             if span == .day {
                                 if !period.isEmpty {
                                     DayChronologicalTimeline(sessions: period, day: shown, color: color(for:))
@@ -30,12 +33,28 @@ struct StatsView: View {
                             } else {
                                 periodChart(stats: stats, sessions: period, shown: shown)
                                 if !shares.isEmpty {
-                                    StatsSubjectBreakdown(shares: shares, color: color(for:))
+                                    StatsSubjectBreakdown(
+                                        shares: shares,
+                                        color: color(for:),
+                                        subjectIDForName: { name in
+                                            model.data.subjects.first(where: { $0.name == name })?.id
+                                        },
+                                        onSelectSubject: { id in
+                                            model.selection = .subject(id)
+                                        }
+                                    )
                                 }
                                 TimeBlockList(blocks: StatsFormatting.timeBlocks(period),
                                               onDelete: { model.deleteSession(id: $0) })
                             }
-                            StatsSummaryGrid(summary: summary, subjectCount: shares.count)
+                            FocusConsistencyHeatmap(
+                                columns: heatmapColumns,
+                                selectedDay: shown,
+                                onSelectDay: { date in
+                                    span = .day
+                                    anchor = min(date, latest)
+                                }
+                            )
                             FocusTelemetrySection(stats: stats, sessions: period)
                         } else {
                             Text(StatsFormatting.emptyMessage)
@@ -544,9 +563,10 @@ private struct StatsStackedChart: View {
     }
 }
 
-/// Summary cards for the period on screen.
+/// Summary Bento Grid for the active period, led by Total Focus with period-over-period comparison delta.
 private struct StatsSummaryGrid: View {
     let summary: StatsSummary
+    let comparison: PeriodComparison
     let subjectCount: Int
 
     private var scoreTint: Color {
@@ -555,20 +575,86 @@ private struct StatsSummaryGrid: View {
         return Theme.coral
     }
 
+    private var deltaTint: Color {
+        if comparison.deltaSeconds >= 60 { return Theme.emerald }
+        if comparison.deltaSeconds <= -60 { return Theme.coral }
+        return .secondary
+    }
+
     var body: some View {
-        LazyVGrid(columns: statsGridColumns, alignment: .leading, spacing: Theme.Space.m) {
-            StatCard(title: "Total Focus", value: TimeFormat.short(summary.total), tint: Theme.indigo, icon: "clock.fill")
-            StatCard(title: "Focus Score", value: "\(summary.focusScore)%", tint: scoreTint, icon: "chart.line.uptrend.xyaxis")
-            StatCard(title: "Deep Work", value: TimeFormat.short(summary.deepWorkSeconds), tint: Theme.emerald, icon: "bolt.shield.fill")
-            StatCard(title: "Current Streak", value: "\(summary.currentStreak)d", tint: summary.currentStreak > 0 ? Theme.amber : nil, icon: "flame.fill")
-            StatCard(title: "Best Streak", value: "\(summary.longestStreak)d", icon: "trophy.fill")
-            StatCard(title: "Sessions", value: "\(summary.sessionCount)")
-            StatCard(title: "Average", value: TimeFormat.short(summary.average))
-            StatCard(title: "Longest", value: TimeFormat.short(summary.longest))
-            StatCard(title: "Apps Blocked", value: "\(summary.blockedAttempts)", tint: summary.blockedAttempts > 0 ? Theme.rose : nil, icon: "shield.fill")
-            StatCard(title: "Tabs Closed", value: "\(summary.closedTabs)", tint: summary.closedTabs > 0 ? Theme.rose : nil, icon: "xmark.circle.fill")
-            StatCard(title: "Bails", value: "\(summary.bails)", tint: summary.bails > 0 ? Theme.coral : nil)
-            StatCard(title: "Subjects", value: "\(subjectCount)")
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            HStack(spacing: Theme.Space.m) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: "clock.fill")
+                            .foregroundStyle(Theme.indigo)
+                        Text("TOTAL FOCUS")
+                            .font(Theme.captionFont)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(comparison.trendLabel)
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(deltaTint.opacity(0.12)))
+                            .foregroundStyle(deltaTint)
+                    }
+                    Text(TimeFormat.short(summary.total))
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                    Text("\(summary.sessionCount) sessions · \(subjectCount) subjects")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Theme.indigo.opacity(0.22), lineWidth: 1)
+                        )
+                )
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: "bolt.shield.fill")
+                            .foregroundStyle(Theme.emerald)
+                        Text("DEEP WORK (≥25m)")
+                            .font(Theme.captionFont)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        let deepPct = summary.total > 0 ? Int(((summary.deepWorkSeconds / summary.total) * 100).rounded()) : 0
+                        Text("\(deepPct)% of focus")
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(Theme.emerald)
+                    }
+                    Text(TimeFormat.short(summary.deepWorkSeconds))
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                    Text("Avg block \(TimeFormat.short(summary.average)) · Longest \(TimeFormat.short(summary.longest))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                        )
+                )
+            }
+
+            LazyVGrid(columns: statsGridColumns, alignment: .leading, spacing: Theme.Space.m) {
+                StatCard(title: "Focus Score", value: "\(summary.focusScore)%", tint: scoreTint, icon: "chart.line.uptrend.xyaxis")
+                StatCard(title: "Current Streak", value: "\(summary.currentStreak)d", tint: summary.currentStreak > 0 ? Theme.amber : nil, icon: "flame.fill")
+                StatCard(title: "Best Streak", value: "\(summary.longestStreak)d", icon: "trophy.fill")
+                StatCard(title: "Shield Deflections", value: "\(summary.blockedAttempts + summary.closedTabs)", tint: (summary.blockedAttempts + summary.closedTabs) > 0 ? Theme.rose : nil, icon: "shield.fill")
+            }
         }
     }
 }
@@ -577,15 +663,20 @@ private struct StatsSummaryGrid: View {
 private struct StatsSubjectBreakdown: View {
     let shares: [SubjectShare]
     let color: (String) -> Color
+    let subjectIDForName: (String) -> UUID?
+    let onSelectSubject: (UUID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s) {
             ForEach(shares) { share in
-                VStack(alignment: .leading, spacing: 2) {
+                let subjectID = subjectIDForName(share.name)
+                let content = VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: Theme.Space.m) {
-                        Text(share.name)
-                            .lineLimit(1)
-                            .frame(width: 120, alignment: .leading)
+                        HStack(spacing: 5) {
+                            Circle().fill(color(share.name)).frame(width: 7, height: 7)
+                            Text(share.name).lineLimit(1)
+                        }
+                        .frame(width: 132, alignment: .leading)
                         StatsShareBar(fraction: share.fraction, color: color(share.name))
                         Text(TimeFormat.short(share.seconds))
                             .monospacedDigit()
@@ -594,10 +685,113 @@ private struct StatsSubjectBreakdown: View {
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                             .frame(width: 44, alignment: .trailing)
+                        if subjectID != nil {
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                     SubjectStatLine(sessions: share.sessionCount, average: share.average, longest: share.longest)
                 }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 6)
+                .contentShape(Rectangle())
+
+                if let subjectID {
+                    Button {
+                        onSelectSubject(subjectID)
+                    } label: {
+                        content
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open \(share.name) setup")
+                } else {
+                    content
+                }
             }
+        }
+    }
+}
+
+/// Interactive 12-week Focus Consistency Heatmap; clicking a day cell jumps straight to that day's Stats view.
+private struct FocusConsistencyHeatmap: View {
+    let columns: [[ConsistencyHeatmapDay]]
+    let selectedDay: Date
+    let onSelectDay: (Date) -> Void
+    @State private var hoveredDay: ConsistencyHeatmapDay?
+
+    var body: some View {
+        let cal = Calendar.current
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.grid.3x3.fill")
+                        .foregroundStyle(Theme.indigo)
+                    Text("12-Week Consistency Heatmap")
+                        .font(.headline)
+                }
+                Spacer()
+                if let hovered = hoveredDay {
+                    Text("\(hovered.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())) · \(hovered.totalMinutes > 0 ? TimeFormat.short(hovered.totalMinutes * 60) : "0m") (\(hovered.sessionCount) blocks)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack(spacing: 4) {
+                        Text("Less").font(.caption2).foregroundStyle(.secondary)
+                        ForEach(0..<5, id: \.self) { level in
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(cellColor(level))
+                                .frame(width: 10, height: 10)
+                        }
+                        Text("More").font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            HStack(spacing: 5) {
+                ForEach(Array(columns.enumerated()), id: \.offset) { _, week in
+                    VStack(spacing: 5) {
+                        ForEach(week) { day in
+                            let isSelected = cal.isDate(day.date, inSameDayAs: selectedDay)
+                            Button {
+                                onSelectDay(day.date)
+                            } label: {
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(cellColor(day.intensityLevel))
+                                    .frame(maxWidth: .infinity, minHeight: 14, maxHeight: 16)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .stroke(isSelected ? Theme.amber : Color.primary.opacity(0.06), lineWidth: isSelected ? 1.5 : 0.5)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { inside in
+                                hoveredDay = inside ? day : nil
+                            }
+                            .help("\(day.dayKey): \(Int(day.totalMinutes))m across \(day.sessionCount) blocks")
+                        }
+                    }
+                }
+            }
+        }
+        .padding(Theme.Space.m)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+        )
+    }
+
+    private func cellColor(_ level: Int) -> Color {
+        switch level {
+        case 0: return Color.primary.opacity(0.05)
+        case 1: return Theme.indigo.opacity(0.24)
+        case 2: return Theme.indigo.opacity(0.48)
+        case 3: return Theme.indigo.opacity(0.75)
+        default: return Theme.indigo
         }
     }
 }

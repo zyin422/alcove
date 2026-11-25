@@ -631,4 +631,31 @@ final class AppModelTests: XCTestCase {
             XCTAssertTrue(s.parkedThoughts.isEmpty)
         }
     }
+
+    func testCompleteActivePriorityAndAdvanceSwitchesToNextSubjectTask() throws {
+        let model = AppModel(store: try makeStore(), engine: EngineHarness().engine)
+        let subject = makeSubject("CS128")
+        model.addSubject(subject)
+
+        let today = DayKey.key(for: Date())
+        let p1 = Priority(title: "Finish AST visitor", subjectID: subject.id)
+        let p2 = Priority(title: "Run Valgrind checks", subjectID: subject.id)
+        let p3 = Priority(title: "Submit MP3", subjectID: subject.id)
+        model.updatePlan(day: today) { $0.priorities = [p1, p2, p3] }
+
+        // Select p3 explicitly as active focus
+        model.selectActivePriority(p3.id, for: subject.id, day: today)
+        XCTAssertEqual(model.plan(for: today)?.activePriority(for: subject.id)?.id, p3.id)
+
+        // Complete p3 and advance cleanly to next unfinished subject task (p1)
+        let next = model.completeActivePriorityAndAdvance(p3.id, subjectID: subject.id, day: today)
+        XCTAssertEqual(next?.id, p1.id)
+        XCTAssertEqual(model.plan(for: today)?.priorities.first(where: { $0.id == p3.id })?.isDone, true)
+        XCTAssertEqual(model.plan(for: today)?.activePriority(for: subject.id)?.id, p1.id)
+
+        // Completing remaining tasks yields nil next
+        _ = model.completeActivePriorityAndAdvance(p1.id, subjectID: subject.id, day: today)
+        let finalNext = model.completeActivePriorityAndAdvance(p2.id, subjectID: subject.id, day: today)
+        XCTAssertNil(finalNext)
+    }
 }

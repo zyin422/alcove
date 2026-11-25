@@ -1061,4 +1061,46 @@ final class SessionEngineTests: XCTestCase {
         XCTAssertTrue(h.engine.gracePassUsed)
         XCTAssertNotNil(h.blocker.startedWith)
     }
+
+    func testAllowDeflectedSiteTrustsAndReopensAcademicDomainButRejectsDistraction() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+
+        // Distraction category is rejected inline
+        let blocked = h.engine.allowDeflectedSite("reddit.com", reopen: true)
+        XCTAssertEqual(blocked, .rejectedDistraction(category: DistractionList.Category.social.rawValue))
+        XCTAssertTrue(h.chrome.allowedHosts.isEmpty)
+        XCTAssertTrue(h.chrome.reopenedURLs.isEmpty)
+
+        // Whole search engine domain is rejected
+        XCTAssertEqual(h.engine.allowDeflectedSite("google.com"), .rejectedSearchEngine)
+
+        // Legitimate academic host can be allowed and reopened mid-session
+        let allowed = h.engine.allowDeflectedSite("https://arxiv.org/abs/2401.00001", reopen: true)
+        XCTAssertEqual(allowed, .allowed(host: "arxiv.org"))
+        XCTAssertEqual(h.chrome.allowedHosts, ["arxiv.org"])
+        XCTAssertEqual(h.chrome.reopenedURLs, ["https://arxiv.org"])
+        XCTAssertTrue(h.engine.isSiteAllowedInSession("arxiv.org"))
+        XCTAssertEqual(h.engine.sessionAllowedSites, ["arxiv.org"])
+    }
+
+    func testBlockedAppShieldStatusReflectsDistractionAndAllowedState() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+
+        h.engine.lookupApp = { _ in AllowedApp(bundleID: "com.tinyspeck.slackmacgap", name: "Slack") }
+        h.blocker.simulateBlocked("com.tinyspeck.slackmacgap", name: "Slack")
+        if case .prohibited = h.engine.blockedAppShieldStatus(named: "Slack") {
+            // expected
+        } else {
+            XCTFail("Expected Slack to be classified as prohibited distraction")
+        }
+
+        h.engine.lookupApp = { _ in AllowedApp(bundleID: "com.apple.Preview", name: "Preview") }
+        h.blocker.simulateBlocked("com.apple.Preview", name: "Preview")
+        XCTAssertEqual(h.engine.blockedAppShieldStatus(named: "Preview"), .allowable)
+
+        _ = h.engine.allowApp(named: "Preview")
+        XCTAssertEqual(h.engine.blockedAppShieldStatus(named: "Preview"), .allowed)
+    }
 }

@@ -146,7 +146,7 @@ struct LockedView: View {
                 } else if sessionTab == .thoughts {
                     ParkedThoughtsView(engine: model.engine)
                 } else if sessionTab == .closedTabs {
-                    ClosedTabsRecoveryView(engine: model.engine)
+                    ClosedTabsRecoveryView(model: model, engine: model.engine)
                 } else {
                     ChatView(assistant: model.assistant)
                 }
@@ -251,10 +251,12 @@ struct LockedView: View {
     @ViewBuilder private func activePriorityCard(engine: SessionEngine) -> some View {
         if let session = engine.session {
             let todayKey = DayKey.key(for: Date())
-            if let priority = model.plan(for: todayKey)?.activePriority(for: session.subjectID) {
+            let plan = model.plan(for: todayKey)
+            let subjectQueue = plan?.priorities.filter { $0.subjectID == session.subjectID && !$0.isDone } ?? []
+            if let priority = plan?.activePriority(for: session.subjectID) {
                 let color = priority.isAnchor ? Theme.amber : Theme.subjectColor(SubjectColor.hex(for: session.subjectName))
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 4) {
                         HStack(spacing: 3) {
                             if priority.isAnchor {
                                 Image(systemName: "star.fill")
@@ -266,26 +268,69 @@ struct LockedView: View {
                                 .foregroundStyle(color)
                                 .tracking(0.8)
                         }
-                        Spacer()
-                        Button {
-                            Task {
-                                model.setPriority(priority.id, done: true, day: todayKey)
-                                await engine.finish()
+                        if subjectQueue.count > 1 {
+                            Menu {
+                                ForEach(subjectQueue) { item in
+                                    Button {
+                                        model.selectActivePriority(item.id, for: session.subjectID, day: todayKey)
+                                    } label: {
+                                        if item.id == priority.id {
+                                            Label(item.title, systemImage: "checkmark")
+                                        } else {
+                                            Text(item.title)
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Text("1/\(subjectQueue.count)")
+                                    .font(.system(size: 8.5, weight: .semibold).monospacedDigit())
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1.5)
+                                    .background(Capsule().fill(Color.primary.opacity(0.08)))
+                                    .foregroundStyle(.secondary)
                             }
-                        } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 8, weight: .bold))
-                                Text("Done")
-                                    .font(.system(size: 9.5, weight: .semibold))
-                            }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2.5)
-                            .background(Capsule().fill(Theme.emerald.opacity(0.18)))
-                            .foregroundStyle(Theme.emerald)
+                            .menuStyle(.borderlessButton)
+                            .help("Switch active priority for this block")
                         }
-                        .buttonStyle(.plain)
-                        .help("Mark “\(priority.title)” completed and finish focus block")
+                        Spacer()
+                        HStack(spacing: 3) {
+                            Button {
+                                _ = model.completeActivePriorityAndAdvance(priority.id, subjectID: session.subjectID, day: todayKey)
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 8, weight: .bold))
+                                    Text(subjectQueue.count > 1 ? "Done & Next" : "Done")
+                                        .font(.system(size: 9.5, weight: .semibold))
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2.5)
+                                .background(Capsule().fill(Theme.emerald.opacity(0.18)))
+                                .foregroundStyle(Theme.emerald)
+                            }
+                            .buttonStyle(.plain)
+                            .help(subjectQueue.count > 1
+                                  ? "Complete “\(priority.title)” and switch to next task while keeping the timer running"
+                                  : "Complete “\(priority.title)” and continue focusing")
+
+                            Menu {
+                                Button("Complete & Continue Block") {
+                                    _ = model.completeActivePriorityAndAdvance(priority.id, subjectID: session.subjectID, day: todayKey)
+                                }
+                                Button("Complete & End Block") {
+                                    Task {
+                                        model.setPriority(priority.id, done: true, day: todayKey)
+                                        await engine.finish()
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .frame(width: 14)
+                        }
                     }
 
                     Text(priority.title)
@@ -811,7 +856,9 @@ private struct ParkedThoughtsView: View {
 
 /// Drawer showing all interventions (blocked apps and closed browser tabs) during the session.
 private struct ClosedTabsRecoveryView: View {
+    let model: AppModel
     let engine: SessionEngine
+    @State private var trustedFeedback: String?
 
     private var closed: [String] { engine.session?.closedTabHistory ?? [] }
     private var blocked: [String] { engine.session?.blockedAppHistory ?? [] }
@@ -829,14 +876,20 @@ private struct ClosedTabsRecoveryView: View {
                         Button("Copy URLs") {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(closed.joined(separator: "\n"), forType: .string)
+                            ToastCenter.shared.show("Copied deflected hosts")
                         }
                         .buttonStyle(SecondaryButtonStyle())
                         .controlSize(.small)
                     }
                 }
-                Text("Distractions deflected while you locked in. Nothing was permanently lost.")
+                Text("Distractions deflected while locked in. Trust false-positive sites or allow work apps directly for this subject.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let trustedFeedback {
+                    Text(trustedFeedback)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Theme.emerald)
+                }
             }
             .padding(.horizontal, Theme.Space.m)
             .padding(.top, Theme.Space.m)
@@ -859,24 +912,8 @@ private struct ClosedTabsRecoveryView: View {
                                 Text("BLOCKED APPS (\(blocked.count))")
                                     .font(.caption2.weight(.bold))
                                     .foregroundStyle(Theme.rose)
-                                ForEach(Array(blocked.enumerated()), id: \.offset) { index, app in
-                                    HStack(spacing: Theme.Space.s) {
-                                        Image(systemName: "lock.slash.fill")
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(Theme.rose)
-                                        Text(app)
-                                            .font(.system(size: 13, weight: .medium))
-                                        Spacer()
-                                        Text("Blocked")
-                                            .font(.caption2.bold())
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Capsule().fill(Theme.rose.opacity(0.12)))
-                                            .foregroundStyle(Theme.rose)
-                                    }
-                                    .padding(.horizontal, Theme.Space.m)
-                                    .padding(.vertical, 8)
-                                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+                                ForEach(Array(blocked.enumerated()), id: \.offset) { _, app in
+                                    blockedAppRow(app)
                                 }
                             }
                         }
@@ -887,40 +924,117 @@ private struct ClosedTabsRecoveryView: View {
                                     .font(.caption2.weight(.bold))
                                     .foregroundStyle(Theme.amber)
                                 ForEach(Array(closed.enumerated()), id: \.offset) { index, host in
-                                    HStack(spacing: Theme.Space.s) {
-                                        Image(systemName: "safari")
-                                            .font(.system(size: 13))
-                                            .foregroundStyle(.secondary)
-                                        Text(host)
-                                            .font(.system(size: 13, design: .monospaced))
-                                            .lineLimit(1)
-                                        Spacer()
-                                        Button {
-                                            NSPasteboard.general.clearContents()
-                                            NSPasteboard.general.setString(host, forType: .string)
-                                        } label: {
-                                            Image(systemName: "doc.on.doc")
-                                                .font(.system(size: 11))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .help("Copy URL")
-
-                                        Text("#\(index + 1)")
-                                            .font(.caption2.monospacedDigit())
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding(.horizontal, Theme.Space.m)
-                                    .padding(.vertical, 8)
-                                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+                                    closedTabRow(host, index: index)
                                 }
                             }
                         }
                     }
                     .padding(.horizontal, Theme.Space.m)
+                    .padding(.bottom, Theme.Space.m)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func blockedAppRow(_ app: String) -> some View {
+        let status = engine.blockedAppShieldStatus(named: app)
+        HStack(spacing: Theme.Space.s) {
+            Image(systemName: status == .allowed ? "checkmark.shield.fill" : "lock.slash.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(status == .allowed ? Theme.emerald : Theme.rose)
+            Text(app)
+                .font(.system(size: 13, weight: .medium))
+            Spacer()
+            switch status {
+            case .allowed:
+                badgePill("Allowed", color: Theme.emerald)
+            case .prohibited(let category):
+                badgePill("Blocked · \(category)", color: Theme.rose)
+            case .allowable:
+                Button("Allow for Block") {
+                    let message = engine.allowApp(named: app)
+                    trustedFeedback = message
+                    ToastCenter.shared.show(message)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+            }
+        }
+        .padding(.horizontal, Theme.Space.m)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+    }
+
+    @ViewBuilder
+    private func closedTabRow(_ host: String, index: Int) -> some View {
+        let normalizedHost = DomainMatcher.host(of: host) ?? host
+        let isAllowed = engine.isSiteAllowedInSession(normalizedHost)
+        let isSearchEngine = DomainMatcher.isSearchEngine(normalizedHost)
+        let prohibitedCat = engine.prohibitedSiteCategory(normalizedHost)
+
+        HStack(spacing: Theme.Space.s) {
+            Image(systemName: isAllowed ? "checkmark.circle.fill" : "safari")
+                .font(.system(size: 13))
+                .foregroundStyle(isAllowed ? Theme.emerald : Color.secondary)
+            Text(host)
+                .font(.system(size: 13, design: .monospaced))
+                .lineLimit(1)
+            Spacer()
+            if isAllowed {
+                badgePill("Trusted", color: Theme.emerald)
+                Button("Reopen") {
+                    _ = engine.allowDeflectedSite(normalizedHost, reopen: true)
+                    ToastCenter.shared.show("Reopened \(normalizedHost)")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+            } else if let prohibitedCat {
+                badgePill("Blocked · \(prohibitedCat.rawValue)", color: Theme.rose)
+            } else if isSearchEngine {
+                badgePill("Query judged", color: Theme.amber)
+            } else {
+                Button("Allow & Reopen") {
+                    let result = engine.allowDeflectedSite(normalizedHost, reopen: true)
+                    if case .allowed(let trusted) = result {
+                        let msg = "Trusted \(trusted) for \(engine.session?.subjectName ?? "subject") & reopened"
+                        trustedFeedback = msg
+                        ToastCenter.shared.show(msg)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+                .help("Trust \(normalizedHost) for this subject and reopen it")
+            }
+
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(host, forType: .string)
+                ToastCenter.shared.show("Copied \(host)")
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Copy URL or host")
+
+            Text("#\(index + 1)")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, Theme.Space.m)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
+    }
+
+    private func badgePill(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2.bold())
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.14)))
+            .foregroundStyle(color)
     }
 }

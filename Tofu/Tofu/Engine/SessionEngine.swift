@@ -176,6 +176,8 @@ extension WindowPresenting {
     /// Set synchronously when the goal auto-finish is scheduled so it is scheduled only once.
     @ObservationIgnored private var isEnding = false
     @ObservationIgnored private(set) var gracePassEndsAt: Date?
+    /// Normalized site hosts explicitly trusted from the Shield panel during this block.
+    private(set) var sessionAllowedSites: Set<String> = []
     var gracePassUsed: Bool { session?.gracePassUsed ?? false }
     var isOnGracePass: Bool { gracePassEndsAt != nil }
     var gracePassRemaining: TimeInterval? {
@@ -253,6 +255,7 @@ extension WindowPresenting {
 
         quitApps = []
         blockedDuringSession = []
+        sessionAllowedSites = []
         let allowed = BlockPolicy.allowedSet(for: subject, ownBundleID: ownBundleID)
         switch subject.unusedApps {
         case .hide:
@@ -826,6 +829,7 @@ extension WindowPresenting {
         }
         quitApps = []
         blockedDuringSession = []
+        sessionAllowedSites = []
 
         session = nil
         subject = nil
@@ -883,6 +887,80 @@ extension WindowPresenting {
         }
         onAppAllowed?(app)
         return "Allowed \(app.name) for this work block."
+    }
+
+    enum SiteAllowResult: Equatable {
+        case allowed(host: String)
+        case rejectedDistraction(category: String)
+        case rejectedSearchEngine
+        case invalidHost
+        case noActiveSession
+    }
+
+    enum BlockedAppShieldStatus: Equatable {
+        case allowed
+        case allowable
+        case prohibited(category: String)
+    }
+
+    /// Evaluates whether a blocked app name can be allowed for the active block or is prohibited.
+    func blockedAppShieldStatus(named name: String) -> BlockedAppShieldStatus {
+        let query = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return .prohibited(category: "unknown") }
+        let running = (quitApps + blockedDuringSession).map { AllowedApp(bundleID: $0.bundleID, name: $0.name) }
+        guard let app = AppNameMatch.find(query, in: running) ?? lookupApp(query) else {
+            return .allowable
+        }
+        if sessionAllowed.contains(app.bundleID) {
+            return .allowed
+        }
+        if let category = DistractionApps.category(of: app.bundleID),
+           !(isPlanningMode && category == .messaging) {
+            return .prohibited(category: category.rawValue)
+        }
+        if let currentBrowser = subject?.browser, app.bundleID != currentBrowser.bundleID {
+            let knownBrowsers = [Browser.chrome.bundleID, Browser.arc.bundleID, "com.apple.Safari", "org.mozilla.firefox", "com.operasoftware.Opera", "com.microsoft.edgemac", "com.brave.Browser"]
+            if knownBrowsers.contains(app.bundleID) {
+                return .prohibited(category: "alternative browser")
+            }
+        }
+        return .allowable
+    }
+
+    /// True if `rawHost` has been allowed in this block or belongs to the subject's allowed sites.
+    func isSiteAllowedInSession(_ rawHost: String) -> Bool {
+        guard let host = DomainMatcher.host(of: rawHost) else { return false }
+        if sessionAllowedSites.contains(host) { return true }
+        guard let subject else { return false }
+        let allowed = DomainMatcher.allowedDomains(sites: subject.sites, extra: subject.extraDomains)
+            .filter { !DomainMatcher.isSearchEngine($0) }
+        return DomainMatcher.isAllowed("https://\(host)", allowed: allowed)
+    }
+
+    /// Returns the distraction category if `rawHost` cannot be unblocked inline during focus.
+    func prohibitedSiteCategory(_ rawHost: String) -> DistractionList.Category? {
+        guard let host = DomainMatcher.host(of: rawHost),
+              let cat = DistractionList.category(of: host), cat != .video else { return nil }
+        return cat
+    }
+
+    /// Trusts a deflected host for the active focus session (and saves it onto the subject),
+    /// rejecting whole search engines and prohibited distraction categories. Optionally reopens it.
+    @discardableResult
+    func allowDeflectedSite(_ rawHost: String, reopen: Bool = false) -> SiteAllowResult {
+        guard isLocked else { return .noActiveSession }
+        guard let host = DomainMatcher.host(of: rawHost), !host.isEmpty else { return .invalidHost }
+        if DomainMatcher.isSearchEngine(host) { return .rejectedSearchEngine }
+        if let cat = DistractionList.category(of: host), cat != .video {
+            return .rejectedDistraction(category: cat.rawValue)
+        }
+        chrome.allowHost(host)
+        rememberAllowedSite(host)
+        sessionAllowedSites.insert(host)
+        if reopen {
+            chrome.reopen(urls: [DomainMatcher.normalizedURL(host)?.absoluteString ?? "https://\(host)"])
+        }
+        return .allowed(host: host)
     }
 
     /// Apps quit or blocked this session that are not allowed yet, for the assistant's prompt.

@@ -108,6 +108,26 @@ struct FocusVelocity: Equatable {
     let rating: String
 }
 
+/// One day cell inside the multi-week consistency heatmap grid.
+struct ConsistencyHeatmapDay: Identifiable, Equatable {
+    let dayKey: String
+    let date: Date
+    let totalMinutes: Double
+    let sessionCount: Int
+    /// Discrete 0...4 intensity tier for monochrome/indigo heatmap rendering.
+    let intensityLevel: Int
+    var id: String { dayKey }
+}
+
+/// Period-over-period delta comparing the current span (`Day` / `Week` / `Month` / `Year`) with its predecessor.
+struct PeriodComparison: Equatable {
+    let currentTotal: TimeInterval
+    let previousTotal: TimeInterval
+    let deltaSeconds: TimeInterval
+    let deltaPercent: Int?
+    let trendLabel: String
+}
+
 /// Numbers for the summary cards (spec §10).
 struct StatsSummary: Equatable {
     var today: TimeInterval
@@ -570,6 +590,99 @@ struct StatsEngine {
             cleanSessionRate: cleanRate,
             completionRate: compRate,
             rating: rating
+        )
+    }
+
+    /// Builds `weeks` columns (oldest week left, newest week right), 7 rows per column aligned cleanly to calendar weeks,
+    /// showing daily focus intensity (`0...4`) across the recent multi-month window.
+    func consistencyHeatmap(sessions: [Session], weeks: Int = 12) -> [[ConsistencyHeatmapDay]] {
+        let clampedWeeks = max(1, min(52, weeks))
+        let ended = Self.ended(sessions)
+        var minutesByDay: [Date: Double] = [:]
+        var countByDay: [Date: Int] = [:]
+
+        for session in ended {
+            let day = periodStart(.day, for: session.start)
+            minutesByDay[day, default: 0] += session.duration / 60.0
+            countByDay[day, default: 0] += 1
+        }
+
+        let todayDay = periodStart(.day, for: now)
+        let currentWeekStart = periodStart(.weekOfYear, for: todayDay)
+        guard let firstWeekStart = calendar.date(byAdding: .weekOfYear, value: -(clampedWeeks - 1), to: currentWeekStart) else {
+            return []
+        }
+
+        let keyFormatter = formatter("yyyy-MM-dd")
+        var columns: [[ConsistencyHeatmapDay]] = []
+        columns.reserveCapacity(clampedWeeks)
+
+        for weekOffset in 0..<clampedWeeks {
+            guard let weekStart = calendar.date(byAdding: .weekOfYear, value: weekOffset, to: firstWeekStart) else { continue }
+            var col: [ConsistencyHeatmapDay] = []
+            col.reserveCapacity(7)
+            for dayOffset in 0..<7 {
+                guard let dayDate = calendar.date(byAdding: .day, value: dayOffset, to: weekStart) else { continue }
+                let dayBucket = periodStart(.day, for: dayDate)
+                let key = keyFormatter.string(from: dayBucket)
+                let mins = dayBucket > todayDay ? 0 : (minutesByDay[dayBucket] ?? 0)
+                let count = dayBucket > todayDay ? 0 : (countByDay[dayBucket] ?? 0)
+                let level: Int
+                switch mins {
+                case ..<1: level = 0
+                case 1..<60: level = 1
+                case 60..<150: level = 2
+                case 150..<270: level = 3
+                default: level = 4
+                }
+                col.append(ConsistencyHeatmapDay(
+                    dayKey: key,
+                    date: dayBucket,
+                    totalMinutes: mins,
+                    sessionCount: count,
+                    intensityLevel: level
+                ))
+            }
+            columns.append(col)
+        }
+        return columns
+    }
+
+    /// Compares total tracked focus in the selected span against the immediately preceding span.
+    func periodComparison(_ sessions: [Session], span: StatsSpan, containing date: Date) -> PeriodComparison {
+        let current = matching(sessions, span: span, containing: date)
+        let prevDate = shift(date, span: span, by: -1)
+        let previous = matching(sessions, span: span, containing: prevDate)
+
+        let currentTotal = Self.ended(current).reduce(0) { $0 + $1.duration }
+        let previousTotal = Self.ended(previous).reduce(0) { $0 + $1.duration }
+        let delta = currentTotal - previousTotal
+
+        let pct: Int? = previousTotal >= 60
+            ? Int(((delta / previousTotal) * 100.0).rounded())
+            : nil
+
+        let unit = span.title.lowercased()
+        let label: String
+        if abs(delta) < 60 {
+            label = "Same as prev \(unit)"
+        } else {
+            let prefix = delta > 0 ? "+" : "-"
+            let formatted = TimeFormat.short(abs(delta))
+            if let pct {
+                let sign = pct > 0 ? "+" : ""
+                label = "\(prefix)\(formatted) (\(sign)\(pct)%) vs prev \(unit)"
+            } else {
+                label = "\(prefix)\(formatted) vs prev \(unit)"
+            }
+        }
+
+        return PeriodComparison(
+            currentTotal: currentTotal,
+            previousTotal: previousTotal,
+            deltaSeconds: delta,
+            deltaPercent: pct,
+            trendLabel: label
         )
     }
 }

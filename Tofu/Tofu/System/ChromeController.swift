@@ -31,6 +31,8 @@ struct BrowserWindowPlan: Equatable {
     func takeClosedBrowser() -> ClosedBrowserState?
     /// Opens these pages again in the session's browser (already-open ones are skipped).
     func reopen(urls: [String])
+    /// Allows all tabs on `host` for the rest of the current session (search engines only keep pending query URLs).
+    func allowHost(_ host: String)
     /// Closes every tab on `host` now and keeps it closed for the rest of the session.
     func closeHost(_ host: String)
     /// Called when a host is allowed for the session (the assistant, or the user answering "Needed").

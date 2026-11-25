@@ -74,6 +74,7 @@ import Foundation
     var pendingRestore: ClosedBrowserState?
     private(set) var reopenedURLs: [String] = []
     private(set) var closedHosts: [String] = []
+    private(set) var allowedHosts: [String] = []
     var onHostAllowed: ((String) -> Void)?
     /// Runs inside `prepare`, e.g. to end the session while Chrome is being prepared.
     var onPrepare: (() -> Void)?
@@ -102,6 +103,10 @@ import Foundation
         return state
     }
     func reopen(urls: [String]) { reopenedURLs.append(contentsOf: urls) }
+    func allowHost(_ host: String) {
+        allowedHosts.append(host)
+        onHostAllowed?(DomainMatcher.normalize(host))
+    }
     func closeHost(_ host: String) { closedHosts.append(host) }
     func simulateTabClosed(_ host: String) { onTabClosed?(host) }
 }

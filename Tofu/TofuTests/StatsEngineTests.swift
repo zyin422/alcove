@@ -496,4 +496,34 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertLessThan(mixedVel.score, 50)
         XCTAssertEqual(mixedVel.rating, "Building")
     }
+
+    func testConsistencyHeatmapBuildsTwelveWeekGridWithIntensityLevels() {
+        let light = session("CS128", date(2026, 10, 9, 10, 0), minutes: 30)
+        let deep = session("CS128", date(2026, 10, 10, 9, 0), minutes: 300)
+
+        let columns = engine.consistencyHeatmap(sessions: [light, deep], weeks: 12)
+        XCTAssertEqual(columns.count, 12)
+        XCTAssertTrue(columns.allSatisfy { $0.count == 7 })
+
+        let allDays = columns.flatMap { $0 }
+        let oct9 = allDays.first { $0.dayKey == "2026-10-09" }
+        let oct10 = allDays.first { $0.dayKey == "2026-10-10" }
+        XCTAssertEqual(oct9?.intensityLevel, 1)
+        XCTAssertEqual(oct9?.sessionCount, 1)
+        XCTAssertEqual(oct10?.intensityLevel, 4)
+        XCTAssertEqual(oct10?.totalMinutes, 300)
+    }
+
+    func testPeriodComparisonComputesDeltaAgainstPreviousSpan() {
+        let yesterday = session("CS128", date(2026, 10, 9, 10, 0), minutes: 60)
+        let today = session("CS128", date(2026, 10, 10, 9, 0), minutes: 120)
+
+        let cmp = engine.periodComparison([yesterday, today], span: .day, containing: now)
+        XCTAssertEqual(cmp.currentTotal, 7200)
+        XCTAssertEqual(cmp.previousTotal, 3600)
+        XCTAssertEqual(cmp.deltaSeconds, 3600)
+        XCTAssertEqual(cmp.deltaPercent, 100)
+        XCTAssertTrue(cmp.trendLabel.contains("+1h"))
+        XCTAssertTrue(cmp.trendLabel.contains("+100%"))
+    }
 }

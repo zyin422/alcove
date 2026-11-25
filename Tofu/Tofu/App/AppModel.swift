@@ -628,6 +628,41 @@ enum TokenSource: Equatable {
         }
     }
 
+    /// Selects a specific unfinished priority as the active focus anchor for `subjectID` without interrupting the block.
+    func selectActivePriority(_ id: UUID, for subjectID: UUID, day: String) {
+        var selectedTitle: String?
+        updatePlan(day: day) { plan in
+            guard let index = plan.priorities.firstIndex(where: { $0.id == id && !$0.isDone }) else { return }
+            for i in plan.priorities.indices where plan.priorities[i].subjectID == subjectID {
+                plan.priorities[i].isAnchor = false
+            }
+            plan.priorities[index].subjectID = subjectID
+            plan.priorities[index].isAnchor = true
+            selectedTitle = plan.priorities[index].title
+        }
+        if let selectedTitle {
+            ToastCenter.shared.show("Active focus switched to “\(selectedTitle)”.")
+        }
+    }
+
+    /// Completes `id` mid-session without ending the active focus block, advancing to the next unfinished priority
+    /// for `subjectID` if one exists.
+    @discardableResult
+    func completeActivePriorityAndAdvance(_ id: UUID, subjectID: UUID, day: String) -> Priority? {
+        let completedTitle = plan(for: day)?.priorities.first(where: { $0.id == id })?.title
+        setPriority(id, done: true, day: day)
+        let next = plan(for: day)?.activePriority(for: subjectID)
+        if !isStudyCompleted(day: day) {
+            if let completedTitle, let next {
+                ToastCenter.shared.show("✓ Finished “\(completedTitle)” · Up next: \(next.title)")
+            } else if let completedTitle {
+                ToastCenter.shared.show("✓ Finished “\(completedTitle)” · Keep flowing!")
+            }
+            SoundCue.sessionCompleted.play(enabled: data.settings.soundCuesEnabled)
+        }
+        return next
+    }
+
     /// True when the user has completed all study priorities or subjects planned for the given day.
     func isStudyCompleted(day: String? = nil, now: Date = Date()) -> Bool {
         let targetDay = day ?? DayKey.key(for: now)
