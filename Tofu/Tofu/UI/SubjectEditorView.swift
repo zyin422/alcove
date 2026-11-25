@@ -70,12 +70,39 @@ struct SubjectFormState: Equatable {
         customSlots.first { $0.id == id } ?? zoneSlots.first { $0.id == id }
     }
 
+    /// Preset study domains for 1-click website tab setup.
+    static let quickSitePresets: [(label: String, url: String)] = [
+        ("Canvas", "canvas.illinois.edu"),
+        ("GitHub", "github.com"),
+        ("arXiv", "arxiv.org"),
+        ("Google Docs", "docs.google.com"),
+        ("Overleaf", "overleaf.com"),
+        ("localhost:3000", "http://localhost:3000"),
+    ]
+
     /// Edits the slot with this id, in whichever list holds it.
     mutating func update(_ id: UUID, _ change: (inout SetupSlot) -> Void) {
         if let index = customSlots.firstIndex(where: { $0.id == id }) {
             change(&customSlots[index])
         } else if let index = zoneSlots.firstIndex(where: { $0.id == id }) {
             change(&zoneSlots[index])
+        }
+    }
+
+    /// Inserts a quick website preset into `slotID`, replacing an existing empty URL field if one is blank.
+    mutating func addQuickSitePreset(_ url: String, to slotID: UUID) {
+        update(slotID) { slot in
+            guard slot.kind == .website else { return }
+            let normalized = url.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { return }
+            if slot.urls.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(normalized) == .orderedSame }) {
+                return
+            }
+            if let emptyIndex = slot.urls.firstIndex(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                slot.urls[emptyIndex] = normalized
+            } else {
+                slot.urls.append(normalized)
+            }
         }
     }
 }
@@ -344,6 +371,29 @@ struct SubjectForm: View {
             Button("Add tab") { form.update(slot.id) { $0.urls.append("") } }
                 .buttonStyle(.borderless)
                 .font(.caption)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.Space.xs) {
+                    Text("Quick add:")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    ForEach(SubjectFormState.quickSitePresets, id: \.url) { preset in
+                        let alreadyAdded = slot.urls.contains {
+                            $0.trimmingCharacters(in: .whitespacesAndNewlines).localizedCaseInsensitiveContains(preset.url)
+                        }
+                        Button("+ \(preset.label)") {
+                            form.addQuickSitePreset(preset.url, to: slot.id)
+                        }
+                        .font(.caption2.weight(.medium))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(alreadyAdded ? Theme.emerald.opacity(0.14) : Color.primary.opacity(0.06)))
+                        .foregroundStyle(alreadyAdded ? Theme.emerald : .secondary)
+                        .buttonStyle(.plain)
+                        .disabled(alreadyAdded)
+                    }
+                }
+            }
         }
     }
 

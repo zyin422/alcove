@@ -430,4 +430,19 @@ final class CustomSetupTests: XCTestCase {
         XCTAssertEqual(SessionEngine.chromeErrorMessage(.automationDenied, browser: .arc),
                        "Allow Arc control in System Settings › Privacy & Security › Automation")
     }
+
+    @MainActor func testQuickSitePresetReplacesEmptyFieldAndSkipsDuplicates() {
+        var form = SubjectFormState(subject: nil)
+        let slotID = form.zoneSlots[0].id
+        XCTAssertEqual(form.zoneSlots[0].urls, [""])
+
+        form.addQuickSitePreset("github.com", to: slotID)
+        XCTAssertEqual(form.zoneSlots[0].urls, ["github.com"])
+
+        form.addQuickSitePreset("arxiv.org", to: slotID)
+        XCTAssertEqual(form.zoneSlots[0].urls, ["github.com", "arxiv.org"])
+
+        form.addQuickSitePreset("GITHUB.COM", to: slotID)
+        XCTAssertEqual(form.zoneSlots[0].urls, ["github.com", "arxiv.org"])
+    }
 }

@@ -169,7 +169,8 @@ struct LockedView: View {
         case .assistant:
             return "Assistant (⌘1)"
         case .plan:
-            return "Plan (⌘2)"
+            let openCount = model.todayPlan().priorities.filter { !$0.isDone }.count
+            return openCount > 0 ? "Plan (\(openCount)) ⌘2" : "Plan (⌘2)"
         case .thoughts:
             let count = model.engine.parkedThoughts.count
             return count > 0 ? "Thoughts (\(count)) ⌘3" : "Thoughts (⌘3)"

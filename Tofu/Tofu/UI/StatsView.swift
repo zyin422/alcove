@@ -237,7 +237,11 @@ struct StatsView: View {
         } else {
             VStack(alignment: .leading, spacing: Theme.Space.m) {
                 ForEach(subjects) { subject in
-                    DaySubjectCard(subject: subject, color: color(for: subject.name),
+                    let subjectID = model.data.subjects.first(where: { $0.name == subject.name })?.id
+                    DaySubjectCard(subject: subject,
+                                   color: color(for: subject.name),
+                                   subjectID: subjectID,
+                                   onSelectSubject: { id in model.selection = .subject(id) },
                                    onUpdateNotes: { model.updateSessionNotes(id: $0, notes: $1) },
                                    onDelete: { model.deleteSession(id: $0) })
                 }
@@ -286,15 +290,35 @@ struct StatsView: View {
 private struct DaySubjectCard: View {
     let subject: SubjectBlocks
     let color: Color
+    var subjectID: UUID? = nil
+    var onSelectSubject: ((UUID) -> Void)? = nil
     let onUpdateNotes: (UUID, String?) -> Void
     let onDelete: (UUID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
             HStack(alignment: .firstTextBaseline) {
-                Text(subject.name)
-                    .font(.headline)
-                    .lineLimit(1)
+                if let subjectID, let onSelectSubject {
+                    Button {
+                        onSelectSubject(subjectID)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Circle().fill(color).frame(width: 8, height: 8)
+                            Text(subject.name)
+                                .font(.headline)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open \(subject.name) setup")
+                } else {
+                    Text(subject.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                }
                 Spacer(minLength: Theme.Space.s)
                 Text(TimeFormat.short(subject.seconds))
                     .font(.system(size: 22, weight: .semibold))
@@ -409,6 +433,16 @@ private struct DayChronologicalTimeline: View {
                             .onHover { isHovered in
                                 hoveredSession = isHovered ? session : nil
                             }
+                    }
+
+                    if calendar.isDateInToday(day) {
+                        let nowSec = max(0, min(86400, Date().timeIntervalSince(startOfDay)))
+                        let nowX = (nowSec / 86400.0) * width
+                        Rectangle()
+                            .fill(Theme.coral)
+                            .frame(width: 2, height: 24)
+                            .offset(x: min(max(0, nowX - 1), max(0, width - 2)), y: 0)
+                            .help("Current time")
                     }
                 }
             }
