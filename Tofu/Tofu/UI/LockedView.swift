@@ -339,10 +339,18 @@ struct LockedView: View {
                         }
                     }
 
-                    Text(priority.title)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.primary)
-                        .lineLimit(2)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(priority.title)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Color.primary)
+                            .lineLimit(2)
+                        Spacer(minLength: 0)
+                        if let est = priority.estimatedMinutes {
+                            Text("\(est)m")
+                                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)

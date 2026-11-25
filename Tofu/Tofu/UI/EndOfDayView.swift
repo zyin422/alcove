@@ -505,6 +505,30 @@ struct EndOfDayView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            let nonEmptyCount = tomorrow.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+            let totalPlannedMins = tomorrow.compactMap(\.estimatedMinutes).reduce(0, +)
+            let anchorCount = tomorrow.filter(\.isAnchor).count
+            if nonEmptyCount > 0 {
+                HStack(spacing: Theme.Space.s) {
+                    Text("\(nonEmptyCount) \(nonEmptyCount == 1 ? "priority" : "priorities")")
+                        .font(.caption.weight(.medium).monospacedDigit())
+                    if totalPlannedMins > 0 {
+                        Text("· ~\(TimeFormat.short(TimeInterval(totalPlannedMins * 60))) estimated")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(totalPlannedMins > 480 ? Theme.amber : .secondary)
+                    }
+                    if anchorCount > 0 {
+                        Text("· ★ \(anchorCount)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(Theme.amber)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, Theme.Space.s)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.03)))
+            }
+
             Text(model.data.settings.discordEnabled
                  ? "Posts what you finished, what you didn't, and this plan to the group chat."
                  : "Discord posting is off in Settings, so the recap is only saved.")

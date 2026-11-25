@@ -170,6 +170,19 @@ final class LockedUITests: XCTestCase {
         XCTAssertNil(SessionSummaryText.followUpPriority(from: "   \n ", fallbackSubjectID: cs.id, subjects: [cs]))
     }
 
+    func testRecentSessionsReturnsLatestCompletedSessionsInDescendingOrder() {
+        let id = UUID()
+        let otherID = UUID()
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let s1 = Session(subjectID: id, subjectName: "CS128", mode: .open, start: t0, end: t0.addingTimeInterval(600), outcome: .completed)
+        let s2 = Session(subjectID: id, subjectName: "CS128", mode: .open, start: t0.addingTimeInterval(3600), end: t0.addingTimeInterval(4200), outcome: .bailed)
+        let s3 = Session(subjectID: id, subjectName: "CS128", mode: .open, start: t0.addingTimeInterval(7200), end: t0.addingTimeInterval(9000), outcome: .completed)
+        let s4 = Session(subjectID: otherID, subjectName: "Math", mode: .open, start: t0.addingTimeInterval(9500), end: t0.addingTimeInterval(10000), outcome: .completed)
+
+        let recent = SubjectTelemetry.recentSessions(subjectID: id, sessions: [s1, s2, s3, s4])
+        XCTAssertEqual(recent.map(\.id), [s3.id, s1.id])
+    }
+
     private func session(_ outcome: SessionOutcome?) -> Session {
         Session(subjectID: UUID(), subjectName: "CS128", mode: .open,
                 start: Date(timeIntervalSince1970: 0), outcome: outcome)

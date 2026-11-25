@@ -46,6 +46,15 @@ struct SubjectTelemetry: Equatable {
             activePrioritiesCount: active
         )
     }
+
+    static func recentSessions(subjectID: UUID, sessions: [Session], limit: Int = 3) -> [Session] {
+        Array(
+            sessions
+                .filter { $0.subjectID == subjectID && $0.outcome == .completed && !$0.isDemo }
+                .sorted { $0.start > $1.start }
+                .prefix(limit)
+        )
+    }
 }
 
 /// One subject's page: its name, the LOCK IN button, and the whole setup edited in place.
@@ -122,6 +131,8 @@ struct SubjectDetailView: View {
                 telemetryBentoGrid(telemetry)
 
                 subjectPrioritiesSection
+
+                recentSessionsSection
 
                 SubjectForm(form: $form, showsName: false)
                 if !form.errors.isEmpty {
@@ -254,6 +265,69 @@ struct SubjectDetailView: View {
         let todayKey = DayKey.key(for: Date())
         model.updatePlan(day: todayKey) { $0.priorities.append(priority) }
         quickPriorityDraft = ""
+    }
+
+    @ViewBuilder private var recentSessionsSection: some View {
+        let recent = SubjectTelemetry.recentSessions(subjectID: subject.id, sessions: model.data.sessions)
+        if !recent.isEmpty {
+            let color = Theme.subjectColor(subject.colorHex)
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
+                HStack {
+                    HStack(spacing: 6) {
+                        Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                            .foregroundStyle(color)
+                        Text("RECENT SESSIONS & REFLECTION NOTES")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .tracking(0.6)
+                    }
+                    Spacer()
+                    Button("View in Stats →") {
+                        model.selection = .stats
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                }
+
+                VStack(spacing: 6) {
+                    ForEach(recent) { session in
+                        HStack(alignment: .top, spacing: Theme.Space.m) {
+                            Text(session.start.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 118, alignment: .leading)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: Theme.Space.s) {
+                                    Text(TimeFormat.short(session.duration))
+                                        .font(.caption.weight(.semibold).monospacedDigit())
+                                    let deflect = session.blockedAttempts + session.closedTabs
+                                    Text(deflect == 0 ? "Clean focus" : "\(deflect) deflected")
+                                        .font(.caption2)
+                                        .foregroundStyle(deflect == 0 ? Theme.emerald : Theme.amber)
+                                }
+                                if let note = session.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+                                    Text("“\(note)”")
+                                        .font(.caption)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                }
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, Theme.Space.m)
+                        .padding(.vertical, 6)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.03)))
+                    }
+                }
+            }
+            .padding(Theme.Space.m)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.primary.opacity(0.02))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.primary.opacity(0.07), lineWidth: 1))
+            )
+        }
     }
 
     /// Saves the form whenever it is valid; an invalid draft keeps the last valid state saved.
