@@ -191,7 +191,17 @@ struct SubjectDetailView: View {
                     .disabled(isTestingWorkspace || model.engine.isLocked)
                     .help("Launch configured websites and app windows now without starting a Lock-In session")
                 }
-                
+
+                let ws = LockInWorkspaceSummary.describe(subject: subject)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.Space.xs) {
+                        summaryBadge(icon: "rectangle.split.2x1", text: ws.layoutLabel)
+                        summaryBadge(icon: "globe", text: "\(ws.browserTitle) · \(ws.urlCount) start \(ws.urlCount == 1 ? "tab" : "tabs")")
+                        summaryBadge(icon: "app.badge.checkmark", text: "\(ws.appNames.count) allowed \(ws.appNames.count == 1 ? "app" : "apps")")
+                        summaryBadge(icon: "shield", text: ws.unusedPolicyLabel)
+                    }
+                }
+
                 telemetryBentoGrid(telemetry)
 
                 subjectPrioritiesSection
@@ -380,6 +390,20 @@ struct SubjectDetailView: View {
         let todayKey = DayKey.key(for: Date())
         model.updatePlan(day: todayKey) { $0.priorities.append(priority) }
         quickPriorityDraft = ""
+    }
+
+    private func summaryBadge(icon: String, text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(text)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(Color.primary.opacity(0.05)))
     }
 
     @ViewBuilder private var recentSessionsSection: some View {

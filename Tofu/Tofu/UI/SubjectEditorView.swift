@@ -443,6 +443,18 @@ struct SubjectForm: View {
                         .textFieldStyle(.roundedBorder)
                     if index > 0 {
                         Button {
+                            form.update(slot.id) {
+                                guard index < $0.urls.count else { return }
+                                let url = $0.urls.remove(at: index)
+                                $0.urls.insert(url, at: 0)
+                            }
+                        } label: {
+                            Image(systemName: "arrow.up.to.line")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Make primary visible tab")
+
+                        Button {
                             form.update(slot.id) { if index < $0.urls.count { $0.urls.remove(at: index) } }
                         } label: {
                             Image(systemName: "xmark")

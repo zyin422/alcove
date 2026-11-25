@@ -51,6 +51,15 @@ struct TodayView: View {
         return priorityDays.union(sessionDays)
     }
 
+    private var focusedSecondsByDay: [String: TimeInterval] {
+        var totals: [String: TimeInterval] = [:]
+        for session in model.data.sessions where !session.isDemo && session.outcome == .completed {
+            let key = DayKey.key(for: session.start)
+            totals[key, default: 0] += session.duration
+        }
+        return totals
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.l) {
@@ -58,6 +67,8 @@ struct TodayView: View {
                     dayStepper
                     Spacer(minLength: Theme.Space.m)
                     MonthCalendar(month: month, today: todayKey, selected: shownDay, completedDays: completedDays,
+                                  focusedByDay: focusedSecondsByDay,
+                                  dailyTargetMinutes: model.data.settings.dailyTargetMinutes,
                                   onShiftMonth: { shiftMonth($0) }, onSelect: { showDay($0) })
                 }
 
@@ -1414,6 +1425,8 @@ private struct MonthCalendar: View {
     let today: String
     let selected: String
     let completedDays: Set<String>
+    var focusedByDay: [String: TimeInterval] = [:]
+    var dailyTargetMinutes: Int = 240
     var onShiftMonth: (Int) -> Void
     var onSelect: (String) -> Void
 
@@ -1480,6 +1493,10 @@ private struct MonthCalendar: View {
         let upcoming = DayCalendar.isUpcoming(cell.key, today: today)
         let isToday = cell.key == today
         let isSelected = cell.key == selected
+        let daySeconds = focusedByDay[cell.key] ?? 0
+        let targetSeconds = TimeInterval(max(1, dailyTargetMinutes) * 60)
+        let metGoal = daySeconds >= targetSeconds
+        let hasActivity = completedDays.contains(cell.key) || daySeconds > 0
         return Button {
             onSelect(cell.key)
         } label: {
@@ -1495,8 +1512,11 @@ private struct MonthCalendar: View {
                     }
                 }
                 .overlay(alignment: .bottom) {
-                    if completedDays.contains(cell.key) && !upcoming {
-                        Circle().fill(Color.primary).frame(width: 3, height: 3).offset(y: 4)
+                    if hasActivity && !upcoming {
+                        Circle()
+                            .fill(metGoal ? Theme.emerald : (daySeconds > 0 ? Theme.indigo : Color.primary))
+                            .frame(width: metGoal ? 4 : 3, height: metGoal ? 4 : 3)
+                            .offset(y: 4)
                     }
                 }
                 .frame(width: 22, height: 18)
@@ -1504,6 +1524,7 @@ private struct MonthCalendar: View {
         }
         .buttonStyle(.plain)
         .disabled(upcoming)
+        .help(daySeconds > 0 ? "\(cell.key): \(TimeFormat.short(daySeconds)) focused" : cell.key)
         .accessibilityLabel(cell.key)
     }
 }
