@@ -79,12 +79,12 @@ private final class QuickThoughtPanel: NSPanel {
                 if !cleaned.isEmpty {
                     if let model {
                         let todayKey = DayKey.key(for: Date())
-                        var priority = ThoughtParkingEngine.promoteThoughtToPriority(
+                        let priority = ThoughtParkingEngine.promoteThoughtToPriority(
                             thought: cleaned,
                             subjects: model.data.subjects,
-                            fallbackSubjectID: engine.subject?.id
+                            fallbackSubjectID: engine.subject?.id,
+                            isAnchor: isAnchor
                         )
-                        priority.isAnchor = isAnchor
                         model.updatePlan(day: todayKey) { plan in
                             if isAnchor, let sid = priority.subjectID {
                                 for idx in plan.priorities.indices where plan.priorities[idx].subjectID == sid {

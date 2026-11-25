@@ -598,6 +598,9 @@ struct SubjectDetailView: View {
                                 }
                             }
                             Spacer()
+                            SubjectSessionNoteButton(initialNote: session.notes) { updated in
+                                model.updateSessionNotes(id: session.id, notes: updated)
+                            }
                         }
                         .padding(.horizontal, Theme.Space.m)
                         .padding(.vertical, 6)
@@ -787,6 +790,60 @@ struct SubjectDetailView: View {
                         )
                 )
             }
+        }
+    }
+}
+
+/// Inline popover editor to add, edit, or clear session reflection notes on the Subject page.
+private struct SubjectSessionNoteButton: View {
+    let initialNote: String?
+    let onSave: (String?) -> Void
+
+    @State private var isEditing = false
+    @State private var draft = ""
+
+    var body: some View {
+        Button {
+            draft = initialNote ?? ""
+            isEditing = true
+        } label: {
+            Image(systemName: (initialNote?.isEmpty == false) ? "square.and.pencil" : "note.text.badge.plus")
+                .font(.caption)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle((initialNote?.isEmpty == false) ? Theme.indigo : .secondary)
+        .help((initialNote?.isEmpty == false) ? "Edit session note" : "Add session note")
+        .popover(isPresented: $isEditing, arrowEdge: .trailing) {
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
+                Text("Session note")
+                    .font(Theme.captionFont)
+                    .foregroundStyle(.secondary)
+                TextField("What did you accomplish or notice?", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 240)
+                    .onSubmit {
+                        onSave(draft)
+                        isEditing = false
+                    }
+                HStack {
+                    if initialNote?.isEmpty == false {
+                        Button("Clear") {
+                            onSave(nil)
+                            isEditing = false
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Save") {
+                        onSave(draft)
+                        isEditing = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+            .padding(Theme.Space.m)
         }
     }
 }

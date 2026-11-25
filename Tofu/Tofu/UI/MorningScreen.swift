@@ -152,6 +152,7 @@ struct MorningView: View {
     @State private var option: LockInOption = .minutes50
     @State private var customMinutes = 45
     @State private var newTitle = ""
+    @State private var newIsAnchor = false
 
     private var plan: DayPlan { model.todayPlan() }
     private var open: [Priority] { plan.priorities.filter { !$0.isDone } }
@@ -218,7 +219,12 @@ struct MorningView: View {
                     .foregroundStyle(.secondary)
 
                 let streak = StatsEngine(now: Date()).summary(model.data.sessions).currentStreak
-                let targetHours = model.data.settings.dailyTargetMinutes / 60
+                let targetMinutes = max(1, model.data.settings.dailyTargetMinutes)
+                let targetHours = targetMinutes / 60
+                let todayFocused = model.data.sessions
+                    .filter { !$0.isDemo && $0.outcome == .completed && DayKey.key(for: $0.start) == plan.day }
+                    .reduce(0.0) { $0 + $1.duration }
+                let targetMet = todayFocused >= TimeInterval(targetMinutes * 60)
                 HStack(spacing: 6) {
                     if streak > 0 {
                         Image(systemName: "flame.fill")
@@ -227,9 +233,15 @@ struct MorningView: View {
                         Text("\(streak)-day streak ·")
                             .font(.caption.weight(.semibold))
                     }
-                    Text("Daily goal: \(targetHours)h")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if todayFocused > 0 {
+                        Text("Today: \(TimeFormat.short(todayFocused)) / \(targetHours)h")
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(targetMet ? Theme.emerald : .primary)
+                    } else {
+                        Text("Daily goal: \(targetHours)h")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
@@ -581,32 +593,74 @@ struct MorningView: View {
     private var emptyState: some View {
         VStack(spacing: Theme.Space.m) {
             Text("No priorities for today yet. What's first?").font(.title2)
-            HStack {
-                TextField("e.g. #cs128 Finish lab 45m", text: $newTitle)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(add)
-                Button("Add", action: add)
-                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            .frame(width: 420)
-            quickPriorityTagRow
-                .frame(width: 420)
+            morningPriorityDraftRow(buttonTitle: "Add")
+                .frame(width: 440)
         }
     }
 
     private var addPriorityRow: some View {
-        VStack(spacing: Theme.Space.xs) {
-            HStack {
+        morningPriorityDraftRow(buttonTitle: "Add priority")
+            .frame(width: 440)
+            .padding(.top, Theme.Space.s)
+    }
+
+    @ViewBuilder
+    private func morningPriorityDraftRow(buttonTitle: String) -> some View {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsed = trimmed.isEmpty
+            ? nil
+            : ThoughtParkingEngine.promoteThoughtToPriority(thought: trimmed, subjects: model.data.subjects)
+        let parsedSubject = parsed?.subjectID.flatMap(model.subject(id:))
+        let parsedSched = parsed?.scheduledMinutesFromMidnight.map { OpenFocusWindow.formatMinutes($0) }
+        VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            HStack(spacing: Theme.Space.xs) {
+                Button {
+                    newIsAnchor.toggle()
+                } label: {
+                    Image(systemName: newIsAnchor ? "star.fill" : "star")
+                        .font(.system(size: 13))
+                        .foregroundStyle(newIsAnchor ? Theme.amber : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Mark new priority as ★ Focus Anchor")
+
                 TextField("e.g. #cs128 Finish lab 45m", text: $newTitle)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(add)
-                Button("Add priority", action: add)
-                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                Button(buttonTitle, action: add)
+                    .disabled(trimmed.isEmpty)
+            }
+            if parsedSubject != nil || parsedSched != nil || parsed?.estimatedMinutes != nil || newIsAnchor {
+                HStack(spacing: 5) {
+                    if newIsAnchor {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 8.5))
+                            .foregroundStyle(Theme.amber)
+                    }
+                    if let sub = parsedSubject {
+                        Circle().fill(Theme.subjectColor(sub.colorHex)).frame(width: 5, height: 5)
+                        Text(sub.name)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Theme.subjectColor(sub.colorHex))
+                    }
+                    if let sched = parsedSched {
+                        Text(sched)
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(Theme.indigo)
+                    }
+                    if let mins = parsed?.estimatedMinutes {
+                        Text("\(mins)m")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
             }
             quickPriorityTagRow
         }
-        .frame(width: 420)
-        .padding(.top, Theme.Space.s)
     }
 
     @ViewBuilder private var quickPriorityTagRow: some View {
@@ -655,13 +709,22 @@ struct MorningView: View {
     private func add() {
         let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
-        var priority = ThoughtParkingEngine.promoteThoughtToPriority(thought: title, subjects: model.data.subjects)
-        if priority.subjectID == nil {
-            priority.subjectID = DayPlanner.matchSubject(priority.title, subjects: model.data.subjects)
+        let priority = ThoughtParkingEngine.promoteThoughtToPriority(
+            thought: title,
+            subjects: model.data.subjects,
+            isAnchor: newIsAnchor
+        )
+        model.updatePlan(day: plan.day) { current in
+            if newIsAnchor, let sid = priority.subjectID {
+                for idx in current.priorities.indices where current.priorities[idx].subjectID == sid {
+                    current.priorities[idx].isAnchor = false
+                }
+            }
+            current.priorities.append(priority)
         }
-        model.updatePlan(day: plan.day) { $0.priorities.append(priority) }
         selection = .priority(priority.id)
         newTitle = ""
+        newIsAnchor = false
     }
 
     private func start(_ priority: Priority) {

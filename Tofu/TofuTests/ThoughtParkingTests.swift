@@ -127,5 +127,15 @@ final class ThoughtParkingTests: XCTestCase {
         XCTAssertEqual(livePreview.subjectID, mlID)
         XCTAssertEqual(livePreview.estimatedMinutes, 60)
         XCTAssertEqual(livePreview.title, "Check loss")
+        XCTAssertFalse(livePreview.isAnchor)
+
+        let anchored = ThoughtParkingEngine.promoteThoughtToPriority(
+            thought: "#math Review eigenvalues 30m",
+            subjects: [mathSub, mlSub],
+            isAnchor: true
+        )
+        XCTAssertTrue(anchored.isAnchor)
+        XCTAssertEqual(anchored.subjectID, mathID)
+        XCTAssertEqual(anchored.estimatedMinutes, 30)
     }
 }

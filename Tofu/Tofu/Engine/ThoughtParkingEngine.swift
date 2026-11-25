@@ -51,7 +51,12 @@ enum ThoughtParkingEngine {
     }
 
     /// Promotes a single parked thought into a scheduled priority, parsing estimated time, scheduled time, hashtags, and matching subjects.
-    static func promoteThoughtToPriority(thought: String, subjects: [Subject] = [], fallbackSubjectID: UUID? = nil) -> Priority {
+    static func promoteThoughtToPriority(
+        thought: String,
+        subjects: [Subject] = [],
+        fallbackSubjectID: UUID? = nil,
+        isAnchor: Bool = false
+    ) -> Priority {
         let (withoutTag, tagSubjectID) = parseHashtagSubject(text: thought, subjects: subjects)
         let trimmed = withoutTag.trimmingCharacters(in: .whitespacesAndNewlines)
         let (title, estimatedMinutes, scheduledMinutes) = DayPlanner.parsePriorityDetails(from: trimmed)
@@ -63,7 +68,8 @@ enum ThoughtParkingEngine {
             title: capitalized.isEmpty ? finalTitle : capitalized,
             subjectID: matchedSubjectID,
             estimatedMinutes: estimatedMinutes,
-            scheduledMinutesFromMidnight: scheduledMinutes
+            scheduledMinutesFromMidnight: scheduledMinutes,
+            isAnchor: isAnchor
         )
     }
 }
