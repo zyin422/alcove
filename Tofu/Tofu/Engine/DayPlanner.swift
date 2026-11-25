@@ -310,6 +310,25 @@ enum DayPlanner {
         }
     }
 
+    /// Stable sort for end-of-day review items: anchored priorities first, then earlier scheduled start times.
+    static func sortedReviewPriorities(_ priorities: [Priority]) -> [Priority] {
+        priorities.enumerated().sorted { lhs, rhs in
+            if lhs.element.isAnchor != rhs.element.isAnchor {
+                return lhs.element.isAnchor && !rhs.element.isAnchor
+            }
+            switch (lhs.element.scheduledMinutesFromMidnight, rhs.element.scheduledMinutesFromMidnight) {
+            case let (l?, r?) where l != r:
+                return l < r
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            default:
+                return lhs.offset < rhs.offset
+            }
+        }.map(\.element)
+    }
+
     private static func normalized(_ title: String) -> String {
         title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }

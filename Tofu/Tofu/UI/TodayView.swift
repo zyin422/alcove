@@ -21,6 +21,7 @@ struct TodayView: View {
     @State private var editingPriorityTitle = ""
     @State private var hideCompletedPriorities = false
     @State private var prioritySubjectFilter: UUID?
+    @State private var copiedRecap = false
     /// Nil shows the current day. Set when the user steps or jumps to a day.
     @State private var selectedDay: String?
     /// Nil follows the shown day's month. Set when the user pages the calendar or chooses a day.
@@ -647,9 +648,10 @@ struct TodayView: View {
                 copyDailyRecap()
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "doc.on.doc")
-                    Text("Copy Recap")
+                    Image(systemName: copiedRecap ? "checkmark" : "doc.on.doc")
+                    Text(copiedRecap ? "Copied ✓" : "Copy Recap")
                 }
+                .foregroundStyle(copiedRecap ? Theme.emerald : Color.primary)
             }
             .buttonStyle(SecondaryButtonStyle())
             .help("Copy markdown summary of this day's focus time and priorities to clipboard")
@@ -734,7 +736,12 @@ struct TodayView: View {
         let recapMarkdown = lines.joined(separator: "\n")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(recapMarkdown, forType: .string)
+        copiedRecap = true
         ToastCenter.shared.show("Daily recap copied to clipboard 📋")
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            copiedRecap = false
+        }
     }
 
     private func stepDay(_ delta: Int) {

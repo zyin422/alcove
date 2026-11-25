@@ -1354,6 +1354,30 @@ private struct ClosedTabsRecoveryView: View {
                         .controlSize(.small)
                         .disabled(domainDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 5) {
+                        ForEach([("arXiv", "arxiv.org")] + SubjectFormState.quickAllowedDomainPresets, id: \.host) { preset in
+                            let alreadyAllowed = engine.isSiteAllowedInSession(preset.host)
+                            Button {
+                                domainError = nil
+                                if case .allowed(let host) = engine.allowDeflectedSite(preset.host, reopen: false) {
+                                    let msg = "Trusted \(host) for \(engine.session?.subjectName ?? "subject")"
+                                    trustedFeedback = msg
+                                    ToastCenter.shared.show(msg)
+                                }
+                            } label: {
+                                Text(alreadyAllowed ? "✓ \(preset.label)" : "+ \(preset.label)")
+                                    .font(.caption2.weight(.medium))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(alreadyAllowed ? Theme.emerald.opacity(0.14) : Color.primary.opacity(0.06)))
+                                    .foregroundStyle(alreadyAllowed ? Theme.emerald : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(alreadyAllowed)
+                        }
+                    }
+                }
                 if let domainError {
                     Text(domainError)
                         .font(.caption2)

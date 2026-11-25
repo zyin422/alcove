@@ -581,6 +581,14 @@ struct EndOfDayView: View {
                             .foregroundStyle(Theme.amber)
                     }
                     Spacer()
+                    if tomorrow.count > 1 {
+                        Button("Sort ★ & time") {
+                            tomorrow = DayPlanner.sortedReviewPriorities(tomorrow)
+                        }
+                        .buttonStyle(.borderless)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(Theme.indigo)
+                    }
                 }
                 .padding(.horizontal, Theme.Space.s)
                 .padding(.vertical, 6)

@@ -1027,4 +1027,14 @@ final class DayPlanModelTests: XCTestCase {
 
         XCTAssertNil(DayPlanner.workloadCapacityFit(openEstimatedMinutes: 0, clearMinutes: 150))
     }
+
+    func testSortedReviewPrioritiesPlacesAnchorsAndScheduledTimesFirst() {
+        let pUnscheduled = Priority(title: "Free")
+        let pLate = Priority(title: "Late", scheduledMinutesFromMidnight: 16 * 60)
+        let pEarly = Priority(title: "Early", scheduledMinutesFromMidnight: 9 * 60)
+        let pAnchorLate = Priority(title: "Anchor", scheduledMinutesFromMidnight: 19 * 60, isAnchor: true)
+
+        let sorted = DayPlanner.sortedReviewPriorities([pUnscheduled, pLate, pEarly, pAnchorLate])
+        XCTAssertEqual(sorted.map(\.title), ["Anchor", "Early", "Late", "Free"])
+    }
 }
