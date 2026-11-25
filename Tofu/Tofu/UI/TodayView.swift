@@ -187,7 +187,7 @@ struct TodayView: View {
                         } else {
                             VStack(spacing: 0) {
                                 ForEach(visibleEntries, id: \.element.id) { index, priority in
-                                    row(priority, index: index, count: plan.priorities.count, openWindows: openWindows)
+                                    row(priority, index: index, count: plan.priorities.count, openWindows: openWindows, calendarEvents: events)
                                     if priority.id != visibleEntries.last?.element.id { Divider() }
                                 }
                             }
@@ -805,7 +805,7 @@ struct TodayView: View {
         ToastCenter.shared.show("Converted \(items.count) thoughts to priorities 🎯")
     }
 
-    private func row(_ priority: Priority, index: Int = 0, count: Int = 1, openWindows: [OpenFocusWindow] = []) -> some View {
+    private func row(_ priority: Priority, index: Int = 0, count: Int = 1, openWindows: [OpenFocusWindow] = [], calendarEvents: [GoogleEvent] = []) -> some View {
         HStack(spacing: Theme.Space.s) {
             if canEdit {
                 Button {
@@ -876,7 +876,7 @@ struct TodayView: View {
                         .background(RoundedRectangle(cornerRadius: 4).fill(color.opacity(0.12)))
                     }
                     if canEdit && !priority.isDone {
-                        priorityScheduleMenu(for: priority, openWindows: openWindows)
+                        priorityScheduleMenu(for: priority, openWindows: openWindows, calendarEvents: calendarEvents)
                     } else if let scheduled = priority.scheduledTimeLabel {
                         HStack(spacing: 3) {
                             Image(systemName: "clock").font(.system(size: 8))
@@ -1036,11 +1036,14 @@ struct TodayView: View {
         .help("Change assigned subject")
     }
 
-    @ViewBuilder private func priorityScheduleMenu(for priority: Priority, openWindows: [OpenFocusWindow]) -> some View {
+    @ViewBuilder private func priorityScheduleMenu(for priority: Priority, openWindows: [OpenFocusWindow], calendarEvents: [GoogleEvent]) -> some View {
         let anchors = [9 * 60, 10 * 60 + 30, 13 * 60, 14 * 60 + 30, 16 * 60, 19 * 60, 20 * 60 + 30]
+        let conflictTitle = DayPlanner.scheduleConflictTitle(for: priority, in: calendarEvents)
         Menu {
             if let nextGap = openWindows.first {
-                Button("Next Open Gap (\(OpenFocusWindow.formatMinutes(nextGap.startMinutes)))") {
+                Button(conflictTitle != nil
+                       ? "Move to Open Gap (\(OpenFocusWindow.formatMinutes(nextGap.startMinutes)))"
+                       : "Next Open Gap (\(OpenFocusWindow.formatMinutes(nextGap.startMinutes)))") {
                     model.updatePriorityDetails(priority.id, day: plan.day, scheduledMinutesFromMidnight: .some(nextGap.startMinutes))
                 }
                 Divider()
@@ -1064,15 +1067,19 @@ struct TodayView: View {
             }
         } label: {
             if let scheduled = priority.scheduledTimeLabel {
+                let tint = conflictTitle != nil ? Theme.amber : Theme.indigo
                 HStack(spacing: 3) {
-                    Image(systemName: "clock").font(.system(size: 8))
-                    Text(scheduled).font(.caption.monospacedDigit())
+                    Image(systemName: conflictTitle != nil ? "exclamationmark.triangle.fill" : "clock")
+                        .font(.system(size: 8))
+                    Text(conflictTitle != nil ? "\(scheduled) · Overlaps \(conflictTitle!)" : scheduled)
+                        .font(.caption.monospacedDigit())
+                        .lineLimit(1)
                     Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).opacity(0.75)
                 }
-                .foregroundStyle(Theme.indigo)
+                .foregroundStyle(tint)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(RoundedRectangle(cornerRadius: 4).fill(Theme.indigo.opacity(0.10)))
+                .background(RoundedRectangle(cornerRadius: 4).fill(tint.opacity(0.12)))
             } else {
                 Text("+ Time")
                     .font(.caption2)
@@ -1083,7 +1090,7 @@ struct TodayView: View {
             }
         }
         .menuStyle(.borderlessButton)
-        .help("Schedule priority start time")
+        .help(conflictTitle.map { "Overlaps “\($0)” — click to reschedule" } ?? "Schedule priority start time")
     }
 
     @ViewBuilder private func priorityDurationMenu(for priority: Priority) -> some View {

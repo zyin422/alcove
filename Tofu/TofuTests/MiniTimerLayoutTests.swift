@@ -317,4 +317,11 @@ final class MiniTimerLayoutTests: XCTestCase {
         // 5 cycles at 125m
         XCTAssertEqual(MiniTimerLayout.completedFlowCycles(elapsed: 125 * 60), 5)
     }
+
+    func testClockFontSizeScalesDownForHourClocksAndMilestones() {
+        XCTAssertEqual(MiniTimerLayout.clockFontSize(for: "24:59", hasMilestones: false), 28)
+        XCTAssertEqual(MiniTimerLayout.clockFontSize(for: "24:59", hasMilestones: true), 25)
+        XCTAssertEqual(MiniTimerLayout.clockFontSize(for: "2:05:33", hasMilestones: false), 24)
+        XCTAssertEqual(MiniTimerLayout.clockFontSize(for: "2:05:33", hasMilestones: true), 21)
+    }
 }

@@ -996,4 +996,23 @@ final class DayPlanModelTests: XCTestCase {
         )
         XCTAssertNil(DayPlanner.meetingFitRecommendation(in: [ongoing, upcoming], at: now))
     }
+
+    func testScheduleConflictTitleDetectsOverlappingCalendarEvent() {
+        let cal = Calendar.current
+        let start = cal.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 14, minute: 0))!
+        let end = cal.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 15, minute: 0))!
+        let iso = ISO8601DateFormatter()
+        let event = GoogleEvent(
+            id: "evt",
+            summary: "Systems Sync",
+            start: GoogleEventTime(dateTime: iso.string(from: start), date: nil),
+            end: GoogleEventTime(dateTime: iso.string(from: end), date: nil)
+        )
+
+        let overlapping = Priority(title: "Study", estimatedMinutes: 45, scheduledMinutesFromMidnight: 13 * 60 + 30)
+        XCTAssertEqual(DayPlanner.scheduleConflictTitle(for: overlapping, in: [event]), "Systems Sync")
+
+        let clear = Priority(title: "Study", estimatedMinutes: 45, scheduledMinutesFromMidnight: 15 * 60)
+        XCTAssertNil(DayPlanner.scheduleConflictTitle(for: clear, in: [event]))
+    }
 }

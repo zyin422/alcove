@@ -666,10 +666,24 @@ private struct PlanningPriorityView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
+            let openCount = plan.priorities.filter { !$0.isDone }.count
+            let estimatedTotal = plan.priorities.filter { !$0.isDone }.compactMap(\.estimatedMinutes).reduce(0, +)
             VStack(alignment: .leading, spacing: Theme.Space.xs) {
-                Text("DAY PRIORITIES")
-                    .font(Theme.captionFont)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: Theme.Space.xs) {
+                    Text("DAY PRIORITIES")
+                        .font(Theme.captionFont)
+                        .foregroundStyle(.secondary)
+                    if openCount > 0 {
+                        Text("· \(openCount) open")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        if estimatedTotal > 0 {
+                            Text("· ~\(TimeFormat.short(TimeInterval(estimatedTotal * 60)))")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
                 Text("Check off tasks or add priorities for today while your 15m timer runs.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -745,6 +759,36 @@ private struct PlanningPriorityView: View {
                         Text("· \(est)m")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
+                    }
+                    if !priority.isDone {
+                        Menu {
+                            ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
+                                Button {
+                                    model.updatePriorityDetails(priority.id, day: plan.day, estimatedMinutes: .some(mins))
+                                } label: {
+                                    if priority.estimatedMinutes == mins {
+                                        Label("\(mins)m", systemImage: "checkmark")
+                                    } else {
+                                        Text("\(mins)m")
+                                    }
+                                }
+                            }
+                            if priority.estimatedMinutes != nil {
+                                Divider()
+                                Button("Clear") {
+                                    model.updatePriorityDetails(priority.id, day: plan.day, estimatedMinutes: .some(nil))
+                                }
+                            }
+                        } label: {
+                            Text(priority.estimatedMinutes == nil ? "+ Est" : "Edit")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.05)))
+                        }
+                        .menuStyle(.borderlessButton)
+                        .help("Set time estimate")
                     }
                 }
             }

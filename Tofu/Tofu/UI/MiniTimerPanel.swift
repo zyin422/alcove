@@ -74,6 +74,14 @@ enum MiniTimerLayout {
         return Int(elapsed / cycleLength)
     }
 
+    /// Adaptive font size so long H:MM:SS clocks (and milestone pips) fit inside `panelSize` without ellipsis truncation.
+    static func clockFontSize(for clockText: String, hasMilestones: Bool) -> CGFloat {
+        if clockText.count > 5 {
+            return hasMilestones ? 21 : 24
+        }
+        return hasMilestones ? 25 : 28
+    }
+
     /// Clickable area of the trailing Lock In button shown between blocks.
     static func lockInHitRect(in size: CGSize) -> CGRect {
         CGRect(x: size.width - 100, y: 0, width: 100, height: size.height)
@@ -407,14 +415,18 @@ struct MiniTimerView: View {
                                 .help(engine.deflectionsSummary)
                             }
                         }
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text(clock(now: now))
-                                .font(Theme.timerFont(size: 28))
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            let clockText = clock(now: now)
+                            let hasMilestones = engine.isLocked && engine.session?.mode == .open
+                                && !engine.isOnBreak && !engine.isOnGracePass
+                                && MiniTimerLayout.completedFlowCycles(elapsed: engine.elapsed) > 0
+                            Text(clockText)
+                                .font(Theme.timerFont(size: MiniTimerLayout.clockFontSize(for: clockText, hasMilestones: hasMilestones)))
                                 .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.primary)
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.85)
+                                .minimumScaleFactor(0.75)
                                 .fixedSize(horizontal: true, vertical: false)
-                                .layoutPriority(1)
+                                .layoutPriority(2)
 
                             openSessionMilestones
                                 .fixedSize()

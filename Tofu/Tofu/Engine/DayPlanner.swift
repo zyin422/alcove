@@ -860,6 +860,29 @@ extension DayPlanner {
             fitMinutes: LockInOption.clampedMinutes(alert.minutes - 5)
         )
     }
+
+    /// Returns the conflicting Google Calendar event title if `priority`'s scheduled slot overlaps a timed event.
+    static func scheduleConflictTitle(
+        for priority: Priority,
+        in calendarEvents: [GoogleEvent],
+        calendar: Calendar = .current
+    ) -> String? {
+        guard let startMinutes = priority.scheduledMinutesFromMidnight else { return nil }
+        let dur = max(15, priority.estimatedMinutes ?? 45)
+        let endMinutes = startMinutes + dur
+        for event in calendarEvents {
+            guard let start = event.start.parsed, let end = event.end.parsed, end > start else { continue }
+            let sParts = calendar.dateComponents([.hour, .minute], from: start)
+            let eParts = calendar.dateComponents([.hour, .minute], from: end)
+            let eStart = (sParts.hour ?? 0) * 60 + (sParts.minute ?? 0)
+            let eEnd = max(eStart + 5, (eParts.hour ?? 0) * 60 + (eParts.minute ?? 0))
+            if max(startMinutes, eStart) < min(endMinutes, eEnd) {
+                let raw = (event.summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return raw.isEmpty ? "Calendar event" : raw
+            }
+        }
+        return nil
+    }
 }
 
 // MARK: - Schedule Types
