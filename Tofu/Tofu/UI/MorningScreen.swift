@@ -553,16 +553,21 @@ struct MorningView: View {
     @ViewBuilder private var startControls: some View {
         if selectedPriority != nil || selectedSubject != nil {
             VStack(spacing: Theme.Space.m) {
-                if let priority = selectedPriority, setupID(for: priority) == nil {
-                    HStack {
-                        Text("Setup for “\(priority.title)”").foregroundStyle(.secondary)
-                        SetupPicker(subjects: model.data.subjects, selection: Binding(
-                            get: { chosenSetups[priority.id] },
-                            set: { chosenSetups[priority.id] = $0 }))
-                            .frame(width: 180)
-                    }
+                if let priority = selectedPriority {
                     if model.data.subjects.isEmpty {
                         Text("Create a setup in the main window first.").font(.callout).foregroundStyle(.secondary)
+                    } else {
+                        HStack(spacing: Theme.Space.s) {
+                            Text("Setup for “\(priority.title)”")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            SetupPicker(subjects: model.data.subjects, selection: Binding(
+                                get: { setupID(for: priority) },
+                                set: { chosenSetups[priority.id] = $0 }))
+                                .frame(width: 180)
+                        }
+                        .frame(maxWidth: 440)
                     }
                 }
                 Picker("Length", selection: $option) {
