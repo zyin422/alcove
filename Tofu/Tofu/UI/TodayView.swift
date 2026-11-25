@@ -1204,6 +1204,29 @@ struct TodayView: View {
                     .buttonStyle(.plain)
                     .help("Set duration to \(mins) minutes")
                 }
+
+                let parsedDraft = DayPlanner.parsePriorityDetails(from: newTitle)
+                if parsedDraft.scheduledMinutes != nil || parsedDraft.estimatedMinutes != nil {
+                    Spacer(minLength: 4)
+                    HStack(spacing: 4) {
+                        if let sched = parsedDraft.scheduledMinutes {
+                            let h = (sched / 60) % 24
+                            let m = sched % 60
+                            let p = h >= 12 ? "PM" : "AM"
+                            let dh = h == 0 ? 12 : (h > 12 ? h - 12 : h)
+                            Text(String(format: "%d:%02d %@", dh, m, p))
+                                .foregroundStyle(Theme.indigo)
+                        }
+                        if let est = parsedDraft.estimatedMinutes {
+                            Text("· \(est)m")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.indigo.opacity(0.10)))
+                }
             }
         }
     }

@@ -5,6 +5,7 @@ enum MenuBarStatusSummary {
     static func label(
         isLocked: Bool,
         subjectName: String?,
+        gracePassRemaining: TimeInterval? = nil,
         breakRemaining: TimeInterval?,
         sessionRemaining: TimeInterval?,
         sessionElapsed: TimeInterval,
@@ -12,6 +13,9 @@ enum MenuBarStatusSummary {
         todayFocusedSeconds: TimeInterval
     ) -> (title: String, systemImage: String) {
         if isLocked {
+            if let gracePassRemaining, gracePassRemaining > 0 {
+                return ("Pass \(TimeFormat.clock(gracePassRemaining))", "shield.lefthalf.filled")
+            }
             if let breakRemaining {
                 return ("Break \(TimeFormat.clock(max(0, breakRemaining)))", "cup.and.saucer.fill")
             }
@@ -107,6 +111,7 @@ private struct TofuMenuBarLabel: View {
             let status = MenuBarStatusSummary.label(
                 isLocked: model.engine.isLocked,
                 subjectName: model.engine.subject?.name,
+                gracePassRemaining: model.engine.gracePassRemaining,
                 breakRemaining: model.engine.breakRemaining,
                 sessionRemaining: model.engine.remaining,
                 sessionElapsed: model.engine.elapsed,
@@ -148,6 +153,11 @@ private struct TofuMenuBarContent: View {
         Divider()
 
         if model.engine.isLocked {
+            if model.engine.isOnGracePass {
+                Button("End 2m Grace Pass") {
+                    model.engine.endGracePass()
+                }
+            }
             if model.engine.isOnBreak {
                 Button("Resume Focus Block") {
                     model.engine.endBreak()

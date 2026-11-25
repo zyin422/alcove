@@ -97,6 +97,14 @@ final class LockedUITests: XCTestCase {
     }
 
     func testMenuBarStatusSummaryPrioritizesBreakSessionCountdownThenDailyTotal() {
+        let onGrace = MenuBarStatusSummary.label(
+            isLocked: true, subjectName: "CS128", gracePassRemaining: 95,
+            breakRemaining: 125, sessionRemaining: 1800, sessionElapsed: 600,
+            forceCountdownRemaining: 300, todayFocusedSeconds: 3600
+        )
+        XCTAssertEqual(onGrace.title, "Pass 01:35")
+        XCTAssertEqual(onGrace.systemImage, "shield.lefthalf.filled")
+
         let onBreak = MenuBarStatusSummary.label(
             isLocked: true, subjectName: "CS128",
             breakRemaining: 125, sessionRemaining: 1800, sessionElapsed: 600,

@@ -203,6 +203,14 @@ struct SettingsView: View {
                     Text("Test Shortcut Now")
                 }
             }
+
+            DisclosureGroup("All App Shortcuts") {
+                LabeledContent("Plan / Stats") { Text("⌘1  /  ⌘2").font(.caption.monospaced()) }
+                LabeledContent("Previous / Next Day") { Text("⌘[  /  ⌘]").font(.caption.monospaced()) }
+                LabeledContent("Quick Lock In (Top Task)") { Text("⌘L").font(.caption.monospaced()) }
+                LabeledContent("Add Subject") { Text("⌘N").font(.caption.monospaced()) }
+                LabeledContent("Locked Panes (Buddy / Plan / Thoughts / Shield)") { Text("⌘1 – ⌘4").font(.caption.monospaced()) }
+            }
         } header: {
             Text("Global Shortcuts")
         } footer: {
