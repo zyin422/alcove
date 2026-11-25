@@ -88,6 +88,13 @@ enum SitePromptLayout {
         }
     }
 
+    func allowCurrentSite() {
+        guard let host = assistant.pending.first?.host else { return }
+        if assistant.allowSiteNow(host) {
+            hideIfSettled()
+        }
+    }
+
     func closeCurrentSite() {
         guard let host = assistant.pending.first?.host else { return }
         assistant.closeSiteNow(host)
@@ -287,7 +294,12 @@ private struct SitePromptView: View {
                         controller.endTalking()
                     })
                 .accessibilityLabel("Hold to talk")
-            if !assistant.pending.isEmpty {
+            if let current = assistant.pending.first {
+                if ChatAssistant.canQuietlyAllow(current.host) {
+                    Button("Keep") { controller.allowCurrentSite() }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .help("Keep this non-distraction site without speaking")
+                }
                 Button("Close it") { controller.closeCurrentSite() }
                     .buttonStyle(SecondaryButtonStyle())
             }

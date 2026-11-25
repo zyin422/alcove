@@ -103,8 +103,34 @@ struct ChatView: View {
 
     // MARK: Input
 
+    private static let quickPrompts: [(label: String, icon: String, prompt: String)] = [
+        ("Micro-step", "scope", "Give me one concrete 5-minute micro-step to advance what I'm working on right now."),
+        ("Quiz me", "checkmark.bubble", "Ask me one sharp diagnostic question to check my understanding right now."),
+        ("Audit tabs", "safari", "Audit my currently open tabs and flag anything that looks off-task."),
+        ("Break down", "list.bullet", "Break my current study block into 3 crisp checkpoints."),
+    ]
+
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xs) {
+            if !assistant.isThinking && !voice.isRecording && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.Space.xs) {
+                        ForEach(Self.quickPrompts, id: \.label) { chip in
+                            Button {
+                                submit(textToSend: chip.prompt)
+                            } label: {
+                                Label(chip.label, systemImage: chip.icon)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
             if let error = voice.errorMessage {
                 Text(error)
                     .font(.system(size: 11))

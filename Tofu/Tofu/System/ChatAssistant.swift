@@ -126,6 +126,32 @@ import Observation
         }
     }
 
+    /// Whether a host can be kept quietly from the popup without explaining why first.
+    /// Known distraction domains (including video sites like YouTube) still require a short reason.
+    static func canQuietlyAllow(_ host: String) -> Bool {
+        let normalized = normalizeHost(host)
+        return !normalized.isEmpty && DistractionList.category(of: normalized) == nil
+    }
+
+    /// The user kept a non-distraction site directly from the quick check popup without voice input.
+    @discardableResult
+    func allowSiteNow(_ host: String) -> Bool {
+        let host = Self.normalizeHost(host)
+        guard let index = pending.firstIndex(where: { $0.host == host }) else { return false }
+        guard Self.canQuietlyAllow(host) else {
+            appendNotice("Explain how \(host) helps before allowing it")
+            return false
+        }
+        pending.remove(at: index)
+        if !DomainMatcher.isSearchEngine(host) {
+            handledHosts.insert(host)
+        }
+        sites?.allowHost(host)
+        appendNotice("Allowed \(host)")
+        history.append(.assistant("The user kept \(host) for this session."))
+        return true
+    }
+
     /// The user closed the site from the voice popup without explaining.
     func closeSiteNow(_ host: String) {
         let host = Self.normalizeHost(host)

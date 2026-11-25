@@ -525,81 +525,98 @@ struct LockedView: View {
     }
 
     private var focusSoundControl: some View {
-        Menu {
-            Section("Music Mode") {
-                ForEach(FocusMusicMode.allCases) { mode in
-                    Button {
-                        model.updateSettings {
-                            $0.focusMusicMode = mode
-                            if mode == .off { $0.focusSound = .off }
-                        }
-                        model.syncBackgroundMusic()
-                    } label: {
-                        if model.data.settings.focusMusicMode == mode {
-                            Label(mode.rawValue, systemImage: "checkmark")
-                        } else {
-                            Text(mode.rawValue)
+        HStack(spacing: 4) {
+            Menu {
+                Section("Music Mode") {
+                    ForEach(FocusMusicMode.allCases) { mode in
+                        Button {
+                            model.updateSettings {
+                                $0.focusMusicMode = mode
+                                if mode == .off { $0.focusSound = .off }
+                            }
+                            model.syncBackgroundMusic()
+                        } label: {
+                            if model.data.settings.focusMusicMode == mode {
+                                Label(mode.rawValue, systemImage: "checkmark")
+                            } else {
+                                Text(mode.rawValue)
+                            }
                         }
                     }
                 }
+                if FocusAudioEngine.shared.isPlaying && FocusAudioEngine.shared.activePlaylist != nil {
+                    Section("Track") {
+                        if let title = FocusAudioEngine.shared.currentTrackTitle {
+                            Text("Playing: \(title)")
+                        }
+                        Button("Next track") {
+                            _ = FocusAudioEngine.shared.nextTrack()
+                        }
+                    }
+                }
+                if FocusAudioEngine.shared.isPlaying {
+                    Section("Volume") {
+                        Button("Mute") {
+                            model.updateSettings {
+                                $0.focusMusicMode = .off
+                                $0.focusSound = .off
+                            }
+                            model.syncBackgroundMusic()
+                        }
+                        Button("25% Volume") {
+                            model.updateSettings { $0.focusSoundVolume = 0.25 }
+                            FocusAudioEngine.shared.volume = 0.25
+                        }
+                        Button("50% Volume") {
+                            model.updateSettings { $0.focusSoundVolume = 0.50 }
+                            FocusAudioEngine.shared.volume = 0.50
+                        }
+                        Button("75% Volume") {
+                            model.updateSettings { $0.focusSoundVolume = 0.75 }
+                            FocusAudioEngine.shared.volume = 0.75
+                        }
+                        Button("100% Volume") {
+                            model.updateSettings { $0.focusSoundVolume = 1.00 }
+                            FocusAudioEngine.shared.volume = 1.00
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    let playing = FocusAudioEngine.shared.isPlaying
+                    let title = FocusAudioEngine.shared.currentTrackTitle
+                        ?? (model.data.settings.focusMusicMode == .off ? "Music: Off" : model.data.settings.focusMusicMode.rawValue)
+                    Image(systemName: playing ? "music.note" : "speaker.slash")
+                        .font(.system(size: 11))
+                        .foregroundStyle(playing ? Theme.indigo : Color.secondary)
+                    Text(playing ? title : "Music: Off")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(playing ? Color.primary : Color.secondary)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 6).fill(FocusAudioEngine.shared.isPlaying ? Theme.indigo.opacity(0.12) : Color.primary.opacity(0.05)))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(FocusAudioEngine.shared.isPlaying ? Theme.indigo.opacity(0.3) : Color.clear, lineWidth: 1))
             }
+            .menuStyle(.borderlessButton)
+            .help("Instrumental focus & relaxed music")
+
             if FocusAudioEngine.shared.isPlaying && FocusAudioEngine.shared.activePlaylist != nil {
-                Section("Track") {
-                    if let title = FocusAudioEngine.shared.currentTrackTitle {
-                        Text("Playing: \(title)")
-                    }
-                    Button("Next track") {
-                        _ = FocusAudioEngine.shared.nextTrack()
-                    }
+                Button {
+                    _ = FocusAudioEngine.shared.nextTrack()
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.indigo)
+                        .frame(width: 22, height: 22)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.indigo.opacity(0.12)))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.indigo.opacity(0.3), lineWidth: 1))
                 }
+                .buttonStyle(.plain)
+                .help("Next track")
             }
-            if FocusAudioEngine.shared.isPlaying {
-                Section("Volume") {
-                    Button("Mute") {
-                        model.updateSettings {
-                            $0.focusMusicMode = .off
-                            $0.focusSound = .off
-                        }
-                        model.syncBackgroundMusic()
-                    }
-                    Button("25% Volume") {
-                        model.updateSettings { $0.focusSoundVolume = 0.25 }
-                        FocusAudioEngine.shared.volume = 0.25
-                    }
-                    Button("50% Volume") {
-                        model.updateSettings { $0.focusSoundVolume = 0.50 }
-                        FocusAudioEngine.shared.volume = 0.50
-                    }
-                    Button("75% Volume") {
-                        model.updateSettings { $0.focusSoundVolume = 0.75 }
-                        FocusAudioEngine.shared.volume = 0.75
-                    }
-                    Button("100% Volume") {
-                        model.updateSettings { $0.focusSoundVolume = 1.00 }
-                        FocusAudioEngine.shared.volume = 1.00
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 5) {
-                let playing = FocusAudioEngine.shared.isPlaying
-                let title = FocusAudioEngine.shared.currentTrackTitle
-                    ?? (model.data.settings.focusMusicMode == .off ? "Music: Off" : model.data.settings.focusMusicMode.rawValue)
-                Image(systemName: playing ? "music.note" : "speaker.slash")
-                    .font(.system(size: 11))
-                    .foregroundStyle(playing ? Theme.indigo : Color.secondary)
-                Text(playing ? title : "Music: Off")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(playing ? Color.primary : Color.secondary)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(RoundedRectangle(cornerRadius: 6).fill(FocusAudioEngine.shared.isPlaying ? Theme.indigo.opacity(0.12) : Color.primary.opacity(0.05)))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(FocusAudioEngine.shared.isPlaying ? Theme.indigo.opacity(0.3) : Color.clear, lineWidth: 1))
         }
-        .menuStyle(.borderlessButton)
-        .help("Instrumental focus & relaxed music")
     }
 }
 

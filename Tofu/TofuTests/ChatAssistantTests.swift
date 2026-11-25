@@ -646,4 +646,36 @@ final class ChatAssistantTests: XCTestCase {
         XCTAssertEqual(ChatAssistant.normalizeHost("docs.swift.org"), "docs.swift.org")
         XCTAssertEqual(ChatAssistant.normalizeHost(""), "")
     }
+
+    // MARK: - Quick popup Keep vs Close
+
+    func testAllowSiteNowAllowsNonDistractionSiteWithoutCallingAI() {
+        let rig = makeRig()
+        rig.assistant.beginSession(subject: "CS128")
+        rig.assistant.askAboutSite(question("overleaf.com", title: "Lab Report"), subject: "CS128")
+
+        XCTAssertTrue(ChatAssistant.canQuietlyAllow("overleaf.com"))
+        let allowed = rig.assistant.allowSiteNow("overleaf.com")
+
+        XCTAssertTrue(allowed)
+        XCTAssertTrue(rig.assistant.pending.isEmpty)
+        XCTAssertEqual(rig.sites.allowed, ["overleaf.com"])
+        XCTAssertTrue(rig.sites.closed.isEmpty)
+        XCTAssertEqual(rig.assistant.messages.last?.text, "Allowed overleaf.com")
+        rig.fire()
+        XCTAssertTrue(rig.sites.closed.isEmpty, "cancelled timeout must not close an allowed site")
+    }
+
+    func testAllowSiteNowRefusesProhibitedDistractionAndVideoSites() {
+        let rig = makeRig()
+        rig.assistant.beginSession(subject: "CS128")
+        rig.assistant.askAboutSite(question("youtube.com", title: "Lecture"), subject: "CS128")
+
+        XCTAssertFalse(ChatAssistant.canQuietlyAllow("youtube.com"))
+        XCTAssertFalse(ChatAssistant.canQuietlyAllow("reddit.com"))
+        XCTAssertFalse(rig.assistant.allowSiteNow("youtube.com"))
+
+        XCTAssertTrue(rig.sites.allowed.isEmpty)
+        XCTAssertEqual(rig.assistant.pending.map(\.host), ["youtube.com"])
+    }
 }
