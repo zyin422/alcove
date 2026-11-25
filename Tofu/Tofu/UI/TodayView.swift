@@ -1773,6 +1773,14 @@ private struct TodayScheduleView: View {
                     }
                 }
                 .padding(.vertical, 2)
+                .padding(.horizontal, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(hoveredBlockID == block.id ? Color.primary.opacity(0.05) : Color.clear)
+                )
+                .onHover { inside in
+                    hoveredBlockID = inside ? block.id : nil
+                }
             }
 
             if layout.chronologicalAgenda.count > 6 {

@@ -89,6 +89,23 @@ struct SubjectFormState: Equatable {
         }
     }
 
+    /// Preset work apps for 1-click allowlist setup (subject to DistractionApps validation).
+    static let quickAppPresets: [AllowedApp] = [
+        AllowedApp(bundleID: "com.apple.Terminal", name: "Terminal"),
+        AllowedApp(bundleID: "com.apple.dt.Xcode", name: "Xcode"),
+        AllowedApp(bundleID: "com.microsoft.VSCode", name: "VS Code"),
+        AllowedApp(bundleID: "com.todesktop.230313mzl4w4u92", name: "Cursor"),
+        AllowedApp(bundleID: "com.apple.Preview", name: "Preview"),
+        AllowedApp(bundleID: "com.apple.calculator", name: "Calculator"),
+    ]
+
+    /// Adds a non-distraction work app to `allowedApps` if not already present.
+    mutating func addQuickAppPreset(_ app: AllowedApp) {
+        guard !DistractionApps.isDistraction(app.bundleID),
+              !allowedApps.contains(where: { $0.bundleID == app.bundleID }) else { return }
+        allowedApps.append(app)
+    }
+
     /// Inserts a quick website preset into `slotID`, replacing an existing empty URL field if one is blank.
     mutating func addQuickSitePreset(_ url: String, to slotID: UUID) {
         update(slotID) { slot in
@@ -488,8 +505,29 @@ struct SubjectForm: View {
                     }
                 }
             }
-            Button("Add apps…") { isPickingApps = true }
-                .buttonStyle(SecondaryButtonStyle())
+            HStack(spacing: Theme.Space.s) {
+                Button("Add apps…") { isPickingApps = true }
+                    .buttonStyle(SecondaryButtonStyle())
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.Space.xs) {
+                        ForEach(SubjectFormState.quickAppPresets.filter {
+                            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleID) != nil
+                        }) { preset in
+                            let alreadyAdded = form.allowedApps.contains { $0.bundleID == preset.bundleID }
+                            Button("+ \(preset.name)") {
+                                form.addQuickAppPreset(preset)
+                            }
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(alreadyAdded ? Theme.emerald.opacity(0.14) : Color.primary.opacity(0.06)))
+                            .foregroundStyle(alreadyAdded ? Theme.emerald : .secondary)
+                            .buttonStyle(.plain)
+                            .disabled(alreadyAdded)
+                        }
+                    }
+                }
+            }
             Text("High-distraction apps (Discord, Telegram, Slack, Steam, games, social media) are automatically blocked during focus sessions and cannot be unlocked mid-session by the assistant.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

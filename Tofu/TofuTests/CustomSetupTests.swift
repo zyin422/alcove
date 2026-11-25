@@ -445,4 +445,16 @@ final class CustomSetupTests: XCTestCase {
         form.addQuickSitePreset("GITHUB.COM", to: slotID)
         XCTAssertEqual(form.zoneSlots[0].urls, ["github.com", "arxiv.org"])
     }
+
+    @MainActor func testQuickAppPresetAppendsNonDistractionAndDeduplicates() {
+        var form = SubjectFormState(subject: nil)
+        let terminal = AllowedApp(bundleID: "com.apple.Terminal", name: "Terminal")
+        let discord = AllowedApp(bundleID: "com.hnc.Discord", name: "Discord")
+
+        form.addQuickAppPreset(terminal)
+        form.addQuickAppPreset(terminal)
+        form.addQuickAppPreset(discord)
+
+        XCTAssertEqual(form.allowedApps, [terminal])
+    }
 }

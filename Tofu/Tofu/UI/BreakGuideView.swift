@@ -74,6 +74,32 @@ struct BreakGuideView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            if FocusAudioEngine.shared.isPlaying, let title = FocusAudioEngine.shared.currentTrackTitle {
+                HStack(spacing: 6) {
+                    Image(systemName: "music.note")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.indigo)
+                    Text(title)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    if FocusAudioEngine.shared.activePlaylist != nil {
+                        Button {
+                            _ = FocusAudioEngine.shared.nextTrack()
+                        } label: {
+                            Image(systemName: "forward.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Theme.indigo)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Skip to next track")
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Theme.indigo.opacity(0.10)))
+            }
         }
     }
 

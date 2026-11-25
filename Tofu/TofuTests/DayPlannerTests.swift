@@ -885,8 +885,9 @@ final class DayPlanModelTests: XCTestCase {
     func testWrapUpTelemetrySummarizesFocusedWorkAndPriorities() {
         let cs = Subject(name: "CS128", colorHex: "#4f46e5")
         let math = Subject(name: "MATH241", colorHex: "#059669")
-        let day = DayKey.key(for: Date())
-        let now = Date()
+        let day = "2026-10-10"
+        let cal = Calendar.current
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 10, minute: 0))!
         let sessions = [
             Session(subjectID: cs.id, subjectName: "CS128", mode: .open, start: now, end: now.addingTimeInterval(3600), outcome: .completed),
             Session(subjectID: math.id, subjectName: "MATH241", mode: .open, start: now.addingTimeInterval(4000), end: now.addingTimeInterval(5800), outcome: .completed),
