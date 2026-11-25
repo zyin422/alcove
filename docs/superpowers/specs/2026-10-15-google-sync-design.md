@@ -2,16 +2,16 @@
 
 **Date:** 2026-10-15
 **Status:** Approved by user (conversation), pending spec review
-**Scope:** Tofu macOS app (`Tofu/Tofu`)
+**Scope:** Alcove macOS app (`Alcove/Alcove`)
 
 ## Goal
 
-Connect Tofu to the user's Google account so that:
+Connect Alcove to the user's Google account so that:
 
 1. Today's day plan mirrors the user's default Google Tasks list (two-way).
-2. Completed focus sessions are logged as events in a dedicated "Tofu" Google Calendar.
+2. Completed focus sessions are logged as events in a dedicated "Alcove" Google Calendar.
 3. Today's calendar events (meetings, classes) are shown read-only in the Morning screen and Today view.
-4. Checking off a priority in Tofu marks the Google task complete, and vice versa.
+4. Checking off a priority in Alcove marks the Google task complete, and vice versa.
 
 Single-user, personal use. Reuses the existing Desktop OAuth client from the
 `uiuc_collective_mind` project (`~/coding/uiuc/uiuc_collective_mind/lib/google/auth.mjs`),
@@ -20,13 +20,13 @@ which already has the Tasks and Calendar scopes configured on its Google Cloud p
 ## Non-goals
 
 - Multiple Google accounts, multiple task lists, or task list selection UI.
-- Offline operation queue; Tofu assumes the Mac is generally online.
-- Editing calendar events from Tofu (pull is read-only).
+- Offline operation queue; Alcove assumes the Mac is generally online.
+- Editing calendar events from Alcove (pull is read-only).
 - Historical backfill of past sessions into Calendar.
 
 ## Architecture
 
-New module `Tofu/Tofu/Engine/Google/` with three units, following the Discord
+New module `Alcove/Alcove/Engine/Google/` with three units, following the Discord
 integration's existing patterns (Keychain for secrets, `HTTPTransport` seam for tests):
 
 ```
@@ -47,7 +47,7 @@ Morning screen / Today view event display.
 - Scopes: `https://www.googleapis.com/auth/tasks`,
   `https://www.googleapis.com/auth/calendar.events`,
   `https://www.googleapis.com/auth/calendar` (the full calendar scope is required to
-  create and list calendars for the dedicated "Tofu" calendar).
+  create and list calendars for the dedicated "Alcove" calendar).
 - Connect flow:
   1. Generate PKCE verifier (32 random bytes, base64url) + S256 challenge + random state.
   2. Start `NWListener` on `127.0.0.1` with an ephemeral port; redirect URI is
@@ -79,7 +79,7 @@ Morning screen / Today view event display.
     `listTasks(showCompleted:)`, `insertTask(title:due:)`,
     `patchTask(id:title:status:)`, `deleteTask(id:)`.
   - Calendar (`https://www.googleapis.com/calendar/v3`):
-    `listCalendars()`, `insertCalendar(summary: "Tofu")`,
+    `listCalendars()`, `insertCalendar(summary: "Alcove")`,
     `insertEvent(calendarID:summary:description:start:end:)`,
     `listEvents(calendarID:from:to:)` for today's window.
 - Every request carries a fresh access token from `GoogleAuth`. On a 401 the client
@@ -95,9 +95,9 @@ Morning screen / Today view event display.
   - Pull: every incomplete task in the list appears as a priority in today's plan
     (upsert by `googleTaskID`; title and done state follow Google). Tasks completed
     today appear as done priorities. Tasks completed before today are ignored.
-  - Push: a priority created in Tofu without a `googleTaskID` is inserted as a task
-    (due date = today) and the returned ID stored. Toggling done state in Tofu
-    patches the task's `status`. Deleting a priority in Tofu deletes the task.
+  - Push: a priority created in Alcove without a `googleTaskID` is inserted as a task
+    (due date = today) and the returned ID stored. Toggling done state in Alcove
+    patches the task's `status`. Deleting a priority in Alcove deletes the task.
   - A task deleted in Google removes its mirrored (not-done) priority.
   - Conflicts: Google wins on pull; no etag/updated-time tracking in v1. Local
     mutations are pushed immediately, then the next pull reconciles.
@@ -117,16 +117,16 @@ Morning screen / Today view event display.
 ### 4. Calendar push + pull
 
 - Push: when a session ends with outcome `completed`, or `bailed` with duration
-  ≥ 5 minutes, insert an event into the dedicated "Tofu" calendar:
+  ≥ 5 minutes, insert an event into the dedicated "Alcove" calendar:
   - summary `Focus: <subjectName>`, real start/end times,
   - description includes mode (open/goal), outcome, blocked attempts, closed tabs.
   - Demo sessions (`isDemo`) are never pushed.
-- The "Tofu" calendar is found by summary in `listCalendars()` or created on first
+- The "Alcove" calendar is found by summary in `listCalendars()` or created on first
   use; its ID is cached in `AppSettings.googleCalendarID`. If the cached ID turns
   out deleted (404), re-find/re-create once.
 - Pull: today's events (4 AM day window is NOT used here — calendar day is
   midnight-to-midnight local) from every calendar the user has `selected == true`
-  in their Google calendar list, excluding the Tofu calendar itself. Held in
+  in their Google calendar list, excluding the Alcove calendar itself. Held in
   memory on `AppModel`; refreshed on the same cadence as the sync cycle.
 - Display: a read-only "Today's events" list (time + title) in the Morning screen
   and the Today view. No editing, no event detail UI.
@@ -155,7 +155,7 @@ Morning screen / Today view event display.
 
 ### 7. Testing
 
-Following the existing test style (`TofuTests`, scripted transports, pure logic):
+Following the existing test style (`AlcoveTests`, scripted transports, pure logic):
 
 - `GoogleAuthTests` — auth URL parameters (PKCE challenge, state, scopes, offline
   access), token exchange, refresh skew, dead-token disconnect, Keychain round-trip

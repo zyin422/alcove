@@ -1,7 +1,7 @@
-name: Tofu
+name: Alcove
 
 options:
-  bundleIdPrefix: com.tofu
+  bundleIdPrefix: com.alcove
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -30,22 +30,22 @@ packages:
     from: 0.18.3
 
 targets:
-  Tofu:
+  Alcove:
     type: application
     platform: macOS
     sources:
-      - path: Tofu
+      - path: Alcove
     dependencies:
       - package: Sparkle
       - package: FluidAudio
         product: FluidAudio
     # Sparkle reads these from Info.plist; Xcode merges this file with the generated Info.plist keys below.
     info:
-      path: Tofu/Info.plist
+      path: Alcove/Info.plist
       properties:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        SUFeedURL: https://raw.githubusercontent.com/axion66/tofu-releases/main/appcast.xml
+        SUFeedURL: https://raw.githubusercontent.com/axion66/alcove-releases/main/appcast.xml
         SUPublicEDKey: my3cG5Hh9Yhc83xOkrv32Wq8IzQhgBZFE6Y7JXs7qow=
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
@@ -54,12 +54,12 @@ targets:
       # Bundles the repo-root .env (team Discord bot token, committed) followed by .env.local (personal keys such
       # as OPENAI_API_KEY, gitignored) as Resources/discord.env, read by EnvFile; later keys win. Missing files are
       # fine: the app then needs keys from Settings. The script never prints the files.
-      # Release builds (TOFU_RELEASE=1, set by scripts/release.sh) are published publicly, so they bundle nothing.
+      # Release builds (ALCOVE_RELEASE=1, set by scripts/release.sh) are published publicly, so they bundle nothing.
       - name: Bundle team .env
         script: |
           ENV_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/discord.env"
           rm -f "$ENV_DEST"
-          if [ "${TOFU_RELEASE:-}" = "1" ]; then
+          if [ "${ALCOVE_RELEASE:-}" = "1" ]; then
             exit 0
           fi
           for ENV_SRC in "${SRCROOT}/../.env" "${SRCROOT}/../.env.local"; do
@@ -73,55 +73,55 @@ targets:
         basedOnDependencyAnalysis: false
     settings:
       base:
-        PRODUCT_NAME: Tofu
-        PRODUCT_BUNDLE_IDENTIFIER: com.tofu.app
-        # Sparkle only runs in builds made by scripts/release.sh (TOFU_RELEASE=1), so builds from source never replace themselves.
-        TOFU_RELEASE_CONDITION_1: TOFU_RELEASE
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(TOFU_RELEASE_CONDITION_$(TOFU_RELEASE))"
+        PRODUCT_NAME: Alcove
+        PRODUCT_BUNDLE_IDENTIFIER: com.alcove.app
+        # Sparkle only runs in builds made by scripts/release.sh (ALCOVE_RELEASE=1), so builds from source never replace themselves.
+        ALCOVE_RELEASE_CONDITION_1: ALCOVE_RELEASE
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) $(ALCOVE_RELEASE_CONDITION_$(ALCOVE_RELEASE))"
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Tofu
+        INFOPLIST_KEY_CFBundleDisplayName: Alcove
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
-        INFOPLIST_KEY_NSAppleEventsUsageDescription: "Tofu opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in."
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Tofu listens when you press the mic so you can talk to your study buddy."
+        INFOPLIST_KEY_NSAppleEventsUsageDescription: "Alcove opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Alcove listens when you press the mic so you can talk to your study buddy."
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Your speech is turned into text on this Mac so you can talk to your study buddy."
-        INFOPLIST_KEY_NSFocusStatusUsageDescription: "Tofu checks whether a Focus is already on so a work block does not turn off Do Not Disturb you set yourself."
+        INFOPLIST_KEY_NSFocusStatusUsageDescription: "Alcove checks whether a Focus is already on so a work block does not turn off Do Not Disturb you set yourself."
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         COMBINE_HIDPI_IMAGES: YES
         ENABLE_PREVIEWS: YES
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
 
-  TofuTests:
+  AlcoveTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: TofuTests
+      - path: AlcoveTests
     dependencies:
-      - target: Tofu
+      - target: Alcove
     settings:
       base:
-        PRODUCT_NAME: TofuTests
-        PRODUCT_BUNDLE_IDENTIFIER: com.tofu.app.tests
+        PRODUCT_NAME: AlcoveTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.alcove.app.tests
         GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Tofu.app/Contents/MacOS/Tofu"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Alcove.app/Contents/MacOS/Alcove"
         BUNDLE_LOADER: "$(TEST_HOST)"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"
 
 schemes:
-  Tofu:
+  Alcove:
     build:
       targets:
-        Tofu: all
-        TofuTests: [test]
+        Alcove: all
+        AlcoveTests: [test]
     run:
       config: Debug
     test:
       config: Debug
       gatherCoverageData: false
       targets:
-        - name: TofuTests
+        - name: AlcoveTests
           parallelizable: false
     profile:
       config: Release

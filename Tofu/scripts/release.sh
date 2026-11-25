@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Publishes a Tofu release that friends' copies pick up through Sparkle.
+# Publishes a Alcove release that friends' copies pick up through Sparkle.
 #
-#   scripts/release.sh 1.2 "What changed"   bump, build, sign, publish to axion66/tofu-releases, commit + tag
+#   scripts/release.sh 1.2 "What changed"   bump, build, sign, publish to axion66/alcove-releases, commit + tag
 #   scripts/release.sh --dry-run            build the current version and generate an appcast locally; publishes nothing
 #
 # Needs: xcodegen; gh logged in as a user who can push to the releases repo; the "Accountabilibrosis Local Codesign"
 # certificate and Sparkle's EdDSA key (generate_keys) in this Mac's login Keychain.
 set -euo pipefail
 
-RELEASES_REPO="axion66/tofu-releases"
+RELEASES_REPO="axion66/alcove-releases"
 DOWNLOAD_PREFIX="https://raw.githubusercontent.com/${RELEASES_REPO}/main/"
 
-TOFU_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$TOFU_DIR"
+ALCOVE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ALCOVE_DIR"
 
 die() { echo "release: $*" >&2; exit 1; }
 
@@ -22,7 +22,7 @@ cleanup() {
   local status=$?
   if [ -n "$STAGE" ]; then rm -rf "$STAGE"; fi
   if [ "$status" != 0 ] && [ "$BUMPED" = 1 ]; then
-    echo "release: failed after bumping the version. Undo with: git checkout -- project.yml Tofu.xcodeproj" >&2
+    echo "release: failed after bumping the version. Undo with: git checkout -- project.yml Alcove.xcodeproj" >&2
   fi
 }
 trap cleanup EXIT
@@ -55,12 +55,12 @@ else
   xcodegen generate --quiet
 fi
 
-DERIVED="$TOFU_DIR/build/ReleaseData"
-echo "release: building Tofu $VERSION ($BUILD)…"
-xcodebuild -project Tofu.xcodeproj -scheme Tofu -configuration Release -destination 'platform=macOS' \
-  -derivedDataPath "$DERIVED" TOFU_RELEASE=1 clean build -quiet
-APP="$DERIVED/Build/Products/Release/Tofu.app"
-[ -d "$APP" ] || die "the build produced no Tofu.app"
+DERIVED="$ALCOVE_DIR/build/ReleaseData"
+echo "release: building Alcove $VERSION ($BUILD)…"
+xcodebuild -project Alcove.xcodeproj -scheme Alcove -configuration Release -destination 'platform=macOS' \
+  -derivedDataPath "$DERIVED" ALCOVE_RELEASE=1 clean build -quiet
+APP="$DERIVED/Build/Products/Release/Alcove.app"
+[ -d "$APP" ] || die "the build produced no Alcove.app"
 
 # The zip is public: it must carry no Discord token or OpenAI key.
 [ ! -e "$APP/Contents/Resources/discord.env" ] || die "the build bundled discord.env; release builds must carry no secrets"
@@ -74,22 +74,22 @@ GENERATE_APPCAST="$(find "$DERIVED/SourcePackages/artifacts" -path '*/bin/genera
 [ -n "$GENERATE_APPCAST" ] || die "Sparkle's generate_appcast was not found under $DERIVED/SourcePackages/artifacts"
 
 STAGE="$(mktemp -d)"
-ZIP="Tofu-$VERSION.zip"
+ZIP="Alcove-$VERSION.zip"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$STAGE/$ZIP"
 if [ -n "$NOTES" ]; then
   ESCAPED="$(printf '%s' "$NOTES" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')"
-  printf '<p>%s</p>\n' "$ESCAPED" > "$STAGE/Tofu-$VERSION.html"
+  printf '<p>%s</p>\n' "$ESCAPED" > "$STAGE/Alcove-$VERSION.html"
 fi
 
 if [ "$DRY_RUN" = 1 ]; then
-  RELEASES_DIR="$TOFU_DIR/build/release-dry-run"
+  RELEASES_DIR="$ALCOVE_DIR/build/release-dry-run"
   rm -rf "$RELEASES_DIR"
   mkdir -p "$RELEASES_DIR"
 else
-  RELEASES_DIR="$TOFU_DIR/build/tofu-releases"
+  RELEASES_DIR="$ALCOVE_DIR/build/alcove-releases"
   if ! gh repo view "$RELEASES_REPO" >/dev/null 2>&1; then
     echo "release: creating public repo $RELEASES_REPO…"
-    gh repo create "$RELEASES_REPO" --public --description "Tofu app updates (Sparkle feed)" >/dev/null
+    gh repo create "$RELEASES_REPO" --public --description "Alcove app updates (Sparkle feed)" >/dev/null
   fi
   rm -rf "$RELEASES_DIR"
   gh repo clone "$RELEASES_REPO" "$RELEASES_DIR" -- --quiet
@@ -98,7 +98,7 @@ else
 fi
 
 cp "$STAGE/$ZIP" "$RELEASES_DIR/"
-if [ -f "$STAGE/Tofu-$VERSION.html" ]; then cp "$STAGE/Tofu-$VERSION.html" "$RELEASES_DIR/"; fi
+if [ -f "$STAGE/Alcove-$VERSION.html" ]; then cp "$STAGE/Alcove-$VERSION.html" "$RELEASES_DIR/"; fi
 "$GENERATE_APPCAST" --download-url-prefix "$DOWNLOAD_PREFIX" --embed-release-notes "$RELEASES_DIR"
 
 if [ "$DRY_RUN" = 1 ]; then
@@ -107,13 +107,13 @@ if [ "$DRY_RUN" = 1 ]; then
   exit 0
 fi
 
-git add project.yml Tofu.xcodeproj
+git add project.yml Alcove.xcodeproj
 git commit --quiet -m "chore: release $VERSION"
 BUMPED=0
 git -C "$RELEASES_DIR" add -A
-git -C "$RELEASES_DIR" commit --quiet -m "Tofu $VERSION"
+git -C "$RELEASES_DIR" commit --quiet -m "Alcove $VERSION"
 git -C "$RELEASES_DIR" push --quiet origin HEAD:main \
   || die "pushing $RELEASES_REPO failed; retry with: git -C $RELEASES_DIR push origin HEAD:main && git tag v$VERSION"
 git tag "v$VERSION"
-echo "release: published Tofu $VERSION ($BUILD). Friends get it within a day, or via Tofu > Check for Updates…"
+echo "release: published Alcove $VERSION ($BUILD). Friends get it within a day, or via Alcove > Check for Updates…"
 echo "release: the source repo was not pushed. When ready: git push && git push origin v$VERSION"

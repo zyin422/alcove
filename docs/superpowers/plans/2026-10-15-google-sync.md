@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Two-way sync between Tofu's day plan and the user's default Google Tasks list, session logging to a dedicated "Tofu" Google Calendar, and a read-only view of today's calendar events.
+**Goal:** Two-way sync between Alcove's day plan and the user's default Google Tasks list, session logging to a dedicated "Alcove" Google Calendar, and a read-only view of today's calendar events.
 
-**Architecture:** New `Tofu/Tofu/Engine/Google/` module: `GoogleAuth` (OAuth 2.0 PKCE with loopback redirect, refresh token in Keychain), `GoogleClient` (Tasks + Calendar REST over the shared `HTTPTransport` seam), `GoogleSync` (merge engine, 60s poll, mutation pushes). Pure merge/diff logic lives in `GoogleTaskMerge` so it tests without any I/O. `AppModel` owns the instances and routes mutations.
+**Architecture:** New `Alcove/Alcove/Engine/Google/` module: `GoogleAuth` (OAuth 2.0 PKCE with loopback redirect, refresh token in Keychain), `GoogleClient` (Tasks + Calendar REST over the shared `HTTPTransport` seam), `GoogleSync` (merge engine, 60s poll, mutation pushes). Pure merge/diff logic lives in `GoogleTaskMerge` so it tests without any I/O. `AppModel` owns the instances and routes mutations.
 
 **Tech Stack:** Swift 5 / macOS 14, SwiftUI, Foundation + Network + CryptoKit only (no new dependencies), XCTest, xcodegen.
 
@@ -12,9 +12,9 @@
 
 ## Global Constraints
 
-- Repo root for all commands: `/Users/axion66/coding/accountabilibrosis/Tofu` (the Xcode project dir).
+- Repo root for all commands: `/Users/axion66/coding/accountabilibrosis/Alcove` (the Xcode project dir).
 - After creating or deleting ANY file, run `xcodegen generate` before building — the pbxproj is generated from `project.yml` directory globs. Never edit `project.pbxproj` by hand.
-- Build/test command (full suite): `xcodegen generate && xcodebuild -project Tofu.xcodeproj -scheme Tofu -destination 'platform=macOS' -derivedDataPath build/DerivedData test 2>&1 | tail -20`. For one test class append `-only-testing:TofuTests/<ClassName>` before `test`... (exact order: `... -derivedDataPath build/DerivedData test -only-testing:TofuTests/GoogleAuthTests`).
+- Build/test command (full suite): `xcodegen generate && xcodebuild -project Alcove.xcodeproj -scheme Alcove -destination 'platform=macOS' -derivedDataPath build/DerivedData test 2>&1 | tail -20`. For one test class append `-only-testing:AlcoveTests/<ClassName>` before `test`... (exact order: `... -derivedDataPath build/DerivedData test -only-testing:AlcoveTests/GoogleAuthTests`).
 - No new third-party dependencies. `import Network` and `import CryptoKit` are system frameworks and fine.
 - Secrets: the Google refresh token goes ONLY in the Keychain (`Keychain.swift` wrapper), never in `store.json`. The OAuth client ID/secret constants are desktop-client values and are deliberately committed (RFC 8252: desktop client secrets are not confidential).
 - All model/UI code is `@MainActor` (match `AppModel`). Doc comments in the codebase's style: one `///` line saying what/why, not how.
@@ -37,8 +37,8 @@ Failure modes the spec implies; each has its pinning test in the named task:
 ### Task 1: Shared HTTPTransport file
 
 **Files:**
-- Create: `Tofu/System/HTTPTransport.swift`
-- Modify: `Tofu/Discord/DiscordClient.swift` (remove the moved declarations)
+- Create: `Alcove/System/HTTPTransport.swift`
+- Modify: `Alcove/Discord/DiscordClient.swift` (remove the moved declarations)
 
 **Interfaces:**
 - Consumes: nothing.
@@ -46,7 +46,7 @@ Failure modes the spec implies; each has its pinning test in the named task:
 
 - [ ] **Step 1: Create the shared file**
 
-Create `Tofu/System/HTTPTransport.swift` containing exactly the two declarations currently in `Tofu/Discord/DiscordClient.swift` (lines ~25–39):
+Create `Alcove/System/HTTPTransport.swift` containing exactly the two declarations currently in `Alcove/Discord/DiscordClient.swift` (lines ~25–39):
 
 ```swift
 import Foundation
@@ -74,7 +74,7 @@ Delete the `HTTPTransport` protocol and `URLSessionTransport` struct from `Disco
 
 - [ ] **Step 3: Regenerate project and run the full suite**
 
-Run: `cd /Users/axion66/coding/accountabilibrosis/Tofu && xcodegen generate && xcodebuild -project Tofu.xcodeproj -scheme Tofu -destination 'platform=macOS' -derivedDataPath build/DerivedData test 2>&1 | tail -5`
+Run: `cd /Users/axion66/coding/accountabilibrosis/Alcove && xcodegen generate && xcodebuild -project Alcove.xcodeproj -scheme Alcove -destination 'platform=macOS' -derivedDataPath build/DerivedData test 2>&1 | tail -5`
 Expected: TEST SUCCEEDED (pure move; Discord tests prove nothing broke).
 
 - [ ] **Step 4: Commit**
@@ -90,21 +90,21 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ### Task 2: Model groundwork — Priority.googleTaskID, AppSettings fields, Keychain coordinates
 
 **Files:**
-- Modify: `Tofu/Models/DayPlan.swift` (Priority)
-- Modify: `Tofu/Models/AppSettings.swift`
-- Modify: `Tofu/Persistence/Keychain.swift` (Secrets enum)
-- Test: `TofuTests/GoogleModelsTests.swift` (create)
+- Modify: `Alcove/Models/DayPlan.swift` (Priority)
+- Modify: `Alcove/Models/AppSettings.swift`
+- Modify: `Alcove/Persistence/Keychain.swift` (Secrets enum)
+- Test: `AlcoveTests/GoogleModelsTests.swift` (create)
 
 **Interfaces:**
-- Produces: `Priority.googleTaskID: String?`; `AppSettings.googleTasksSyncEnabled/googleSessionLogEnabled/googleShowEventsEnabled: Bool` (all default `true`), `AppSettings.googleCalendarID: String?` (default nil); `Secrets.googleService = "com.tofu.google"`, `Secrets.googleAccount = "refresh-token"`.
+- Produces: `Priority.googleTaskID: String?`; `AppSettings.googleTasksSyncEnabled/googleSessionLogEnabled/googleShowEventsEnabled: Bool` (all default `true`), `AppSettings.googleCalendarID: String?` (default nil); `Secrets.googleService = "com.alcove.google"`, `Secrets.googleAccount = "refresh-token"`.
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `TofuTests/GoogleModelsTests.swift`:
+Create `AlcoveTests/GoogleModelsTests.swift`:
 
 ```swift
 import XCTest
-@testable import Tofu
+@testable import Alcove
 
 final class GoogleModelsTests: XCTestCase {
     func testPriorityWithoutGoogleTaskIDStillDecodes() throws {
@@ -143,7 +143,7 @@ final class GoogleModelsTests: XCTestCase {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: the suite command with `-only-testing:TofuTests/GoogleModelsTests` (after `xcodegen generate`).
+Run: the suite command with `-only-testing:AlcoveTests/GoogleModelsTests` (after `xcodegen generate`).
 Expected: BUILD FAILS — `googleTaskID` / `googleTasksSyncEnabled` don't exist yet.
 
 - [ ] **Step 3: Implement**
@@ -157,7 +157,7 @@ In `AppSettings.swift`:
 In `Keychain.swift`, add to `Secrets`:
 
 ```swift
-    static let googleService = "com.tofu.google"
+    static let googleService = "com.alcove.google"
     static let googleAccount = "refresh-token"
 ```
 
@@ -170,8 +170,8 @@ In `Keychain.swift`, add to `Secrets`:
 ### Task 3: GoogleAuth — PKCE OAuth, token lifecycle, Keychain persistence
 
 **Files:**
-- Create: `Tofu/Engine/Google/GoogleAuth.swift`
-- Test: `TofuTests/GoogleAuthTests.swift` (create)
+- Create: `Alcove/Engine/Google/GoogleAuth.swift`
+- Test: `AlcoveTests/GoogleAuthTests.swift` (create)
 
 **Interfaces:**
 - Consumes: `HTTPTransport`, `Keychain`/`Secrets` (Task 1, 2).
@@ -209,12 +209,12 @@ enum GoogleAuthError: Error, Equatable {
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `TofuTests/GoogleAuthTests.swift`:
+Create `AlcoveTests/GoogleAuthTests.swift`:
 
 ```swift
 import XCTest
 import CryptoKit
-@testable import Tofu
+@testable import Alcove
 
 /// Fake Keychain: a box the auth reads and writes through its injected closures.
 @MainActor private final class TokenBox {
@@ -351,9 +351,9 @@ private func tokenJSON(access: String = "at-1", expiresIn: Int = 3600, refresh: 
 }
 ```
 
-- [ ] **Step 2: Run to verify failure** (`-only-testing:TofuTests/GoogleAuthTests`) — build fails, type missing.
+- [ ] **Step 2: Run to verify failure** (`-only-testing:AlcoveTests/GoogleAuthTests`) — build fails, type missing.
 
-- [ ] **Step 3: Implement `Tofu/Engine/Google/GoogleAuth.swift`**
+- [ ] **Step 3: Implement `Alcove/Engine/Google/GoogleAuth.swift`**
 
 ```swift
 import CryptoKit
@@ -526,8 +526,8 @@ Note: `import Security` may be needed for `SecRandomCopyBytes` (Keychain.swift a
 ### Task 4: GoogleClient — Tasks + Calendar REST, pagination, 401 retry
 
 **Files:**
-- Create: `Tofu/Engine/Google/GoogleClient.swift`
-- Test: `TofuTests/GoogleClientTests.swift` (create)
+- Create: `Alcove/Engine/Google/GoogleClient.swift`
+- Test: `AlcoveTests/GoogleClientTests.swift` (create)
 
 **Interfaces:**
 - Consumes: `HTTPTransport` (Task 1). Token comes from an injected provider, NOT GoogleAuth directly, so tests don't need auth: `tokenProvider: (_ forceRefresh: Bool) async throws -> String`.
@@ -592,11 +592,11 @@ final class GoogleClient: GoogleAPI {
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `TofuTests/GoogleClientTests.swift`. Test list (write all of them; shapes follow `DiscordClientTests` — build the client with `GoogleClient(tokenProvider: { _ in "at-1" }, transport: transport)` unless the test says otherwise):
+Create `AlcoveTests/GoogleClientTests.swift`. Test list (write all of them; shapes follow `DiscordClientTests` — build the client with `GoogleClient(tokenProvider: { _ in "at-1" }, transport: transport)` unless the test says otherwise):
 
 ```swift
 import XCTest
-@testable import Tofu
+@testable import Alcove
 
 final class GoogleClientTests: XCTestCase {
     private func makeClient(_ transport: MockTransport) -> GoogleClient {
@@ -665,7 +665,7 @@ final class GoogleClientTests: XCTestCase {
 
     func testListCalendarsDecodesSelected() async throws {
         let transport = MockTransport { _ in (200, MockTransport.json(
-            #"{"items": [{"id": "primary-id", "summary": "Me", "selected": true}, {"id": "tofu-id", "summary": "Tofu"}]}"#)) }
+            #"{"items": [{"id": "primary-id", "summary": "Me", "selected": true}, {"id": "alcove-id", "summary": "Alcove"}]}"#)) }
         let calendars = try await makeClient(transport).listCalendars()
         XCTAssertEqual(calendars.count, 2)
         XCTAssertEqual(calendars[0].selected, true)
@@ -673,8 +673,8 @@ final class GoogleClientTests: XCTestCase {
     }
 
     func testInsertCalendar() async throws {
-        let transport = MockTransport { _ in (200, MockTransport.json(#"{"id": "cal-9", "summary": "Tofu"}"#)) }
-        let calendar = try await makeClient(transport).insertCalendar(summary: "Tofu")
+        let transport = MockTransport { _ in (200, MockTransport.json(#"{"id": "cal-9", "summary": "Alcove"}"#)) }
+        let calendar = try await makeClient(transport).insertCalendar(summary: "Alcove")
         XCTAssertEqual(calendar.id, "cal-9")
         XCTAssertEqual(transport.log, ["POST /calendar/v3/calendars"])
     }
@@ -742,7 +742,7 @@ final class GoogleClientTests: XCTestCase {
 
 - [ ] **Step 2: Run to verify failure.**
 
-- [ ] **Step 3: Implement `Tofu/Engine/Google/GoogleClient.swift`**
+- [ ] **Step 3: Implement `Alcove/Engine/Google/GoogleClient.swift`**
 
 Key implementation notes (write the full client; the models are in the Interfaces block above):
 
@@ -887,8 +887,8 @@ Adjust the `Ignored` decode for empty bodies: `deleteTask` uses `raw` directly (
 ### Task 5: LoopbackServer — localhost redirect catcher
 
 **Files:**
-- Create: `Tofu/Engine/Google/LoopbackServer.swift`
-- Test: `TofuTests/LoopbackServerTests.swift` (create)
+- Create: `Alcove/Engine/Google/LoopbackServer.swift`
+- Test: `AlcoveTests/LoopbackServerTests.swift` (create)
 
 **Interfaces:**
 - Produces (used by Task 9):
@@ -908,7 +908,7 @@ final class LoopbackServer {
 
 ```swift
 import XCTest
-@testable import Tofu
+@testable import Alcove
 
 final class LoopbackServerTests: XCTestCase {
     func testParseRequestLine() {
@@ -955,7 +955,7 @@ import Network
 /// small "you're connected" page, and reports the code and state exactly once.
 final class LoopbackServer: @unchecked Sendable {
     private var listener: NWListener?
-    private let queue = DispatchQueue(label: "com.tofu.google.loopback")
+    private let queue = DispatchQueue(label: "com.alcove.google.loopback")
 
     func start(onCallback: @escaping @Sendable (String?, String?) -> Void) throws -> UInt16 {
         let parameters = NWParameters.tcp
@@ -967,7 +967,7 @@ final class LoopbackServer: @unchecked Sendable {
                 let request = String(data: data ?? Data(), encoding: .utf8) ?? ""
                 let line = request.components(separatedBy: "\r\n").first ?? ""
                 let (code, state) = Self.parse(requestLine: line)
-                let page = "<html><body style=\"font-family:-apple-system\"><h2>Tofu is connected to Google.</h2>You can close this tab.</body></html>"
+                let page = "<html><body style=\"font-family:-apple-system\"><h2>Alcove is connected to Google.</h2>You can close this tab.</body></html>"
                 let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: \(page.utf8.count)\r\nConnection: close\r\n\r\n\(page)"
                 connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in
                     connection.cancel()
@@ -1013,8 +1013,8 @@ If the port-wait loop proves flaky, switch to `listener.stateUpdateHandler` + a 
 ### Task 6: GoogleTaskMerge — pure pull-merge and local diff
 
 **Files:**
-- Create: `Tofu/Engine/Google/GoogleTaskMerge.swift`
-- Test: `TofuTests/GoogleTaskMergeTests.swift` (create)
+- Create: `Alcove/Engine/Google/GoogleTaskMerge.swift`
+- Test: `AlcoveTests/GoogleTaskMergeTests.swift` (create)
 
 **Interfaces:**
 - Consumes: `Priority` (Task 2), `GoogleTask` (Task 4), `DayKey` (existing).
@@ -1045,7 +1045,7 @@ enum GoogleTaskMerge {
 
 ```swift
 import XCTest
-@testable import Tofu
+@testable import Alcove
 
 private func task(_ id: String, _ title: String, done: Bool = false, completed: String? = nil) -> GoogleTask {
     GoogleTask(id: id, title: title, status: done ? "completed" : "needsAction", completed: completed, due: nil)
@@ -1092,9 +1092,9 @@ final class GoogleTaskMergeTests: XCTestCase {
     }
 
     func testUnlinkedLocalSurvivesAndIsQueuedForInsert() {
-        let local = Priority(title: "Added in Tofu")
+        let local = Priority(title: "Added in Alcove")
         let (priorities, toInsert) = GoogleTaskMerge.apply(remote: [task("t1", "Remote")], to: [local], now: now)
-        XCTAssertEqual(priorities.map(\.title), ["Added in Tofu", "Remote"], "locals keep their place, new remotes append")
+        XCTAssertEqual(priorities.map(\.title), ["Added in Alcove", "Remote"], "locals keep their place, new remotes append")
         XCTAssertEqual(toInsert.map(\.id), [local.id])
     }
 
@@ -1146,7 +1146,7 @@ final class GoogleTaskMergeTests: XCTestCase {
 
 - [ ] **Step 2: Run to verify failure.**
 
-- [ ] **Step 3: Implement `Tofu/Engine/Google/GoogleTaskMerge.swift`**
+- [ ] **Step 3: Implement `Alcove/Engine/Google/GoogleTaskMerge.swift`**
 
 Rules, in order, for `apply` (remote wins — spec §3):
 1. Partition remote: keep tasks that are not done, or done with a `completed` timestamp whose `DayKey.key(for:)` equals `DayKey.key(for: now)`; drop the rest.
@@ -1164,8 +1164,8 @@ Rules, in order, for `apply` (remote wins — spec §3):
 ### Task 7: GoogleSync — the engine
 
 **Files:**
-- Create: `Tofu/Engine/Google/GoogleSync.swift`
-- Test: `TofuTests/GoogleSyncTests.swift` (create)
+- Create: `Alcove/Engine/Google/GoogleSync.swift`
+- Test: `AlcoveTests/GoogleSyncTests.swift` (create)
 
 **Interfaces:**
 - Consumes: `GoogleAPI` (Task 4), `GoogleTaskMerge`/`PlanDiff` (Task 6), `GoogleAuthError` (Task 3), `AppSettings`, `DayPlan`, `Session`, `DayKey`.
@@ -1198,11 +1198,11 @@ Rules, in order, for `apply` (remote wins — spec §3):
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `TofuTests/GoogleSyncTests.swift` with a scripted `FakeGoogleAPI` that records calls and serves canned data:
+Create `AlcoveTests/GoogleSyncTests.swift` with a scripted `FakeGoogleAPI` that records calls and serves canned data:
 
 ```swift
 import XCTest
-@testable import Tofu
+@testable import Alcove
 
 /// Scripted GoogleAPI: records every call, serves canned data, can fail on command.
 @MainActor final class FakeGoogleAPI: GoogleAPI {
@@ -1229,7 +1229,7 @@ import XCTest
     func listCalendars() async throws -> [GoogleCalendarInfo] { try bump("listCalendars"); return calendars }
     func insertCalendar(summary: String) async throws -> GoogleCalendarInfo {
         try bump("insertCalendar \(summary)")
-        return GoogleCalendarInfo(id: "tofu-cal", summary: summary, selected: nil)
+        return GoogleCalendarInfo(id: "alcove-cal", summary: summary, selected: nil)
     }
     func insertEvent(calendarID: String, summary: String, description: String, start: Date, end: Date) async throws {
         try bump("insertEvent \(calendarID) \(summary)")
@@ -1319,16 +1319,16 @@ import XCTest
         session.end = Date(); session.outcome = .completed
         sync.sessionEnded(session)
         await sync.syncNow()
-        XCTAssertTrue(api.log.contains("insertCalendar Tofu"), "no Tofu calendar yet, create it: \(api.log)")
-        XCTAssertTrue(api.log.contains("insertEvent tofu-cal Focus: CS128"))
-        XCTAssertEqual(savedCalendarID, "tofu-cal")
+        XCTAssertTrue(api.log.contains("insertCalendar Alcove"), "no Alcove calendar yet, create it: \(api.log)")
+        XCTAssertTrue(api.log.contains("insertEvent alcove-cal Focus: CS128"))
+        XCTAssertEqual(savedCalendarID, "alcove-cal")
         api.log.removeAll()
         await sync.syncNow()
         XCTAssertFalse(api.log.contains { $0.hasPrefix("insertEvent") }, "pushed once, not again")
     }
 
     func testExistingTofuCalendarIsReusedNotRecreated() async {
-        api.calendars = [GoogleCalendarInfo(id: "cal-old", summary: "Tofu", selected: nil)]
+        api.calendars = [GoogleCalendarInfo(id: "cal-old", summary: "Alcove", selected: nil)]
         settings.googleTasksSyncEnabled = false
         settings.googleShowEventsEnabled = false
         let sync = makeSync()
@@ -1343,9 +1343,9 @@ import XCTest
     func testEventsPulledFromSelectedCalendarsExcludingTofu() async {
         settings.googleTasksSyncEnabled = false
         settings.googleSessionLogEnabled = false
-        settings.googleCalendarID = "tofu-cal"
+        settings.googleCalendarID = "alcove-cal"
         api.calendars = [GoogleCalendarInfo(id: "primary", summary: "Me", selected: true),
-                         GoogleCalendarInfo(id: "tofu-cal", summary: "Tofu", selected: true),
+                         GoogleCalendarInfo(id: "alcove-cal", summary: "Alcove", selected: true),
                          GoogleCalendarInfo(id: "ignored", summary: "Off", selected: false)]
         api.events = ["primary": [GoogleEvent(id: "e1", summary: "Lecture",
                                               start: GoogleEventTime(dateTime: "2026-10-15T09:00:00-05:00", date: nil),
@@ -1354,7 +1354,7 @@ import XCTest
         await sync.syncNow()
         XCTAssertEqual(sync.todayEvents.map(\.id), ["e1"])
         XCTAssertTrue(api.log.contains("listEvents primary"))
-        XCTAssertFalse(api.log.contains("listEvents tofu-cal"))
+        XCTAssertFalse(api.log.contains("listEvents alcove-cal"))
         XCTAssertFalse(api.log.contains("listEvents ignored"))
     }
 
@@ -1420,7 +1420,7 @@ import XCTest
 
 - [ ] **Step 2: Run to verify failure.**
 
-- [ ] **Step 3: Implement `Tofu/Engine/Google/GoogleSync.swift`**
+- [ ] **Step 3: Implement `Alcove/Engine/Google/GoogleSync.swift`**
 
 Structure (fill in fully):
 
@@ -1539,7 +1539,7 @@ import Observation
 
     private func pushPendingSessions() async throws {
         guard !pendingSessions.isEmpty else { return }
-        let calendarID = try await tofuCalendarID()
+        let calendarID = try await alcoveCalendarID()
         while let session = pendingSessions.first {
             try await api.insertEvent(calendarID: calendarID,
                                       summary: Self.eventSummary(for: session),
@@ -1549,13 +1549,13 @@ import Observation
         }
     }
 
-    /// The cached "Tofu" calendar id, found by summary or created on first use (spec §4).
-    private func tofuCalendarID() async throws -> String {
+    /// The cached "Alcove" calendar id, found by summary or created on first use (spec §4).
+    private func alcoveCalendarID() async throws -> String {
         if let cached = settings().googleCalendarID { return cached }
         let calendars = try await api.listCalendars()
         let id: String
-        if let existing = calendars.first(where: { $0.summary == "Tofu" }) { id = existing.id }
-        else { id = try await api.insertCalendar(summary: "Tofu").id }
+        if let existing = calendars.first(where: { $0.summary == "Alcove" }) { id = existing.id }
+        else { id = try await api.insertCalendar(summary: "Alcove").id }
         saveCalendarID(id)
         return id
     }
@@ -1614,8 +1614,8 @@ One sequencing trap: `testApplyingRemotePlanPushesNothing` calls `planChanged` A
 ### Task 8: GoogleEventFormat — display helpers
 
 **Files:**
-- Create: `Tofu/Engine/Google/GoogleEventFormat.swift`
-- Test: `TofuTests/GoogleEventFormatTests.swift` (create)
+- Create: `Alcove/Engine/Google/GoogleEventFormat.swift`
+- Test: `AlcoveTests/GoogleEventFormatTests.swift` (create)
 
 **Interfaces:**
 - Consumes: `GoogleEvent`/`GoogleEventTime` (Task 4).
@@ -1625,7 +1625,7 @@ One sequencing trap: `testApplyingRemotePlanPushesNothing` calls `planChanged` A
 
 ```swift
 import XCTest
-@testable import Tofu
+@testable import Alcove
 
 final class GoogleEventFormatTests: XCTestCase {
     private func timed(_ startISO: String, _ endISO: String) -> GoogleEvent {
@@ -1696,8 +1696,8 @@ Then, in `GoogleSync.pullEvents` (Task 7), replace the inline sort with `GoogleE
 ### Task 9: AppModel wiring — ownership, mutation routing, connect flow
 
 **Files:**
-- Modify: `Tofu/App/AppModel.swift`
-- Test: `TofuTests/GoogleWiringTests.swift` (create)
+- Modify: `Alcove/App/AppModel.swift`
+- Test: `AlcoveTests/GoogleWiringTests.swift` (create)
 
 **Interfaces:**
 - Consumes: everything above.
@@ -1715,11 +1715,11 @@ func disconnectGoogle()
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `TofuTests/GoogleWiringTests.swift`. Build `AppModel` the way `AppModelTests` does (temp-file `Store`, injected `SessionEngine` — copy the existing helper pattern from `AppModelTests.swift`, read that file first), then:
+Create `AlcoveTests/GoogleWiringTests.swift`. Build `AppModel` the way `AppModelTests` does (temp-file `Store`, injected `SessionEngine` — copy the existing helper pattern from `AppModelTests.swift`, read that file first), then:
 
 ```swift
 import XCTest
-@testable import Tofu
+@testable import Alcove
 
 @MainActor final class GoogleWiringTests: XCTestCase {
     // Use the same makeModel(...) helper style as AppModelTests, extended with:
@@ -1893,7 +1893,7 @@ Ordering: `googleAuth` is assigned with the other stored properties (before any 
 
 Add `@ObservationIgnored private var pendingRedirectURI = ""` with the other properties. If the implementer finds a cleaner continuation shape (e.g. `withCheckedThrowingContinuation` guarded against double-resume), use it — the contract is: open browser, await one (code, state), 180 s timeout, exchange, start sync.
 
-7. Check `convenience init` (test) signature change compiles every existing `AppModel(...)` call in `TofuTests` — the new parameters must all have defaults so existing tests build untouched.
+7. Check `convenience init` (test) signature change compiles every existing `AppModel(...)` call in `AlcoveTests` — the new parameters must all have defaults so existing tests build untouched.
 
 - [ ] **Step 4: Run the new tests, then the FULL suite — PASS.** (The full suite matters: `updatePlan` is on many test paths.)
 
@@ -1904,9 +1904,9 @@ Add `@ObservationIgnored private var pendingRedirectURI = ""` with the other pro
 ### Task 10: UI — Settings section, Today/Morning event lists
 
 **Files:**
-- Modify: `Tofu/UI/SettingsView.swift`
-- Modify: `Tofu/UI/TodayView.swift`
-- Modify: `Tofu/UI/MorningScreen.swift`
+- Modify: `Alcove/UI/SettingsView.swift`
+- Modify: `Alcove/UI/TodayView.swift`
+- Modify: `Alcove/UI/MorningScreen.swift`
 
 **Interfaces:**
 - Consumes: `AppModel.isGoogleConnected / connectGoogle / disconnectGoogle / googleStatus / googleSync?.todayEvents`, `AppSettings` toggles (Task 2), `GoogleEventFormat` (Task 8).
@@ -1934,7 +1934,7 @@ Follow the section style already in the file (Section + header + caption footer,
         } header: {
             Text("Google")
         } footer: {
-            Text("Today's plan mirrors your default Google Tasks list, finished sessions are logged to a “Tofu” calendar, and today's events show on the morning screen. Sign-in shows “UIUC Collective Mind” — that's the shared app this uses. If Google disconnects you after a week, just connect again.")
+            Text("Today's plan mirrors your default Google Tasks list, finished sessions are logged to a “Alcove” calendar, and today's events show on the morning screen. Sign-in shows “UIUC Collective Mind” — that's the shared app this uses. If Google disconnects you after a week, just connect again.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -1986,7 +1986,7 @@ Expected: TEST SUCCEEDED.
 
 - [ ] **Step 1: Full suite, clean**
 
-Run: `cd /Users/axion66/coding/accountabilibrosis/Tofu && xcodegen generate && xcodebuild -project Tofu.xcodeproj -scheme Tofu -destination 'platform=macOS' -derivedDataPath build/DerivedData test 2>&1 | grep -E "Executed [0-9]+ tests|TEST (SUCCEEDED|FAILED)" | tail -3`
+Run: `cd /Users/axion66/coding/accountabilibrosis/Alcove && xcodegen generate && xcodebuild -project Alcove.xcodeproj -scheme Alcove -destination 'platform=macOS' -derivedDataPath build/DerivedData test 2>&1 | grep -E "Executed [0-9]+ tests|TEST (SUCCEEDED|FAILED)" | tail -3`
 Expected: TEST SUCCEEDED, zero failures.
 
 - [ ] **Step 2: Spec sweep**
@@ -1995,7 +1995,7 @@ Re-read `docs/superpowers/specs/2026-10-15-google-sync-design.md` top to bottom;
 
 - [ ] **Step 3: Release build compiles**
 
-Run: `xcodebuild -project Tofu.xcodeproj -scheme Tofu -configuration Release -destination 'platform=macOS' -derivedDataPath build/DerivedData build 2>&1 | tail -3`
+Run: `xcodebuild -project Alcove.xcodeproj -scheme Alcove -configuration Release -destination 'platform=macOS' -derivedDataPath build/DerivedData build 2>&1 | tail -3`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 4: Commit any fixes** — `fix: <what>` per issue found.

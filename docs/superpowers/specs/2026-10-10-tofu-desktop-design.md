@@ -1,4 +1,4 @@
-# Tofu — macOS Lock-In App: Design Spec
+# Alcove — macOS Lock-In App: Design Spec
 
 - **Date:** 2026-10-10
 - **Status:** Approved design. This spec is pending written review.
@@ -56,7 +56,7 @@ When the user clicks **Lock in** on a subject (e.g. "CS128"), the Mac turns into
 - **Must be unsandboxed.** `NSRunningApplication.terminate()`/`hide()` of other apps does not work from the App Sandbox. That rules out the App Store. A local ad-hoc-signed build is fine.
 - **Discord bots cannot join group DMs** ("Bots cannot have friends or be added to or join Group DMs", from the Discord OAuth2 docs). We post to guild text channels only.
 - **Chrome AppleScript cannot choose a profile.** `make new window` fails while Chrome has no profile loaded (just after a cold launch, or while the profile picker is open). We retry.
-- **Automation (TCC) prompt.** The first time we send Apple Events to Chrome, macOS shows "Tofu wants to control Google Chrome". It appears once, and Info.plist needs `NSAppleEventsUsageDescription`. We do **not** use System Events, and we do **not** need Accessibility permission.
+- **Automation (TCC) prompt.** The first time we send Apple Events to Chrome, macOS shows "Alcove wants to control Google Chrome". It appears once, and Info.plist needs `NSAppleEventsUsageDescription`. We do **not** use System Events, and we do **not** need Accessibility permission.
 - **The user can always escape** by quitting our app. Blocking lives in-process. We accept this for the demo.
 - **Main display only.** Other Spaces, other apps' full-screen windows and Stage Manager are not handled.
 
@@ -65,12 +65,12 @@ When the user clicks **Lock in** on a subject (e.g. "CS128"), the Mac turns into
 A single macOS app target plus a unit-test target. Each unit has one purpose. The pure units (marked ⚙︎) have no AppKit dependencies and are unit-tested.
 
 ```
-Tofu/                      (repo subfolder)
+Alcove/                      (repo subfolder)
   project.yml                            XcodeGen spec
-  Tofu.xcodeproj/          generated, committed
-  Tofu/
+  Alcove.xcodeproj/          generated, committed
+  Alcove/
     App/
-      TofuApp.swift        @main, WindowGroup + Settings scene, AppModel injection
+      AlcoveApp.swift        @main, WindowGroup + Settings scene, AppModel injection
       AppModel.swift                     @Observable root: subjects, sessions, settings, SessionEngine
     Models/
       Subject.swift                      Subject, LayoutPreset, AllowedApp
@@ -109,7 +109,7 @@ Tofu/                      (repo subfolder)
       SettingsView.swift                 name, Discord token/test, give-up phrase, permissions status, demo data
     Resources/
       Info.plist, Assets.xcassets
-  TofuTests/
+  AlcoveTests/
     LayoutEngineTests.swift, DomainMatcherTests.swift, StatsEngineTests.swift,
     DiscordMessagesTests.swift, ChannelPickerTests.swift, StoreTests.swift
 ```
@@ -118,13 +118,13 @@ Tofu/                      (repo subfolder)
 
 | Setting | Value |
 |---|---|
-| `PRODUCT_BUNDLE_IDENTIFIER` | `com.tofu.app` |
+| `PRODUCT_BUNDLE_IDENTIFIER` | `com.alcove.app` |
 | `ENABLE_APP_SANDBOX` | `NO` (no sandbox entitlements file) |
 | `ENABLE_HARDENED_RUNTIME` | `NO` |
 | `CODE_SIGN_IDENTITY` | `-` (ad-hoc) |
 | `MACOSX_DEPLOYMENT_TARGET` | `14.0` |
 | `SWIFT_VERSION` | `5.0` |
-| `INFOPLIST_KEY_NSAppleEventsUsageDescription` | "Tofu opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in." |
+| `INFOPLIST_KEY_NSAppleEventsUsageDescription` | "Alcove opens and arranges your study sites in Google Chrome and closes off-topic tabs while you're locked in." |
 
 **Concurrency:** all controllers and the engine are `@MainActor`. Discord networking uses `async`/`await` on `URLSession`. The AppleScript calls (`NSAppleScript`) run on the main actor; they are short. Tab polling every 2 s is acceptable for the demo. If it stutters, move it to a serial background queue with its own `NSAppleScript` instance.
 
@@ -180,9 +180,9 @@ struct AppSettings: Codable {
 struct StoreData: Codable { var subjects: [Subject]; var sessions: [Session]; var settings: AppSettings }
 ```
 
-- **File location:** `~/Library/Application Support/Tofu/store.json`. Writes are atomic (`.atomic`), with a `version: 1` field.
+- **File location:** `~/Library/Application Support/Alcove/store.json`. Writes are atomic (`.atomic`), with a `version: 1` field.
 - **When we save:** after every mutation, and on heartbeat.
-- **Bot token:** stored in the Keychain, never in JSON. Generic password, service `com.tofu.discord`, account `bot-token`.
+- **Bot token:** stored in the Keychain, never in JSON. Generic password, service `com.alcove.discord`, account `bot-token`.
 
 ## 6. Session lifecycle (SessionEngine)
 
@@ -292,7 +292,7 @@ Example: site `https://www.youtube.com/watch?v=x` allows all of youtube.com. Tha
 
 ## 9. Discord
 
-**Requests** (`https://discord.com/api/v10`, header `Authorization: Bot <token>`, `User-Agent: DiscordBot (tofu, 1.0)`):
+**Requests** (`https://discord.com/api/v10`, header `Authorization: Bot <token>`, `User-Agent: DiscordBot (alcove, 1.0)`):
 
 - `GET /users/@me` (the "Test connection" button: shows the bot username)
 - `GET /users/@me/guilds`

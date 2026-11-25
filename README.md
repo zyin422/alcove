@@ -1,8 +1,8 @@
-# Tofu
+# Alcove
 
 **Lock in on a subject, and your Mac turns into a study room.**
 
-Tofu is a native macOS app. One click hides every other app and opens your study sites in Google Chrome, tiled in the layout you picked. Distractions are pushed away the moment they appear, your friends on Discord see that you're locked in, and the app tracks how long you actually stayed focused.
+Alcove is a native macOS app. One click hides every other app and opens your study sites in Google Chrome, tiled in the layout you picked. Distractions are pushed away the moment they appear, your friends on Discord see that you're locked in, and the app tracks how long you actually stayed focused.
 
 Built for **Code Ada 2026, Off the Clock** track.
  
@@ -32,7 +32,7 @@ Built for **Code Ada 2026, Off the Clock** track.
 - **Subjects:** a name, a layout preset, one or two study sites and extra allowed apps.
 - **Four layout presets** for the main display. See below.
 - **App blocking:**
-  - Chrome, Finder and Tofu are always allowed.
+  - Chrome, Finder and Alcove are always allowed.
   - Every other app is hidden when it launches or activates.
   - An attempt counts at most once every 2 seconds per app.
 - **AI relevance check for Chrome tabs:**
@@ -42,7 +42,7 @@ Built for **Code Ada 2026, Off the Clock** track.
   - When there is no verdict, the app asks you. See Relevance check below.
 - **Session modes:** open-ended, or a goal. A goal counts down and completes on its own. Ending it early opens the Mirror; a forfeit is posted as a bail.
 - **Discord announcements** through your own bot. Lock-in, completion and bail messages go to one text channel per server.
-- **Study companion:** an anime girl floats bottom-right while you're locked in. She greets you, chats idly, praises you at the halfway mark, and scolds you when an app or tab gets blocked. Personality in Settings: tsundere, yandere, or tsundere → yandere (she turns dark after 3 blocked attempts). Drop your own character art (e.g. Emilia) into `Application Support/Tofu/companion/` as `neutral.png`, `annoyed.png`, `pleased.png`, `dark.png` — the "Open images folder" button in Settings takes you there; without custom images the four bundled Emilia portraits are used.
+- **Study companion:** an anime girl floats bottom-right while you're locked in. She greets you, chats idly, praises you at the halfway mark, and scolds you when an app or tab gets blocked. Personality in Settings: tsundere, yandere, or tsundere → yandere (she turns dark after 3 blocked attempts). Drop your own character art (e.g. Emilia) into `Application Support/Alcove/companion/` as `neutral.png`, `annoyed.png`, `pleased.png`, `dark.png` — the "Open images folder" button in Settings takes you there; without custom images the four bundled Emilia portraits are used.
 - **Stats:**
   - Day, Week and Month bar charts, stacked by subject.
   - Today and this week.
@@ -107,32 +107,32 @@ Each zone of a setup is a **window**: either a website window or an app.
 
 ```bash
 git clone https://github.com/zyin422/accountabilibrosis.git
-cd accountabilibrosis/Tofu
+cd accountabilibrosis/Alcove
 xcodegen generate
-open Tofu.xcodeproj    # then press ⌘R in Xcode
+open Alcove.xcodeproj    # then press ⌘R in Xcode
 ```
 
 From the command line:
 
 ```bash
-cd Tofu
-xcodebuild -project Tofu.xcodeproj -scheme Tofu -configuration Release \
+cd Alcove
+xcodebuild -project Alcove.xcodeproj -scheme Alcove -configuration Release \
   -destination 'platform=macOS' -derivedDataPath build/DerivedData build
-open build/DerivedData/Build/Products/Release/Tofu.app
+open build/DerivedData/Build/Products/Release/Alcove.app
 ```
 
 > **While developing:** a lock-in hides Xcode and Terminal too. It never quits them. Add them to a test subject's allowed apps, or end the session from the mini timer.
 
 ## Updates
 
-Tofu updates itself with [Sparkle](https://sparkle-project.org). Once a day it checks
-`https://raw.githubusercontent.com/axion66/tofu-releases/main/appcast.xml`. When a newer version exists, a card appears
+Alcove updates itself with [Sparkle](https://sparkle-project.org). Once a day it checks
+`https://raw.githubusercontent.com/axion66/alcove-releases/main/appcast.xml`. When a newer version exists, a card appears
 above **Stats** in the sidebar: **Update** opens Sparkle's window (release notes → Install → relaunch), **×** hides it;
-it comes back at the next daily check after Tofu restarts. **Tofu → Check for Updates…** checks right away. Debug builds and builds from source never check.
+it comes back at the next daily check after Alcove restarts. **Alcove → Check for Updates…** checks right away. Debug builds and builds from source never check.
 
 **For friends (first install):**
-1. Download the newest `Tofu-<version>.zip` from [axion66/tofu-releases](https://github.com/axion66/tofu-releases),
-   unzip it and move `Tofu.app` to Applications.
+1. Download the newest `Alcove-<version>.zip` from [axion66/alcove-releases](https://github.com/axion66/alcove-releases),
+   unzip it and move `Alcove.app` to Applications.
 2. The first launch is blocked because the app isn't notarized: open **System Settings → Privacy & Security** and click
    **Open Anyway**. Updates after that install without this step.
 3. Release builds carry no keys. Paste the Discord bot token (ask the maintainer) and, optionally, your own OpenAI key
@@ -141,9 +141,9 @@ it comes back at the next daily check after Tofu restarts. **Tofu → Check for 
 **For the maintainer (publishing):**
 
 ```bash
-cd Tofu
+cd Alcove
 scripts/release.sh --dry-run              # build + sign + appcast locally, publishes nothing
-scripts/release.sh 1.2 "What changed"     # bump, build, publish to axion66/tofu-releases, commit + tag (no source push)
+scripts/release.sh 1.2 "What changed"     # bump, build, publish to axion66/alcove-releases, commit + tag (no source push)
 ```
 
 The script refuses a dirty tree (untracked files count), a version that isn't newer than the current one, or an existing tag, and aborts if the build would ship `discord.env`.
@@ -152,7 +152,7 @@ It needs, on this Mac only:
   their Accessibility grant after updating;
 - Sparkle's private EdDSA key in the login Keychain (created once with `generate_keys`; its public half is
   `SUPublicEDKey` in `project.yml`). Back it up:
-  `build/ReleaseData/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/tofu-sparkle-key.txt`
+  `build/ReleaseData/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/alcove-sparkle-key.txt`
   and keep the file somewhere safe. Without it, friends' copies can't verify new updates and must be reinstalled.
 - Also back up the **Accountabilibrosis Local Codesign** certificate with its private key (Keychain Access → export as
   .p12) and note its expiry date (self-signed certs default to 1 year). A different or expired certificate costs friends
@@ -166,7 +166,7 @@ The main permission is **Automation → Google Chrome**.
   - opening and arranging the study windows;
   - reading tab URLs and titles, and closing off-topic tabs;
   - minimizing and restoring your own windows.
-- **When macOS asks:** once, with "Tofu wants access to control Google Chrome". To get the prompt out of the way early, use **Settings › Chrome › Request access**.
+- **When macOS asks:** once, with "Alcove wants access to control Google Chrome". To get the prompt out of the way early, use **Settings › Chrome › Request access**.
 
 **Automation → Arc** is asked the same way the first time a setup uses Arc.
 
@@ -180,9 +180,9 @@ Grant it in **Settings › Window placement**. Chrome-only preset setups work wi
 
 The app does **not** need Screen Recording, Full Disk Access or notification permission. It never scripts System Events.
 
-- **Denied by accident?** Turn it back on in **System Settings › Privacy & Security › Automation › Tofu › Google Chrome**. A lock-in without it still hides and blocks apps.
+- **Denied by accident?** Turn it back on in **System Settings › Privacy & Security › Automation › Alcove › Google Chrome**. A lock-in without it still hides and blocks apps.
 - **Unsandboxed by design.** Hiding other apps does not work inside the App Sandbox, so the app can't ship on the Mac App Store. It is built locally and signed ad hoc (`CODE_SIGN_IDENTITY = -`).
-- **Rebuilds can bring the prompt back.** An ad-hoc signature changes on every rebuild, so macOS may ask for Chrome access again. To reset the answer, run `tccutil reset AppleEvents com.tofu.app`.
+- **Rebuilds can bring the prompt back.** An ad-hoc signature changes on every rebuild, so macOS may ask for Chrome access again. To reset the answer, run `tccutil reset AppleEvents com.alcove.app`.
 
 ## Daily priorities and the end-of-day recap
 
@@ -207,7 +207,7 @@ The old website allowlist and blocklist are gone. While you're locked in, an AI 
 - **Not sure? The buddy asks, out loud.** When the AI can't decide, a small popup appears bottom-right. It reads the question aloud with a built-in macOS voice, shows a countdown, and you answer by holding **Hold to talk**. Your speech is transcribed on this Mac and shown live. **Close it** closes the site right away. With no answer in 1 minute, the site is closed. Voice is only used for these new-tab questions.
 - **Once per page.** Each URL is judged once per session. A tab that goes somewhere new is judged again. A URL that was judged off-task is closed straight away if it reappears.
 - **The key.** It resolves like the Discord token:
-  - A key saved in **Settings › Relevance check (OpenAI)** goes to the Keychain (service `com.tofu.openai`, account `api-key`) and wins.
+  - A key saved in **Settings › Relevance check (OpenAI)** goes to the Keychain (service `com.alcove.openai`, account `api-key`) and wins.
   - Otherwise the team key from the repo-root `.env` is used. Add it next to the Discord token:
 
     ```
@@ -243,7 +243,7 @@ To run your own bot instead of the team's, follow the steps below.
 
 1. Create an application at <https://discord.com/developers/applications> (**New Application**).
 2. Open **Bot**, click **Reset Token**, and copy the token.
-3. In Tofu, open **Settings › Discord**:
+3. In Alcove, open **Settings › Discord**:
    1. Paste the token and click **Save**. It is stored in the Keychain.
    2. Turn on **Post lock-ins to Discord**.
 4. Invite the bot to your server:
@@ -272,14 +272,14 @@ The name comes from **Settings › Profile › Display name**. Discord problems 
 
 | Data | Location |
 |---|---|
-| Subjects, sessions, settings | `~/Library/Application Support/Tofu/store.json`. Writes are atomic. An unreadable file is renamed to `store.corrupt-<timestamp>.json`, and the app starts fresh. |
-| Discord bot token (yours) | The Keychain: a generic password with service `com.tofu.discord` and account `bot-token`. It is never written to JSON or logs. It overrides the team token. |
+| Subjects, sessions, settings | `~/Library/Application Support/Alcove/store.json`. Writes are atomic. An unreadable file is renamed to `store.corrupt-<timestamp>.json`, and the app starts fresh. |
+| Discord bot token (yours) | The Keychain: a generic password with service `com.alcove.discord` and account `bot-token`. It is never written to JSON or logs. It overrides the team token. |
 | Discord bot token (team) | The repo's `.env`, copied into the app bundle as `Resources/discord.env` at build time (not in release builds from `scripts/release.sh`; those use Settings/Keychain). |
-| OpenAI API key (yours) | The Keychain: a generic password with service `com.tofu.openai` and account `api-key`. It is never written to JSON or logs. It overrides the team key. |
+| OpenAI API key (yours) | The Keychain: a generic password with service `com.alcove.openai` and account `api-key`. It is never written to JSON or logs. It overrides the team key. |
 | OpenAI API key (team) | The repo's `.env` (`OPENAI_API_KEY`), bundled into the app the same way as the Discord token (release builds bundle nothing). |
 | Discord Application ID (only used for the invite link) | App preferences, key `discordAppID` |
 
-To start over, quit the app and delete `~/Library/Application Support/Tofu/`. To remove your own token, use **Settings › Discord › Remove**. To remove your own OpenAI key, use **Settings › Relevance check (OpenAI) › Remove**.
+To start over, quit the app and delete `~/Library/Application Support/Alcove/`. To remove your own token, use **Settings › Discord › Remove**. To remove your own OpenAI key, use **Settings › Relevance check (OpenAI) › Remove**.
 
 ## Known limitations
 
@@ -304,10 +304,10 @@ accountabilibrosis/
 ├── .env                     team secrets (DISCORD_BOT_TOKEN, OPENAI_API_KEY), bundled into the app at build time
 ├── docs/superpowers/        design spec and implementation plan
 ├── *.pdf                    Code Ada 2026 packet and presentation guidelines
-└── Tofu/
+└── Alcove/
     ├── project.yml          XcodeGen spec (source of truth for the Xcode project)
-    ├── Tofu.xcodeproj/
-    ├── Tofu/
+    ├── Alcove.xcodeproj/
+    ├── Alcove/
     │   ├── App/             app entry point, AppDelegate (⌘Q handling), AppModel (root state)
     │   ├── Models/          Subject, Session, AppSettings, StoreData
     │   ├── Persistence/     Store (JSON file), Keychain (bot token, OpenAI key), EnvFile (bundled team secrets)
@@ -320,7 +320,7 @@ accountabilibrosis/
     │   ├── UI/              SwiftUI screens and AppKit panels: sidebar, subject editor, lock-in sheet,
     │   │                    locked view, give-up sheet, mini timer, toasts, stats, settings, theme
     │   └── Resources/       Assets.xcassets (monochrome accent color)
-    └── TofuTests/   XCTest suites for every pure unit, plus SessionEngine with fakes
+    └── AlcoveTests/   XCTest suites for every pure unit, plus SessionEngine with fakes
 ```
 
 Side effects sit behind small `@MainActor` protocols: `WorkspaceControlling`, `AppBlocking`, `ChromeControlling`, `RelevanceJudging`, `NeedPrompting`, `Toasting`, `Announcing` and `WindowPresenting`. So the whole lock-in lifecycle is tested without touching real apps, Chrome, OpenAI or Discord.
@@ -328,10 +328,10 @@ Side effects sit behind small `@MainActor` protocols: `WorkspaceControlling`, `A
 ## Tests
 
 ```bash
-cd Tofu && xcodegen generate && \
-  xcodebuild -project Tofu.xcodeproj -scheme Tofu -destination 'platform=macOS' test 2>&1 | tail -30
+cd Alcove && xcodegen generate && \
+  xcodebuild -project Alcove.xcodeproj -scheme Alcove -destination 'platform=macOS' test 2>&1 | tail -30
 ```
 
 The run ends with `** TEST SUCCEEDED **`. No test touches the network, Chrome, other apps or your real data:
 - store tests write to a temporary folder;
-- Keychain tests use their own service, `com.tofu.tests`.
+- Keychain tests use their own service, `com.alcove.tests`.

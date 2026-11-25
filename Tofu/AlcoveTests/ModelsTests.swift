@@ -1,0 +1,104 @@
+import XCTest
+@testable import Alcove
+
+final class ModelsTests: XCTestCase {
+    private let t0 = Date(timeIntervalSince1970: 1_760_000_000)
+
+    func testPresetSiteCountsAndAppZones() {
+        XCTAssertEqual(LayoutPreset.split.siteCount, 2)
+        XCTAssertEqual(LayoutPreset.full.siteCount, 1)
+        XCTAssertEqual(LayoutPreset.thirds.siteCount, 2)
+        XCTAssertEqual(LayoutPreset.mainSide.siteCount, 1)
+        XCTAssertFalse(LayoutPreset.split.appHasZone)
+        XCTAssertFalse(LayoutPreset.full.appHasZone)
+        XCTAssertTrue(LayoutPreset.thirds.appHasZone)
+        XCTAssertTrue(LayoutPreset.mainSide.appHasZone)
+    }
+
+    func testPresetTitlesAndOrder() {
+        XCTAssertEqual(LayoutPreset.allCases, [.split, .full, .thirds, .mainSide])
+        XCTAssertEqual(LayoutPreset.allCases.map(\.title), ["Left / Right", "Full", "Thirds", "70 / 30"])
+        XCTAssertEqual(LayoutPreset.mainSide.id, "mainSide")
+    }
+
+    func testSessionModeGoalAccessors() {
+        XCTAssertNil(SessionMode.open.goalMinutes)
+        XCTAssertNil(SessionMode.open.goalSeconds)
+        XCTAssertEqual(SessionMode.goal(minutes: 25).goalMinutes, 25)
+        XCTAssertEqual(SessionMode.goal(minutes: 25).goalSeconds, 1500)
+    }
+
+    func testSessionModeCodableRoundTripBothCases() throws {
+        for mode in [SessionMode.open, SessionMode.goal(minutes: 50)] {
+            let data = try JSONEncoder().encode(mode)
+            let decoded = try JSONDecoder().decode(SessionMode.self, from: data)
+            XCTAssertEqual(decoded, mode)
+        }
+    }
+
+    func testSessionDefaultsHeartbeatToStart() {
+        let session = Session(subjectID: UUID(), subjectName: "CS128", mode: .open, start: t0)
+        XCTAssertEqual(session.lastHeartbeat, t0)
+        XCTAssertNil(session.end)
+        XCTAssertNil(session.outcome)
+        XCTAssertEqual(session.blockedAttempts, 0)
+        XCTAssertEqual(session.closedTabs, 0)
+        XCTAssertFalse(session.isDemo)
+        XCTAssertEqual(session.duration, 0)
+    }
+
+    func testDurationUsesLastHeartbeatWhileActive() {
+        let session = Session(subjectID: UUID(), subjectName: "CS128", mode: .open, start: t0,
+                              lastHeartbeat: t0.addingTimeInterval(90))
+        XCTAssertEqual(session.duration, 90)
+    }
+
+    func testDurationUsesEndWhenFinished() {
+        let session = Session(subjectID: UUID(), subjectName: "CS128", mode: .goal(minutes: 25), start: t0,
+                              end: t0.addingTimeInterval(1500), lastHeartbeat: t0.addingTimeInterval(1490),
+                              outcome: .completed)
+        XCTAssertEqual(session.duration, 1500)
+    }
+
+    func testDurationIsNeverNegative() {
+        let session = Session(subjectID: UUID(), subjectName: "CS128", mode: .open, start: t0,
+                              end: t0.addingTimeInterval(-30))
+        XCTAssertEqual(session.duration, 0)
+    }
+
+    func testAppSettingsDefaults() {
+        let settings = AppSettings(displayName: "Alex")
+        XCTAssertEqual(settings.displayName, "Alex")
+        XCTAssertFalse(settings.discordEnabled)
+        XCTAssertEqual(settings.giveUpTemplate, "I give up on {subject}")
+        XCTAssertEqual(settings.channelCache, [:])
+        XCTAssertFalse(settings.allowOffTaskDuringBreak)
+    }
+
+    func testEmptyStoreData() {
+        let empty = StoreData.empty
+        XCTAssertEqual(empty.version, 1)
+        XCTAssertTrue(empty.subjects.isEmpty)
+        XCTAssertTrue(empty.sessions.isEmpty)
+    }
+
+    func testSubjectDefaults() {
+        let subject = Subject(name: "CS128")
+        XCTAssertEqual(subject.details, "")
+        XCTAssertEqual(subject.preset, .split)
+        XCTAssertEqual(subject.colorHex, SubjectColor.hex(for: "CS128"))
+        XCTAssertTrue(SubjectColor.palette.contains(subject.colorHex))
+        XCTAssertEqual(SubjectColor.canonical("FFFFFF", name: "CS128"), SubjectColor.hex(for: "CS128"))
+        XCTAssertEqual(SubjectColor.canonical("e45756", name: "CS128"), "E45756")
+        let assigned = SubjectColor.assigned([
+            ("CS128", SubjectColor.palette[0]),
+            ("MATH241", SubjectColor.palette[0]),
+        ])
+        XCTAssertEqual(assigned, [SubjectColor.palette[0], SubjectColor.palette[1]])
+        XCTAssertEqual(subject.sites, [])
+        XCTAssertEqual(subject.allowedApps, [])
+        XCTAssertEqual(subject.extraDomains, [])
+        XCTAssertEqual(AllowedApp(bundleID: "com.apple.Notes", name: "Notes").id, "com.apple.Notes")
+    }
+
+}
