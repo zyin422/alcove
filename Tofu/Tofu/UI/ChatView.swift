@@ -426,6 +426,12 @@ private struct MessageRow: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, Theme.Space.s)
                     .background(RoundedRectangle(cornerRadius: 14).fill(Color.primary))
+                    .contextMenu {
+                        Button("Copy Message") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(message.text, forType: .string)
+                        }
+                    }
             }
         case .notice:
             Text(message.text)

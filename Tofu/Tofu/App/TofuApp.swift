@@ -68,6 +68,24 @@ struct TofuApp: App {
                     }
                     .keyboardShortcut("2", modifiers: .command)
                     .disabled(appDelegate.model.engine.isLocked)
+
+                    if !appDelegate.model.data.subjects.isEmpty {
+                        Divider()
+                        Menu("Subjects") {
+                            ForEach(appDelegate.model.data.subjects) { subject in
+                                Button(subject.name) {
+                                    appDelegate.model.selection = .subject(subject.id)
+                                }
+                            }
+                        }
+                        .disabled(appDelegate.model.engine.isLocked)
+                    }
+
+                    Divider()
+
+                    Button("Park Thought…") {
+                        appDelegate.model.onToggleQuickThought?()
+                    }
                 }
             }
         }
@@ -233,6 +251,12 @@ private struct TofuMenuBarContent: View {
             }
             Button("15m Planning Mode") {
                 Task { await model.startPlanningMode() }
+            }
+            if !model.todayPlan().wrappedUp {
+                Button("Wrap Up Day…") {
+                    model.isWrappingUpDay = true
+                    model.onShowMainWindow?()
+                }
             }
         }
 
