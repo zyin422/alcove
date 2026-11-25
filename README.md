@@ -1,8 +1,8 @@
-# Tofu
+# Alcove
 
 **Lock in on a subject, and your Mac turns into a study room.**
 
-Tofu is a native macOS app. One click hides every other app and opens your study sites in Google Chrome, tiled in the layout you picked. Distractions are pushed away the moment they appear, your friends on Discord see that you're locked in, and the app tracks how long you actually stayed focused.
+Alcove is a native macOS app. One click hides every other app and opens your study sites in Google Chrome, tiled in the layout you picked. Distractions are pushed away the moment they appear, your friends on Discord see that you're locked in, and the app tracks how long you actually stayed focused.
 
 Built for **Code Ada 2026, Off the Clock** track.
  
@@ -42,7 +42,6 @@ Built for **Code Ada 2026, Off the Clock** track.
   - When there is no verdict, the app asks you. See Relevance check below.
 - **Session modes:** open-ended, or a goal. A goal counts down and completes on its own. Ending it early opens the Mirror; a forfeit is posted as a bail.
 - **Discord announcements** through your own bot. Lock-in, completion and bail messages go to one text channel per server.
-- **Study companion:** an anime girl floats bottom-right while you're locked in. She greets you, chats idly, praises you at the halfway mark, and scolds you when an app or tab gets blocked. Personality in Settings: tsundere, yandere, or tsundere → yandere (she turns dark after 3 blocked attempts). Drop your own character art (e.g. Emilia) into `Application Support/Tofu/companion/` as `neutral.png`, `annoyed.png`, `pleased.png`, `dark.png` — the "Open images folder" button in Settings takes you there; without custom images the four bundled Emilia portraits are used.
 - **Stats:**
   - Day, Week and Month bar charts, stacked by subject.
   - Today and this week.
@@ -106,10 +105,11 @@ Each zone of a setup is a **window**: either a website window or an app.
 ## Build and run
 
 ```bash
-git clone https://github.com/zyin422/accountabilibrosis.git
-cd accountabilibrosis/Tofu
+git clone https://github.com/zyin422/alcove.git
+cd alcove/Tofu
+cp ../.env.example ../.env   # optional: add DISCORD_BOT_TOKEN / OPENAI_API_KEY
 xcodegen generate
-open Tofu.xcodeproj    # then press ⌘R in Xcode
+open Tofu.xcodeproj          # then press ⌘R in Xcode
 ```
 
 From the command line:
@@ -224,20 +224,20 @@ The old website allowlist and blocklist are gone. While you're locked in, an AI 
 
 Discord bots can't join group DMs, so the app posts to one text channel in every server the bot is in.
 
-### Team token (`.env`)
+### Optional `.env` setup (`.env.example`)
 
-The team shares one bot. Its token lives in the repo-root `.env` file (this repo is private):
+Copy `.env.example` to `.env` at the repo root if you want build-time defaults (`.env` is git-ignored and never committed):
 
 ```
-DISCORD_BOT_TOKEN=<the team bot token>
+DISCORD_BOT_TOKEN=
+OPENAI_API_KEY=
 ```
 
-- **Bundled at build time.** Every build made from source copies `.env` into the app as `Resources/discord.env`. If the file is missing, the build still works and the app simply has no team token. Release builds made by `scripts/release.sh` bundle nothing: their keys come from Settings (Keychain).
-- **Used automatically.** On a first launch (no saved data yet) with a token available, **Post lock-ins to Discord** starts out on.
-- **Your own token wins.** A token saved in **Settings › Discord** goes to the Keychain and overrides the team token. **Remove** deletes it, and the team token applies again. Settings shows which one is in use: "Using your token from Keychain", "Using the team token from .env" or "No token".
+- **Bundled at build time.** Every build made from source copies `.env` into the app if present. If the file is missing, the build still works and the app simply has no bundled defaults.
+- **Your own token wins.** A token or API key saved in **Settings** goes to the macOS Keychain and overrides `.env`.
 - **Rebuild after editing `.env`.** The app only sees the copy made at build time.
 
-To run your own bot instead of the team's, follow the steps below.
+To run your own bot via Settings, follow the steps below.
 
 ### Your own bot
 
@@ -299,12 +299,12 @@ To start over, quit the app and delete `~/Library/Application Support/Tofu/`. To
 ## Project structure
 
 ```
-accountabilibrosis/
+alcove/
 ├── README.md
-├── .env                     team secrets (DISCORD_BOT_TOKEN, OPENAI_API_KEY), bundled into the app at build time
+├── .env.example             template for optional build-time keys (DISCORD_BOT_TOKEN, OPENAI_API_KEY)
 ├── docs/superpowers/        design spec and implementation plan
 ├── *.pdf                    Code Ada 2026 packet and presentation guidelines
-└── Tofu/
+└── Tofu/                    Xcode project (internal bundle target; Swift UI/display rename pending)
     ├── project.yml          XcodeGen spec (source of truth for the Xcode project)
     ├── Tofu.xcodeproj/
     ├── Tofu/
