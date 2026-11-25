@@ -709,7 +709,8 @@ extension WindowPresenting {
     /// Study sites plus hosts the work block is allowed to keep open.
     /// Includes website slots and all domains associated with explicitly allowed apps.
     private func studySites(of subject: Subject) -> [String] {
-        var raw: [String] = subject.sites + subject.extraDomains
+        let filteredExtras = subject.extraDomains.filter { !DomainMatcher.isSearchEngine($0) }
+        var raw: [String] = subject.sites + filteredExtras
         for slot in subject.slots where slot.kind == .website {
             raw.append(contentsOf: slot.urls)
         }

@@ -149,6 +149,7 @@ enum SubjectValidator {
         var result: [String] = []
         for token in text.components(separatedBy: separators) where !token.isEmpty {
             guard let host = DomainMatcher.host(of: token), seen.insert(host).inserted else { continue }
+            if DomainMatcher.isSearchEngine(host) { continue }
             if let cat = DistractionList.category(of: host), cat != .video { continue }
             result.append(host)
         }

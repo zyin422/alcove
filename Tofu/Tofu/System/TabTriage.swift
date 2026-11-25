@@ -29,7 +29,9 @@ struct TabTriage {
     private var closedHosts: Set<String> = []
 
     init(studySites: [String], protected: Set<String>, alwaysBlocked: [String] = []) {
+        // Never allow bare search engines (e.g. legacy "google.com" in extraDomains) to disable query judging.
         self.studyDomains = DomainMatcher.allowedDomains(sites: studySites, extra: [])
+            .filter { !DomainMatcher.isSearchEngine($0) }
         self.protected = protected
         self.alwaysBlocked = alwaysBlocked.map(DomainMatcher.normalize)
     }

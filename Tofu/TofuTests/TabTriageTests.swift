@@ -427,4 +427,18 @@ final class TabTriageTests: XCTestCase {
         XCTAssertTrue(triage.shouldCloseImmediately(gmail))
         XCTAssertTrue(triage.shouldCloseImmediately(gchat))
     }
+
+    func testLegacyGoogleComInStudySitesStillJudgesQueriesAndBlocksVideoPreview() {
+        var triage = blockingTriage(sites: ["https://cs128.org/schedule", "google.com", "docs.google.com", "gemini.google.com"])
+        let query = tab("https://www.google.com/search?q=minecraft+2", id: 1)
+        let preview = tab("https://www.google.com/search?q=minecraft+ai+videos#fpstate=ive&vld=cid:1,vid:2", id: 2)
+        let docs = tab("https://docs.google.com/document/d/1", id: 3)
+        let gemini = tab("https://gemini.google.com/app/123", id: 4)
+
+        XCTAssertEqual(triage.tabsToCheck([query, preview, docs, gemini]), [query],
+                       "google.com in legacy studySites/extraDomains must still judge queries and keep docs/gemini allowed")
+        XCTAssertTrue(triage.shouldCloseImmediately(preview))
+        XCTAssertFalse(triage.shouldCloseImmediately(docs))
+        XCTAssertFalse(triage.shouldCloseImmediately(gemini))
+    }
 }

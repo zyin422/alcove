@@ -71,13 +71,15 @@ final class SubjectValidatorTests: XCTestCase {
     }
 
     func testParseDomainsFiltersOutDistractionDomains() {
-        let input = "piazza.com, discord.com, reddit.com, stackoverflow.com, https://youtube.com/watch"
+        let input = "piazza.com, discord.com, reddit.com, stackoverflow.com, https://youtube.com/watch, google.com, www.bing.com"
         let parsed = SubjectValidator.parseDomains(input)
         XCTAssertTrue(parsed.contains("piazza.com"))
         XCTAssertTrue(parsed.contains("stackoverflow.com"))
         XCTAssertTrue(parsed.contains("youtube.com"), "video allowed in extra domains for lecture clips")
         XCTAssertFalse(parsed.contains("discord.com"))
         XCTAssertFalse(parsed.contains("reddit.com"))
+        XCTAssertFalse(parsed.contains("google.com"))
+        XCTAssertFalse(parsed.contains("bing.com"))
     }
 
     func testDistractionSitesAreReportedInErrors() {
