@@ -465,50 +465,68 @@ struct TodayView: View {
     @ViewBuilder private var dailyTargetDialView: some View {
         let isMet = totalFocusedSecondsForDay >= dailyTargetSeconds && dailyTargetSeconds > 0
         let fraction = dailyTargetSeconds > 0 ? min(1.0, totalFocusedSecondsForDay / dailyTargetSeconds) : 0
-        HStack(spacing: 7) {
-            ZStack {
-                Circle()
-                    .stroke(Color.primary.opacity(0.1), lineWidth: 2.5)
-                    .frame(width: 18, height: 18)
-                Circle()
-                    .trim(from: 0, to: CGFloat(fraction))
-                    .stroke(isMet ? Theme.emerald : Theme.indigo, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    .frame(width: 18, height: 18)
-                    .rotationEffect(.degrees(-90))
-                if isMet {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(Theme.emerald)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 0.5) {
-                HStack(spacing: 3) {
-                    Text(isMet ? "TARGET MET" : "DAILY TARGET")
-                        .font(.system(size: 8.5, weight: .bold))
-                        .foregroundStyle(isMet ? Theme.emerald : Color.secondary)
-                        .tracking(0.8)
-                    if isMet {
-                        Text("🎉")
-                            .font(.system(size: 8.5))
+        Menu {
+            ForEach([1, 2, 3, 4, 5, 6, 8], id: \.self) { hours in
+                let isSelected = model.data.settings.dailyTargetMinutes == hours * 60
+                Button {
+                    model.updateSettings { $0.dailyTargetMinutes = hours * 60 }
+                    ToastCenter.shared.show("Daily focus goal set to \(hours) hours 🎯")
+                } label: {
+                    if isSelected {
+                        Label("\(hours)h daily target", systemImage: "checkmark")
+                    } else {
+                        Text("\(hours)h daily target")
                     }
                 }
-                Text(focusProgressSummary)
-                    .font(.system(size: 10.5).monospacedDigit())
-                    .foregroundStyle(Color.secondary)
             }
+        } label: {
+            HStack(spacing: 7) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 2.5)
+                        .frame(width: 18, height: 18)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(fraction))
+                        .stroke(isMet ? Theme.emerald : Theme.indigo, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .frame(width: 18, height: 18)
+                        .rotationEffect(.degrees(-90))
+                    if isMet {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Theme.emerald)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 0.5) {
+                    HStack(spacing: 3) {
+                        Text(isMet ? "TARGET MET" : "DAILY TARGET")
+                            .font(.system(size: 8.5, weight: .bold))
+                            .foregroundStyle(isMet ? Theme.emerald : Color.secondary)
+                            .tracking(0.8)
+                        if isMet {
+                            Text("🎉")
+                                .font(.system(size: 8.5))
+                        }
+                    }
+                    Text(focusProgressSummary)
+                        .font(.system(size: 10.5).monospacedDigit())
+                        .foregroundStyle(Color.secondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isMet ? Theme.emerald.opacity(0.08) : Color.primary.opacity(0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isMet ? Theme.emerald.opacity(0.28) : Color.primary.opacity(0.08), lineWidth: 1)
+            )
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isMet ? Theme.emerald.opacity(0.08) : Color.primary.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(isMet ? Theme.emerald.opacity(0.28) : Color.primary.opacity(0.08), lineWidth: 1)
-        )
-        .help("Target: \(model.data.settings.dailyTargetMinutes / 60) hours of focused work per day (configurable in Settings)")
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Click to adjust daily focus target (\(model.data.settings.dailyTargetMinutes / 60)h)")
     }
 
     struct SubjectFocusShare: Identifiable {

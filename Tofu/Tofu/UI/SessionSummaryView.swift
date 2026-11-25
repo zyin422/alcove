@@ -490,6 +490,14 @@ struct SessionSummaryView: View {
                     .padding(.vertical, 2)
                     .background(Capsule().fill(Theme.amber.opacity(0.15)))
                 }
+                if let sched = next.scheduledTimeLabel {
+                    Text(sched)
+                        .font(.caption2.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(Theme.indigo)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.indigo.opacity(0.12)))
+                }
                 if let est = next.estimatedMinutes {
                     Text("\(est)m")
                         .font(.caption2.monospacedDigit())
