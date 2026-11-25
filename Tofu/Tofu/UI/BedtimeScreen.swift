@@ -311,11 +311,18 @@ struct BedtimeView: View {
                 }
             }
             if let nextTop = tomorrowOpen.first {
+                let tomorrowEstMins = tomorrowOpen.compactMap(\.estimatedMinutes).reduce(0, +)
+                let schedSuffix = nextTop.scheduledTimeLabel.map { " at \($0)" } ?? ""
+                let moreCount = tomorrowOpen.count - 1
+                let tailSummary = [
+                    moreCount > 0 ? "+\(moreCount) more" : nil,
+                    tomorrowEstMins > 0 ? "~\(TimeFormat.short(TimeInterval(tomorrowEstMins * 60)))" : nil,
+                ].compactMap { $0 }.joined(separator: " · ")
                 HStack(spacing: 5) {
                     Image(systemName: "sunrise.fill")
                         .font(.caption2)
                         .foregroundStyle(Theme.amber)
-                    Text("First up tomorrow: \(nextTop.title)")
+                    Text("First up tomorrow\(schedSuffix): \(nextTop.title)\(tailSummary.isEmpty ? "" : " (\(tailSummary))")")
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.75))
                         .lineLimit(1)

@@ -8,6 +8,7 @@ struct FocusMomentumBarView: View {
     var targetMinutes: Int = 240
     var onSelectDay: ((String) -> Void)?
     var onUpdateTarget: ((Int) -> Void)?
+    @State private var hoveredSlice: DailyFocusSlice?
 
     private var todaySlice: DailyFocusSlice? {
         summary.slices.first(where: \.isToday)
@@ -89,14 +90,20 @@ struct FocusMomentumBarView: View {
                         .menuStyle(.borderlessButton)
                     }
 
-                    HStack(spacing: 4) {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.indigo)
-                        let goalDaysHit = summary.slices.filter { targetSeconds > 0 && $0.focusSeconds >= targetSeconds }.count
-                        Text(goalDaysHit > 0 ? "\(summary.totalWeekHoursFormatted) this week · \(goalDaysHit)/7 goal" : "\(summary.totalWeekHoursFormatted) this week")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Color.secondary)
+                    if let hovered = hoveredSlice {
+                        Text(tooltip(for: hovered))
+                            .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(Theme.amber)
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.indigo)
+                            let goalDaysHit = summary.slices.filter { targetSeconds > 0 && $0.focusSeconds >= targetSeconds }.count
+                            Text(goalDaysHit > 0 ? "\(summary.totalWeekHoursFormatted) this week · \(goalDaysHit)/7 goal" : "\(summary.totalWeekHoursFormatted) this week")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Color.secondary)
+                        }
                     }
                 }
             }
@@ -153,6 +160,7 @@ struct FocusMomentumBarView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    .onHover { inside in hoveredSlice = inside ? slice : nil }
                     .help(tooltip(for: slice))
                 }
             }
