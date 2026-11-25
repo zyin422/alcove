@@ -45,7 +45,9 @@ struct TodayView: View {
         return (1970, 1)
     }
     private var completedDays: Set<String> {
-        Set(model.data.dayPlans.filter { $0.priorities.contains(where: \.isDone) }.map(\.day))
+        let priorityDays = Set(model.data.dayPlans.filter { $0.priorities.contains(where: \.isDone) }.map(\.day))
+        let sessionDays = Set(model.data.sessions.filter { !$0.isDemo && $0.end != nil && $0.duration >= DayPlanner.realBlockSeconds }.map { DayKey.key(for: $0.start) })
+        return priorityDays.union(sessionDays)
     }
 
     var body: some View {
@@ -1229,6 +1231,16 @@ private struct MonthCalendar: View {
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity)
+                if selected != today || !isCurrentMonth {
+                    Button("Today") { onSelect(today) }
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.indigo.opacity(0.14)))
+                        .foregroundStyle(Theme.indigo)
+                        .buttonStyle(.plain)
+                        .help("Jump back to today")
+                }
                 shiftButton("chevron.right", help: "Next month") { onShiftMonth(1) }
             }
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(22), spacing: 2), count: 7), spacing: 2) {
@@ -1246,6 +1258,11 @@ private struct MonthCalendar: View {
         .padding(Theme.Space.s)
         .frame(width: 232)
         .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Color.primary.opacity(0.15), lineWidth: 1))
+    }
+
+    private var isCurrentMonth: Bool {
+        guard let parts = DayKey.parts(of: today) else { return true }
+        return month.year == parts.year && month.month == parts.month
     }
 
     private func shiftButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {

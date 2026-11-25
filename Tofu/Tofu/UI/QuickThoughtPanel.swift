@@ -64,6 +64,7 @@ private final class QuickThoughtPanel: NSPanel {
         window.hasShadow = true
 
         let view = QuickThoughtView(
+            subjects: model?.data.subjects ?? [],
             onCommit: { [weak self] thought in
                 let cleaned = thought.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !cleaned.isEmpty {
@@ -75,7 +76,6 @@ private final class QuickThoughtPanel: NSPanel {
             onPromote: { [weak self] thought in
                 let cleaned = thought.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !cleaned.isEmpty {
-                    engine.addParkedThought(cleaned)
                     if let model {
                         let todayKey = DayKey.key(for: Date())
                         let priority = ThoughtParkingEngine.promoteThoughtToPriority(
@@ -86,6 +86,8 @@ private final class QuickThoughtPanel: NSPanel {
                         model.updatePlan(day: todayKey) { plan in
                             plan.priorities.append(priority)
                         }
+                    } else {
+                        engine.addParkedThought(cleaned)
                     }
                     onPromoted?(cleaned)
                 }
@@ -153,6 +155,7 @@ private final class QuickThoughtPanel: NSPanel {
 
 /// The visual SwiftUI entry field for Quick Thought Capture.
 struct QuickThoughtView: View {
+    var subjects: [Subject] = []
     var onCommit: (String) -> Void
     var onPromote: ((String) -> Void)? = nil
     var onCancel: () -> Void
@@ -160,7 +163,16 @@ struct QuickThoughtView: View {
     @State private var text = ""
     @FocusState private var isFocused: Bool
 
+    private var parsedPreview: (subject: Subject?, minutes: Int?) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return (nil, nil) }
+        let p = ThoughtParkingEngine.promoteThoughtToPriority(thought: trimmed, subjects: subjects)
+        let sub = p.subjectID.flatMap { id in subjects.first(where: { $0.id == id }) }
+        return (sub, p.estimatedMinutes)
+    }
+
     var body: some View {
+        let preview = parsedPreview
         HStack(spacing: Theme.Space.s) {
             Image(systemName: "lightbulb.fill")
                 .foregroundStyle(Theme.amber)
@@ -176,6 +188,29 @@ struct QuickThoughtView: View {
                 .onExitCommand {
                     onCancel()
                 }
+
+            if preview.subject != nil || preview.minutes != nil {
+                HStack(spacing: 4) {
+                    if let sub = preview.subject {
+                        Circle()
+                            .fill(Theme.subjectColor(sub.colorHex))
+                            .frame(width: 6, height: 6)
+                        Text(sub.name)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Theme.subjectColor(sub.colorHex))
+                            .lineLimit(1)
+                    }
+                    if let mins = preview.minutes {
+                        Text("\(mins)m")
+                            .font(.system(size: 10, weight: .medium).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                .fixedSize()
+            }
 
             if !text.isEmpty {
                 Button {

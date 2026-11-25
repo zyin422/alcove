@@ -74,6 +74,7 @@ enum LockedLayout {
 struct LockedView: View {
     let model: AppModel
     @State private var isShowingMirror = false
+    @State private var isShowingGiveUp = false
     @State private var sessionTab: SessionTab = .assistant
 
     private enum SessionTab: String, CaseIterable {
@@ -104,6 +105,9 @@ struct LockedView: View {
         .background(Color.lockBackground)
         .sheet(isPresented: $isShowingMirror) {
             MirrorSheet(model: model)
+        }
+        .sheet(isPresented: $isShowingGiveUp) {
+            GiveUpSheet(model: model)
         }
         .onReceive(NotificationCenter.default.publisher(for: .tofuRequestEnd)) { _ in
             endTapped()
@@ -494,10 +498,14 @@ struct LockedView: View {
         }
     }
 
-    /// End always opens the Mirror. The session stops only if they confirm a stop there.
+    /// End opens the AI Mirror when an OpenAI key is configured, or GiveUpSheet directly otherwise.
     /// Shared by the End button and the mini timer's ✕.
     private func endTapped() {
-        isShowingMirror = true
+        if model.hasMirror {
+            isShowingMirror = true
+        } else {
+            isShowingGiveUp = true
+        }
     }
 
     private func planningBadge() -> some View {

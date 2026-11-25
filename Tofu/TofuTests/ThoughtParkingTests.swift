@@ -121,5 +121,11 @@ final class ThoughtParkingTests: XCTestCase {
         let p3 = ThoughtParkingEngine.promoteThoughtToPriority(thought: thought3, subjects: [mathSub, mlSub], fallbackSubjectID: mathID)
         XCTAssertEqual(p3.title, "#random Buy groceries")
         XCTAssertEqual(p3.subjectID, mathID)
+
+        // Direct Spotlight preview parse matches case-insensitively without fallback
+        let livePreview = ThoughtParkingEngine.promoteThoughtToPriority(thought: "#MACHINE-LEARNING Check loss 60m", subjects: [mathSub, mlSub])
+        XCTAssertEqual(livePreview.subjectID, mlID)
+        XCTAssertEqual(livePreview.estimatedMinutes, 60)
+        XCTAssertEqual(livePreview.title, "Check loss")
     }
 }
