@@ -526,4 +526,20 @@ final class StatsEngineTests: XCTestCase {
         XCTAssertTrue(cmp.trendLabel.contains("+1h"))
         XCTAssertTrue(cmp.trendLabel.contains("+100%"))
     }
+
+    func testTimeOfDayBreakdownBucketsMorningAfternoonEveningNight() {
+        let sessions = [
+            session("CS128", date(2026, 10, 10, 9), minutes: 45),
+            session("CS128", date(2026, 10, 10, 14), minutes: 60),
+            session("CS128", date(2026, 10, 10, 20), minutes: 30),
+            session("CS128", date(2026, 10, 10, 1), minutes: 15),
+        ]
+
+        let parts = engine.timeOfDayBreakdown(sessions)
+        XCTAssertEqual(parts.map(\.label), ["Morning", "Afternoon", "Evening", "Night"])
+        XCTAssertEqual(parts[0].minutes, 45, accuracy: 0.01)
+        XCTAssertEqual(parts[1].minutes, 60, accuracy: 0.01)
+        XCTAssertEqual(parts[2].minutes, 30, accuracy: 0.01)
+        XCTAssertEqual(parts[3].minutes, 15, accuracy: 0.01)
+    }
 }

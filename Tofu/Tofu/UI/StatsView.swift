@@ -1059,6 +1059,21 @@ private struct FocusTelemetrySection: View {
                     }
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
+
+                    let dayparts = stats.timeOfDayBreakdown(sessions)
+                    HStack(spacing: Theme.Space.s) {
+                        ForEach(dayparts, id: \.label) { part in
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(part.label)
+                                    .font(.system(size: 9.5))
+                                    .foregroundStyle(.secondary)
+                                Text(part.minutes > 0 ? TimeFormat.short(part.minutes * 60) : "0m")
+                                    .font(.caption2.weight(.semibold).monospacedDigit())
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(.top, 2)
                 }
                 .padding(Theme.Space.m)
                 .frame(maxWidth: .infinity, alignment: .leading)

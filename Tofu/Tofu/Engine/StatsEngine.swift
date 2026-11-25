@@ -685,6 +685,21 @@ struct StatsEngine {
             trendLabel: label
         )
     }
+
+    /// Aggregates diurnal distribution into four readable dayparts: Morning, Afternoon, Evening, Night.
+    func timeOfDayBreakdown(_ sessions: [Session]) -> [(label: String, minutes: Double)] {
+        let hours = hourlyDistribution(sessions)
+        let morning = hours.filter { (6..<12).contains($0.hour) }.reduce(0.0) { $0 + $1.totalMinutes }
+        let afternoon = hours.filter { (12..<18).contains($0.hour) }.reduce(0.0) { $0 + $1.totalMinutes }
+        let evening = hours.filter { (18..<24).contains($0.hour) }.reduce(0.0) { $0 + $1.totalMinutes }
+        let night = hours.filter { (0..<6).contains($0.hour) }.reduce(0.0) { $0 + $1.totalMinutes }
+        return [
+            ("Morning", morning),
+            ("Afternoon", afternoon),
+            ("Evening", evening),
+            ("Night", night),
+        ]
+    }
 }
 
 private extension StatsSpan {

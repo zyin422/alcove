@@ -728,6 +728,24 @@ private struct PlanningPriorityView: View {
             }
             Spacer()
             if !priority.isDone {
+                if let subID = priority.subjectID, subID == model.engine.session?.subjectID {
+                    let isFocusing = plan.activePriority(for: subID)?.id == priority.id
+                    if isFocusing {
+                        Text("Focusing")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Theme.indigo.opacity(0.16)))
+                            .foregroundStyle(Theme.indigo)
+                    } else {
+                        Button("Focus") {
+                            model.selectActivePriority(priority.id, for: subID, day: plan.day)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .help("Switch active focus task to “\(priority.title)”")
+                    }
+                }
                 Button {
                     model.togglePriorityAnchor(priority.id, day: plan.day)
                 } label: {

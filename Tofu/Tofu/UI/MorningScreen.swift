@@ -514,26 +514,74 @@ struct MorningView: View {
         VStack(spacing: Theme.Space.m) {
             Text("No priorities for today yet. What's first?").font(.title2)
             HStack {
-                TextField("e.g. Finish the CS128 lab", text: $newTitle)
+                TextField("e.g. #cs128 Finish lab 45m", text: $newTitle)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(add)
                 Button("Add", action: add)
                     .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .frame(width: 420)
+            quickPriorityTagRow
+                .frame(width: 420)
         }
     }
 
     private var addPriorityRow: some View {
-        HStack {
-            TextField("e.g. Finish the CS128 lab", text: $newTitle)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit(add)
-            Button("Add priority", action: add)
-                .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+        VStack(spacing: Theme.Space.xs) {
+            HStack {
+                TextField("e.g. #cs128 Finish lab 45m", text: $newTitle)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(add)
+                Button("Add priority", action: add)
+                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            quickPriorityTagRow
         }
         .frame(width: 420)
         .padding(.top, Theme.Space.s)
+    }
+
+    @ViewBuilder private var quickPriorityTagRow: some View {
+        if !model.data.subjects.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 5) {
+                    ForEach(model.data.subjects.prefix(5)) { sub in
+                        let tag = "#" + sub.name.lowercased().replacingOccurrences(of: " ", with: "")
+                        Button {
+                            if !newTitle.localizedCaseInsensitiveContains(tag) {
+                                newTitle = newTitle.isEmpty ? "\(tag) " : "\(newTitle) \(tag) "
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Circle()
+                                    .fill(Theme.subjectColor(sub.colorHex))
+                                    .frame(width: 5, height: 5)
+                                Text(tag)
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.primary.opacity(0.06)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    ForEach([25, 45, 60], id: \.self) { mins in
+                        Button {
+                            newTitle = newTitle.isEmpty ? "\(mins)m " : "\(newTitle) \(mins)m"
+                        } label: {
+                            Text("+\(mins)m")
+                                .font(.caption2.weight(.medium).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
     }
 
     private func add() {
