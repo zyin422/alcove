@@ -73,6 +73,7 @@ enum TokenSource: Equatable {
     @ObservationIgnored var onHideBedtime: (() -> Void)?
     /// Brings the morning screen back when "Start in 10 minutes" or between-block grace ends.
     @ObservationIgnored private var morningReturnTimer: Timer?
+    @ObservationIgnored private var midnightBedtimeTimer: Timer?
     /// Keeps macOS App Nap from deferring `morningReturnTimer` while a return deadline is pending.
     @ObservationIgnored private var returnTimerActivity: NSObjectProtocol?
     /// Posts to the group chat (the same announcer the session engine uses).
@@ -1059,9 +1060,32 @@ enum TokenSource: Equatable {
             if isShowingBedtime && !DayPlanner.isPastMidnight(now: now) {
                 dismissBedtime()
             }
+            scheduleMidnightBedtimeIfNeeded(now: now)
             return
         }
+        midnightBedtimeTimer?.invalidate()
+        midnightBedtimeTimer = nil
         showBedtime(now: now)
+    }
+
+    /// Arms an exact timer for 12:00:00 AM during the 23:00–23:59 wind-down window so midnight lock hits immediately.
+    private func scheduleMidnightBedtimeIfNeeded(now: Date) {
+        midnightBedtimeTimer?.invalidate()
+        midnightBedtimeTimer = nil
+        guard !engine.isLocked,
+              let midnight = DayPlanner.nextMidnightBedtime(after: now, bedtimeGuardEnabled: data.settings.bedtimeGuardEnabled) else {
+            return
+        }
+        let delay = max(0.05, midnight.timeIntervalSince(now) + 0.1)
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.midnightBedtimeTimer = nil
+                self?.checkBedtime()
+            }
+        }
+        timer.tolerance = 0
+        RunLoop.main.add(timer, forMode: .common)
+        midnightBedtimeTimer = timer
     }
 
     func showBedtime(now: Date = Date()) {

@@ -1103,4 +1103,20 @@ final class SessionEngineTests: XCTestCase {
         _ = h.engine.allowApp(named: "Preview")
         XCTAssertEqual(h.engine.blockedAppShieldStatus(named: "Preview"), .allowed)
     }
+
+    func testSecondsUntilNextBreakCountsDown25MinuteCooldown() async {
+        let h = EngineHarness()
+        await h.engine.start(subject: makeSubject(), mode: .open, displayName: "Alex")
+
+        XCTAssertEqual(h.engine.secondsUntilNextBreak ?? -1, SessionEngine.breakCooldown, accuracy: 0.1)
+
+        h.clock.advance(10 * 60)
+        h.engine.tick()
+        XCTAssertEqual(h.engine.secondsUntilNextBreak ?? -1, 15 * 60, accuracy: 0.1)
+
+        h.clock.advance(15 * 60)
+        h.engine.tick()
+        XCTAssertNil(h.engine.secondsUntilNextBreak)
+        XCTAssertTrue(h.engine.canTakeBreak)
+    }
 }

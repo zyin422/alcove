@@ -73,6 +73,7 @@ struct TodayView: View {
                 subjectDistributionStripView
 
                 forceBlockCountdownBanner
+                bedtimeCountdownBanner
 
                 let todaySessions = model.data.sessions.filter {
                     DayKey.key(for: $0.start) == shownDay && !$0.isDemo
@@ -219,6 +220,41 @@ struct TodayView: View {
                     RoundedRectangle(cornerRadius: Theme.radius)
                         .stroke(Theme.amber.opacity(remaining <= 60 ? 0.6 : 0.25), lineWidth: remaining <= 60 ? 1.5 : 1)
                 )
+            }
+        }
+    }
+
+    @ViewBuilder private var bedtimeCountdownBanner: some View {
+        if shownDay == todayKey,
+           !model.engine.isLocked,
+           let midnight = DayPlanner.nextMidnightBedtime(after: Date(), bedtimeGuardEnabled: model.data.settings.bedtimeGuardEnabled) {
+            TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                let remaining = max(0, midnight.timeIntervalSince(context.date))
+                if remaining > 0 {
+                    HStack(spacing: Theme.Space.m) {
+                        ZStack {
+                            Circle()
+                                .fill(Theme.violet.opacity(0.18))
+                                .frame(width: 34, height: 34)
+                            Image(systemName: "moon.stars.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Theme.violet)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("NIGHTFALL SHIELD IN \(TimeFormat.clock(remaining))")
+                                .font(Theme.captionFont.weight(.bold))
+                                .foregroundStyle(Theme.violet)
+                                .monospacedDigit()
+                            Text("Bedtime guard locks screens automatically at 12:00 AM unless resting.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(Theme.Space.m)
+                    .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Theme.violet.opacity(0.08)))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Theme.violet.opacity(0.28), lineWidth: 1))
+                }
             }
         }
     }

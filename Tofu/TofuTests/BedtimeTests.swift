@@ -92,4 +92,17 @@ final class BedtimeTests: XCTestCase {
         XCTAssertTrue(h.engine.isLocked)
         XCTAssertEqual(h.engine.session?.subjectName, "Planning Mode")
     }
+
+    func testNextMidnightBedtimeReturnsWindDownCountdownOnlyInHour23() {
+        var settings = AppSettings(bedtimeGuardEnabled: true)
+        let preWindow = date(10, 22, 30)
+        XCTAssertNil(DayPlanner.nextMidnightBedtime(after: preWindow, bedtimeGuardEnabled: settings.bedtimeGuardEnabled, calendar: calendar))
+
+        let at2345 = date(10, 23, 45)
+        let countdown = DayPlanner.secondsUntilMidnightBedtime(now: at2345, bedtimeGuardEnabled: settings.bedtimeGuardEnabled, calendar: calendar)
+        XCTAssertEqual(countdown ?? -1, 15 * 60, accuracy: 0.5)
+
+        settings.bedtimeGuardEnabled = false
+        XCTAssertNil(DayPlanner.nextMidnightBedtime(after: at2345, bedtimeGuardEnabled: settings.bedtimeGuardEnabled, calendar: calendar))
+    }
 }

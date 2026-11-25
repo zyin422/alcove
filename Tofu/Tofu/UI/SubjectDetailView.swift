@@ -58,6 +58,8 @@ struct SubjectDetailView: View {
     /// else (e.g. a session saving an allowed site) and replaces the draft.
     @State private var lastSaved: Subject
     @State private var isChoosingMode = false
+    @State private var targetPriorityForLockIn: Priority?
+    @State private var quickPriorityDraft = ""
 
     init(model: AppModel, subject: Subject) {
         self.model = model
@@ -79,6 +81,7 @@ struct SubjectDetailView: View {
                     .textFieldStyle(.plain)
                     .font(Theme.titleFont)
                 Button {
+                    targetPriorityForLockIn = nil
                     isChoosingMode = true
                 } label: {
                     Text("LOCK IN")
@@ -89,6 +92,8 @@ struct SubjectDetailView: View {
                 .keyboardShortcut(.return, modifiers: .command)
                 
                 telemetryBentoGrid(telemetry)
+
+                subjectPrioritiesSection
 
                 SubjectForm(form: $form, showsName: false)
                 if !form.errors.isEmpty {
@@ -111,8 +116,116 @@ struct SubjectDetailView: View {
             lastSaved = changed
         }
         .sheet(isPresented: $isChoosingMode) {
-            LockInSheet(model: model, subject: subject)
+            LockInSheet(model: model, subject: subject, initialPriority: targetPriorityForLockIn)
         }
+    }
+
+    private var subjectPrioritiesSection: some View {
+        let todayKey = DayKey.key(for: Date())
+        let tasks = model.todayPlan().priorities.filter { $0.subjectID == subject.id }
+        let color = Theme.subjectColor(subject.colorHex)
+
+        return VStack(alignment: .leading, spacing: Theme.Space.s) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "checklist")
+                        .foregroundStyle(color)
+                    Text("TODAY'S PRIORITIES FOR \(subject.name.uppercased())")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .tracking(0.6)
+                }
+                Spacer()
+                let openCount = tasks.filter { !$0.isDone }.count
+                Text(tasks.isEmpty ? "No tasks planned" : "\(openCount) open · \(tasks.count - openCount) done")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            if !tasks.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(tasks) { priority in
+                        HStack(spacing: Theme.Space.s) {
+                            Button {
+                                model.setPriority(priority.id, done: !priority.isDone, day: todayKey)
+                            } label: {
+                                Image(systemName: priority.isDone ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(priority.isDone ? Theme.emerald : Color.secondary)
+                            }
+                            .buttonStyle(.plain)
+
+                            Text(priority.title)
+                                .strikethrough(priority.isDone)
+                                .foregroundStyle(priority.isDone ? .secondary : .primary)
+                                .lineLimit(1)
+
+                            if priority.isAnchor {
+                                Image(systemName: "star.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(Theme.amber)
+                            }
+                            if let est = priority.estimatedMinutes {
+                                Text("\(est)m")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            if !priority.isDone {
+                                Button {
+                                    model.togglePriorityAnchor(priority.id, day: todayKey)
+                                } label: {
+                                    Image(systemName: priority.isAnchor ? "star.fill" : "star")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(priority.isAnchor ? Theme.amber : .secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Toggle focus anchor")
+
+                                Button("Lock in") {
+                                    targetPriorityForLockIn = priority
+                                    isChoosingMode = true
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
+                        .padding(.horizontal, Theme.Space.m)
+                        .padding(.vertical, 7)
+                        if priority.id != tasks.last?.id { Divider() }
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.03)))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+            }
+
+            HStack(spacing: Theme.Space.s) {
+                TextField("Add priority for \(subject.name) (e.g. Finish problem set 45m)", text: $quickPriorityDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(addSubjectPriority)
+                Button("Add", action: addSubjectPriority)
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(quickPriorityDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(Theme.Space.m)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.primary.opacity(0.02))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.primary.opacity(0.07), lineWidth: 1))
+        )
+    }
+
+    private func addSubjectPriority() {
+        let raw = quickPriorityDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return }
+        var priority = ThoughtParkingEngine.promoteThoughtToPriority(thought: raw, subjects: model.data.subjects)
+        priority.subjectID = subject.id
+        let todayKey = DayKey.key(for: Date())
+        model.updatePlan(day: todayKey) { $0.priorities.append(priority) }
+        quickPriorityDraft = ""
     }
 
     /// Saves the form whenever it is valid; an invalid draft keeps the last valid state saved.

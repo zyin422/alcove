@@ -39,6 +39,26 @@ enum DayPlanner {
         return isPastMidnight(now: now, calendar: calendar)
     }
 
+    /// Returns the upcoming 12:00 AM Date if `now` is within the final 60-minute wind-down (`23:00–23:59`)
+    /// and `bedtimeGuardEnabled` is true, or nil otherwise.
+    static func nextMidnightBedtime(after now: Date, bedtimeGuardEnabled: Bool,
+                                    calendar: Calendar = .current) -> Date? {
+        guard bedtimeGuardEnabled else { return nil }
+        let hour = calendar.component(.hour, from: now)
+        guard hour == 23 else { return nil }
+        let startOfToday = calendar.startOfDay(for: now)
+        return calendar.date(byAdding: .day, value: 1, to: startOfToday)
+    }
+
+    /// Seconds remaining until 12:00 AM bedtime lock during the `23:00–23:59` wind-down window.
+    static func secondsUntilMidnightBedtime(now: Date, bedtimeGuardEnabled: Bool,
+                                            calendar: Calendar = .current) -> TimeInterval? {
+        guard let midnight = nextMidnightBedtime(after: now, bedtimeGuardEnabled: bedtimeGuardEnabled, calendar: calendar) else {
+            return nil
+        }
+        return max(0, midnight.timeIntervalSince(now))
+    }
+
     /// A finished block shorter than this does not count. The screen comes straight back.
     static let realBlockSeconds: TimeInterval = 5 * 60
     /// Quiet time after a real block, so a walk to another room is not treated as wandering off.

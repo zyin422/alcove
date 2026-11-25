@@ -91,6 +91,11 @@ extension WindowPresenting {
     var isOnBreak: Bool { breakEndsAt != nil }
     /// True once 25 minutes of work have passed since the block started, or since the last break ended.
     var canTakeBreak: Bool { isLocked && !isOnBreak && elapsed >= nextBreakElapsed }
+    /// Remaining work seconds until the next restorative break unlocks, nil when already unlocked or idle.
+    var secondsUntilNextBreak: TimeInterval? {
+        guard isLocked, !isOnBreak, elapsed < nextBreakElapsed else { return nil }
+        return max(0, nextBreakElapsed - elapsed)
+    }
 
     /// Maximum active time allowed for Discord during Planning Mode (5 minutes).
     static let discordPlanningBudget: TimeInterval = 5 * 60

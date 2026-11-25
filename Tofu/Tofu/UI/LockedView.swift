@@ -463,6 +463,14 @@ struct LockedView: View {
         } else if engine.canTakeBreak {
             Button("Take a break") { _ = engine.beginBreak(minutes: MirrorTurn.breakDefault) }
                 .buttonStyle(SecondaryButtonStyle())
+        } else if let remaining = engine.secondsUntilNextBreak {
+            HStack(spacing: 4) {
+                Image(systemName: "cup.and.saucer")
+                    .font(.system(size: 10))
+                Text("Break in \(TimeFormat.clock(remaining))")
+                    .font(.caption.monospacedDigit())
+            }
+            .foregroundStyle(.secondary)
         }
     }
 
