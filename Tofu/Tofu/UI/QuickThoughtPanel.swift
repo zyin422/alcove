@@ -74,17 +74,23 @@ private final class QuickThoughtPanel: NSPanel {
                 }
                 self?.close()
             },
-            onPromote: { [weak self] thought in
+            onPromote: { [weak self] thought, isAnchor in
                 let cleaned = thought.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !cleaned.isEmpty {
                     if let model {
                         let todayKey = DayKey.key(for: Date())
-                        let priority = ThoughtParkingEngine.promoteThoughtToPriority(
+                        var priority = ThoughtParkingEngine.promoteThoughtToPriority(
                             thought: cleaned,
                             subjects: model.data.subjects,
                             fallbackSubjectID: engine.subject?.id
                         )
+                        priority.isAnchor = isAnchor
                         model.updatePlan(day: todayKey) { plan in
+                            if isAnchor, let sid = priority.subjectID {
+                                for idx in plan.priorities.indices where plan.priorities[idx].subjectID == sid {
+                                    plan.priorities[idx].isAnchor = false
+                                }
+                            }
                             plan.priorities.append(priority)
                         }
                     } else {
@@ -158,10 +164,11 @@ private final class QuickThoughtPanel: NSPanel {
 struct QuickThoughtView: View {
     var subjects: [Subject] = []
     var onCommit: (String) -> Void
-    var onPromote: ((String) -> Void)? = nil
+    var onPromote: ((String, Bool) -> Void)? = nil
     var onCancel: () -> Void
 
     @State private var text = ""
+    @State private var isAnchor = false
     @FocusState private var isFocused: Bool
 
     private var parsedPreview: (subject: Subject?, scheduledLabel: String?, minutes: Int?) {
@@ -192,8 +199,13 @@ struct QuickThoughtView: View {
                         onCancel()
                     }
 
-                if preview.subject != nil || preview.scheduledLabel != nil || preview.minutes != nil {
+                if preview.subject != nil || preview.scheduledLabel != nil || preview.minutes != nil || isAnchor {
                     HStack(spacing: 4) {
+                        if isAnchor {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 8.5))
+                                .foregroundStyle(Theme.amber)
+                        }
                         if let sub = preview.subject {
                             Circle()
                                 .fill(Theme.subjectColor(sub.colorHex))
@@ -233,7 +245,18 @@ struct QuickThoughtView: View {
 
                 if onPromote != nil {
                     Button {
-                        onPromote?(text)
+                        isAnchor.toggle()
+                        isFocused = true
+                    } label: {
+                        Image(systemName: isAnchor ? "star.fill" : "star")
+                            .font(.system(size: 11))
+                            .foregroundStyle(isAnchor ? Theme.amber : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Mark Today priority as ★ Focus Anchor")
+
+                    Button {
+                        onPromote?(text, isAnchor)
                     } label: {
                         HStack(spacing: 3) {
                             Image(systemName: "plus.circle.fill")

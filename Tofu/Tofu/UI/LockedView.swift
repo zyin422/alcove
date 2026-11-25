@@ -100,6 +100,7 @@ struct LockedView: View {
     @State private var isShowingMirror = false
     @State private var isShowingGiveUp = false
     @State private var sessionTab: SessionTab = .assistant
+    @State private var quickActiveTaskDraft = ""
 
     private enum SessionTab: String, CaseIterable {
         case assistant = "Assistant"
@@ -388,8 +389,44 @@ struct LockedView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.04)))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(color.opacity(0.25), lineWidth: 1))
+            } else {
+                let color = Theme.subjectColor(SubjectColor.hex(for: session.subjectName))
+                HStack(spacing: 5) {
+                    TextField("Set focus task for \(session.subjectName)…", text: $quickActiveTaskDraft)
+                        .textFieldStyle(.plain)
+                        .font(.caption)
+                        .onSubmit { addQuickActiveTask(subjectID: session.subjectID, day: todayKey) }
+                    Button {
+                        addQuickActiveTask(subjectID: session.subjectID, day: todayKey)
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(color)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(quickActiveTaskDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help("Create & focus this task right now")
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.03)))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3])).foregroundStyle(color.opacity(0.35)))
             }
         }
+    }
+
+    private func addQuickActiveTask(subjectID: UUID, day: String) {
+        let raw = quickActiveTaskDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return }
+        var created = ThoughtParkingEngine.promoteThoughtToPriority(
+            thought: raw,
+            subjects: model.data.subjects,
+            fallbackSubjectID: subjectID
+        )
+        created.subjectID = subjectID
+        model.updatePlan(day: day) { $0.priorities.append(created) }
+        model.selectActivePriority(created.id, for: subjectID, day: day, notify: false)
+        quickActiveTaskDraft = ""
     }
 
     /// Goal progress line and "goal 50m" caption, only in goal mode. `barWidth` nil = as wide as the pane.

@@ -1986,23 +1986,6 @@ private struct TodayScheduleView: View {
                             .padding(.vertical, 1.5)
                             .background(RoundedRectangle(cornerRadius: 3).fill(color.opacity(0.14)))
                         }
-                        if !isDone,
-                           day == DayKey.key(for: Date()),
-                           let priority = priorities.first(where: { $0.id == priorityID }),
-                           let lockSubject = (subjectID.flatMap { model.subject(id: $0) }
-                                              ?? DayPlanner.matchSubject(priority.title, subjects: model.data.subjects).flatMap { model.subject(id: $0) }
-                                              ?? model.data.subjects.first) {
-                            Spacer(minLength: 4)
-                            Button("Lock in") {
-                                onLockIn?(lockSubject, priority)
-                            }
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Theme.indigo.opacity(0.14)))
-                            .foregroundStyle(Theme.indigo)
-                            .buttonStyle(.plain)
-                        }
                     case .completedSession(_, _, _, _):
                         Image(systemName: "flame.fill")
                             .font(.system(size: 11))
@@ -2017,8 +2000,10 @@ private struct TodayScheduleView: View {
 
                     Spacer()
 
-                    // Quick lock in for planned priority
-                    if case .plannedPriority(let priorityID, let title, let subjectID, let isDone) = block.kind, !isDone {
+                    // Quick lock in for today's unfinished planned priority
+                    if day == DayKey.key(for: Date()),
+                       case .plannedPriority(let priorityID, let title, let subjectID, let isDone) = block.kind,
+                       !isDone {
                         let targetSubject = subjectID.flatMap(model.subject(id:))
                             ?? DayPlanner.matchSubject(title, subjects: model.data.subjects).flatMap(model.subject(id:))
                             ?? model.data.subjects.first
