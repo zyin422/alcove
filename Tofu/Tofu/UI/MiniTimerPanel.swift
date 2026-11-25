@@ -10,7 +10,7 @@ extension Notification.Name {
 
 /// Pure geometry for the floating mini timer (unit-tested).
 enum MiniTimerLayout {
-    static let panelSize = CGSize(width: 240, height: 64)
+    static let panelSize = CGSize(width: 296, height: 64)
     /// Gap between the top of the visible frame (below the menu bar) and the panel.
     static let topMargin: CGFloat = 8
     /// Pointer travel (points) after which a press counts as a drag instead of a click.
@@ -336,9 +336,14 @@ struct MiniTimerView: View {
         }
     }
 
-    @ViewBuilder
+    private var pillCornerRadius: CGFloat {
+        chrome.isTucked ? 8 : Theme.radius
+    }
+
     private func content(now: Date) -> some View {
-        Group {
+        let pillShape = RoundedRectangle(cornerRadius: pillCornerRadius, style: .continuous)
+
+        return Group {
             if chrome.isTucked {
                 HStack(spacing: 5) {
                     Circle()
@@ -349,6 +354,8 @@ struct MiniTimerView: View {
                         .font(Theme.timerFont(size: 12))
                         .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.primary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let notice = chrome.noticeText {
@@ -386,6 +393,8 @@ struct MiniTimerView: View {
                                 .padding(.vertical, 1)
                                 .background(Capsule().fill(Theme.amber.opacity(0.2)))
                                 .foregroundStyle(Theme.amber)
+                                .fixedSize()
+                                .layoutPriority(1)
                                 .help(engine.deflectionsSummary)
                             }
                         }
@@ -394,8 +403,12 @@ struct MiniTimerView: View {
                                 .font(Theme.timerFont(size: 28))
                                 .foregroundStyle(isBetweenBlocks ? Theme.amber : Color.primary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .layoutPriority(1)
 
                             openSessionMilestones
+                                .fixedSize()
                         }
                     }
                     Spacer(minLength: Theme.Space.s)
@@ -485,20 +498,12 @@ struct MiniTimerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: chrome.isTucked ? 8 : Theme.radius)
-                .fill(Color(nsColor: .windowBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: chrome.isTucked ? 8 : Theme.radius)
-                .stroke(subjectColor.opacity(chrome.isTucked ? 0.35 : 0.5), lineWidth: 1)
-        )
+        .background(pillShape.fill(Color(nsColor: .windowBackgroundColor)))
         .overlay(alignment: .top) {
             if !chrome.isTucked && chrome.noticeText == nil {
                 Rectangle()
                     .fill(subjectColor)
                     .frame(height: 2.5)
-                    .clipShape(RoundedRectangle(cornerRadius: 1.25))
             }
         }
         .overlay(alignment: .bottom) {
@@ -509,9 +514,12 @@ struct MiniTimerView: View {
                         .frame(width: geo.size.width * CGFloat(progress(now: now)), height: 3)
                 }
                 .frame(height: 3)
-                .clipShape(RoundedRectangle(cornerRadius: 1.5))
             }
         }
+        .clipShape(pillShape)
+        .overlay(
+            pillShape.strokeBorder(subjectColor.opacity(chrome.isTucked ? 0.35 : 0.5), lineWidth: 1)
+        )
     }
 }
 
@@ -612,9 +620,13 @@ struct MiniTimerView: View {
         hasShadow = true
 
         let container = NSView(frame: NSRect(origin: .zero, size: size))
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.clear.cgColor
         let hosting = NSHostingView(rootView: MiniTimerView(engine: engine, chrome: chrome, model: model, onLockIn: onLockIn))
         hosting.frame = container.bounds
         hosting.autoresizingMask = [.width, .height]
+        hosting.wantsLayer = true
+        hosting.layer?.backgroundColor = NSColor.clear.cgColor
         container.addSubview(hosting)
 
         let overlay = ClickDragView(frame: container.bounds)
@@ -888,11 +900,13 @@ struct MiniTimerView: View {
 
     private func settle(tucked: Bool, frame: CGRect) {
         chrome.isTucked = tucked
-        NSAnimationContext.runAnimationGroup { context in
+        NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.22
             context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
             animator().setFrame(frame, display: true)
-        }
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated { self?.invalidateShadow() }
+        })
     }
 
     /// The visible frame of the screen under `point`, else the screen the panel is on.

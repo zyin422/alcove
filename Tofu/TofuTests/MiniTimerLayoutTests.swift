@@ -5,7 +5,7 @@ final class MiniTimerLayoutTests: XCTestCase {
     private let size = CGSize(width: 240, height: 64)
 
     func testPanelSizeAndMarginMatchTheSpec() {
-        XCTAssertEqual(MiniTimerLayout.panelSize, CGSize(width: 240, height: 64))
+        XCTAssertEqual(MiniTimerLayout.panelSize, CGSize(width: 296, height: 64))
         XCTAssertEqual(MiniTimerLayout.topMargin, 8)
     }
 
@@ -95,24 +95,24 @@ final class MiniTimerLayoutTests: XCTestCase {
 
     func testRevealedPillSitsJustUnderTheMenuBarAtTheSameCenter() {
         let frame = MiniTimerLayout.revealedFrame(centerX: 200, visible: visible)
-        XCTAssertEqual(frame.size, size)
+        XCTAssertEqual(frame.size, MiniTimerLayout.panelSize)
         XCTAssertEqual(frame.midX, 200)
         XCTAssertEqual(frame.maxY, visible.maxY - MiniTimerLayout.topMargin)
     }
 
     func testPullingTheTabBringsTheFullPillDownWithThePointer() {
         let frame = MiniTimerLayout.pullingFrame(centerX: 720, pullDown: 40, visible: visible)
-        XCTAssertEqual(frame.size, size)
+        XCTAssertEqual(frame.size, MiniTimerLayout.panelSize)
         XCTAssertEqual(frame.midX, 720)
         XCTAssertEqual(frame.maxY, visible.maxY - 40)
     }
 
     func testOpenDragFollowsThePointerEvenAboveTheScreen() {
         let pressOrigin = CGPoint(x: 600, y: 803)
-        let frame = MiniTimerLayout.frameDuringDrag(tucked: false, pressOrigin: pressOrigin, pressSize: size,
+        let frame = MiniTimerLayout.frameDuringDrag(tucked: false, pressOrigin: pressOrigin, pressSize: MiniTimerLayout.panelSize,
                                                      pressMouse: CGPoint(x: 700, y: 830),
                                                      mouse: CGPoint(x: 700, y: 900), visible: visible)
-        XCTAssertEqual(frame, CGRect(x: 600, y: 873, width: 240, height: 64))
+        XCTAssertEqual(frame, CGRect(x: 600, y: 873, width: 296, height: 64))
     }
 
     func testSidewaysDragOfAnOpenPillDoesNotTuck() {

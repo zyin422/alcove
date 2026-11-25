@@ -9,15 +9,15 @@ final class LockedUITests: XCTestCase {
 
     func testCloseHitRectSitsAtTheTrailingEdgeAndIsVerticallyCentered() {
         let rect = MiniTimerLayout.closeHitRect(in: panel)
-        XCTAssertEqual(rect, CGRect(x: 194, y: 13, width: 38, height: 38))
+        XCTAssertEqual(rect, CGRect(x: 250, y: 13, width: 38, height: 38))
         XCTAssertEqual(rect.midY, panel.height / 2)
     }
 
     func testPointsOnTheCrossAreCloseHits() {
-        // The ✕ itself is 22 pt, centered at x = 240 - 16 - 11 = 213.
-        XCTAssertTrue(MiniTimerLayout.isCloseHit(CGPoint(x: 213, y: 32), in: panel))
-        XCTAssertTrue(MiniTimerLayout.isCloseHit(CGPoint(x: 202, y: 21), in: panel))
-        XCTAssertTrue(MiniTimerLayout.isCloseHit(CGPoint(x: 224, y: 43), in: panel))
+        // The ✕ itself is 22 pt, centered at x = 296 - 16 - 11 = 269.
+        XCTAssertTrue(MiniTimerLayout.isCloseHit(CGPoint(x: 269, y: 32), in: panel))
+        XCTAssertTrue(MiniTimerLayout.isCloseHit(CGPoint(x: 258, y: 21), in: panel))
+        XCTAssertTrue(MiniTimerLayout.isCloseHit(CGPoint(x: 280, y: 43), in: panel))
     }
 
     func testPointsOnTheBodyAreNotCloseHits() {
@@ -25,8 +25,8 @@ final class LockedUITests: XCTestCase {
         XCTAssertFalse(MiniTimerLayout.isCloseHit(CGPoint(x: 120, y: 32), in: panel))
         XCTAssertFalse(MiniTimerLayout.isCloseHit(CGPoint(x: 150, y: 32), in: panel))
         // Just outside the padded target.
-        XCTAssertFalse(MiniTimerLayout.isCloseHit(CGPoint(x: 193, y: 32), in: panel))
-        XCTAssertFalse(MiniTimerLayout.isCloseHit(CGPoint(x: 213, y: 5), in: panel))
+        XCTAssertFalse(MiniTimerLayout.isCloseHit(CGPoint(x: 249, y: 32), in: panel))
+        XCTAssertFalse(MiniTimerLayout.isCloseHit(CGPoint(x: 269, y: 5), in: panel))
     }
 
     func testRequestEndNotificationNameIsStable() {
