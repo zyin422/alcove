@@ -426,6 +426,7 @@ private struct DaySubjectCard: View {
                         HStack {
                             Text(block.start.formatted(.dateTime.hour().minute()))
                                 .foregroundStyle(.secondary)
+                            TimeBlockQualityBadges(block: block)
                             Spacer()
                             TimeBlockNoteButton(initialNote: block.notes) { updated in
                                 onUpdateNotes(block.id, updated)
@@ -652,6 +653,8 @@ private struct TimeBlockList: View {
                             }
                             Spacer(minLength: Theme.Space.s)
 
+                            TimeBlockQualityBadges(block: block)
+
                             TimeBlockNoteButton(initialNote: block.notes) { updated in
                                 onUpdateNotes(block.id, updated)
                             }
@@ -684,6 +687,39 @@ private struct TimeBlockList: View {
                 .foregroundStyle(isSelected ? tint : .secondary)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Compact focus quality indicators rendered beside finished session blocks.
+private struct TimeBlockQualityBadges: View {
+    let block: TimeBlock
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if block.outcome == .bailed {
+                badge("Bailed", systemImage: "xmark.octagon.fill", tint: Theme.coral)
+            }
+            if block.gracePassUsed {
+                badge("Grace", systemImage: "hourglass", tint: Theme.amber)
+            }
+            if block.deflections > 0 {
+                badge("\(block.deflections)", systemImage: "shield.lefthalf.filled", tint: Theme.amber)
+            }
+        }
+    }
+
+    private func badge(_ text: String, systemImage: String, tint: Color) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: systemImage)
+                .font(.system(size: 8))
+            Text(text)
+                .font(.caption2.weight(.semibold))
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1.5)
+        .background(Capsule().fill(tint.opacity(0.14)))
+        .foregroundStyle(tint)
     }
 }
 

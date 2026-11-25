@@ -199,4 +199,19 @@ final class StatsFormattingTests: XCTestCase {
         XCTAssertTrue(lines[1].contains("50.0,completed,1,2"))
         XCTAssertTrue(lines[1].contains(#""Fixed ""parser"", ready for tests""#))
     }
+
+    func testTimeBlockCapturesDeflectionsOutcomeAndGracePass() {
+        let s = Session(subjectID: UUID(), subjectName: "CS128", mode: .goal(minutes: 50),
+                        start: start, end: start.addingTimeInterval(1500),
+                        blockedAttempts: 2, closedTabs: 3, outcome: .bailed, gracePassUsed: true)
+        let flat = StatsFormatting.timeBlocks([s])
+        XCTAssertEqual(flat.first?.deflections, 5)
+        XCTAssertEqual(flat.first?.outcome, .bailed)
+        XCTAssertEqual(flat.first?.gracePassUsed, true)
+
+        let grouped = StatsFormatting.subjectBlocks([s])
+        XCTAssertEqual(grouped.first?.blocks.first?.deflections, 5)
+        XCTAssertEqual(grouped.first?.blocks.first?.outcome, .bailed)
+        XCTAssertEqual(grouped.first?.blocks.first?.gracePassUsed, true)
+    }
 }

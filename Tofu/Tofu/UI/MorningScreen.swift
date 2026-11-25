@@ -552,6 +552,17 @@ struct MorningView: View {
                 if option == .custom {
                     CustomMinutesField(minutes: $customMinutes)
                 }
+                if let goalSeconds = option.mode(customMinutes: customMinutes).goalSeconds,
+                   let unlockPreview = LockedLayout.unlockTimeLabel(remaining: goalSeconds) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "clock.badge.checkmark")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.indigo)
+                        Text("\(unlockPreview) · \(TimeFormat.short(goalSeconds)) focus block")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 MeetingFitBanner(model: model, option: $option, customMinutes: $customMinutes)
                 Button {
                     performLockIn()

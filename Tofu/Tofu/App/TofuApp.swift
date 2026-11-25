@@ -256,6 +256,22 @@ private struct TofuMenuBarContent: View {
                 Button("Next Track") {
                     _ = FocusAudioEngine.shared.nextTrack()
                 }
+                let tracks = FocusAudioEngine.shared.availableTrackTitles
+                if tracks.count > 1 {
+                    Menu(FocusAudioEngine.shared.currentTrackTitle ?? "Select Track") {
+                        ForEach(Array(tracks.enumerated()), id: \.offset) { idx, title in
+                            Button {
+                                _ = FocusAudioEngine.shared.selectTrack(at: idx)
+                            } label: {
+                                if FocusAudioEngine.shared.currentTrackTitle == title {
+                                    Label(title, systemImage: "checkmark")
+                                } else {
+                                    Text(title)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

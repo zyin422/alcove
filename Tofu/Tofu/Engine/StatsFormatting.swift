@@ -103,7 +103,11 @@ enum StatsFormatting {
             let blocks = (groups[name] ?? []).sorted { lhs, rhs in
                 if lhs.start != rhs.start { return lhs.start < rhs.start }
                 return lhs.id.uuidString < rhs.id.uuidString
-            }.map { TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration, notes: $0.notes) }
+            }.map {
+                TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration,
+                          notes: $0.notes, deflections: $0.blockedAttempts + $0.closedTabs,
+                          outcome: $0.outcome, gracePassUsed: $0.gracePassUsed)
+            }
             return SubjectBlocks(name: name, seconds: seconds, fraction: total > 0 ? seconds / total : 0, blocks: blocks)
         }
     }
@@ -116,7 +120,11 @@ enum StatsFormatting {
                 if lhs.start != rhs.start { return lhs.start > rhs.start }
                 return lhs.id.uuidString < rhs.id.uuidString
             }
-            .map { TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration, notes: $0.notes) }
+            .map {
+                TimeBlock(id: $0.id, subjectName: $0.subjectName, start: $0.start, seconds: $0.duration,
+                          notes: $0.notes, deflections: $0.blockedAttempts + $0.closedTabs,
+                          outcome: $0.outcome, gracePassUsed: $0.gracePassUsed)
+            }
     }
 
     /// Structured Markdown analytics recap including trend delta and per-subject distribution.
@@ -199,12 +207,19 @@ struct TimeBlock: Identifiable, Equatable {
     let start: Date
     let seconds: TimeInterval
     let notes: String?
+    let deflections: Int
+    let outcome: SessionOutcome?
+    let gracePassUsed: Bool
 
-    init(id: UUID, subjectName: String, start: Date, seconds: TimeInterval, notes: String? = nil) {
+    init(id: UUID, subjectName: String, start: Date, seconds: TimeInterval, notes: String? = nil,
+         deflections: Int = 0, outcome: SessionOutcome? = nil, gracePassUsed: Bool = false) {
         self.id = id
         self.subjectName = subjectName
         self.start = start
         self.seconds = seconds
         self.notes = notes
+        self.deflections = deflections
+        self.outcome = outcome
+        self.gracePassUsed = gracePassUsed
     }
 }
