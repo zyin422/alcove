@@ -160,6 +160,18 @@ struct LockInSheet: View {
                 CustomMinutesField(minutes: $customMinutes)
             }
 
+            if let goalSeconds = option.mode(customMinutes: customMinutes).goalSeconds,
+               let unlockPreview = LockedLayout.unlockTimeLabel(remaining: goalSeconds) {
+                HStack(spacing: 5) {
+                    Image(systemName: "clock.badge.checkmark")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.indigo)
+                    Text("\(unlockPreview) · \(TimeFormat.short(goalSeconds)) focus block")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             MeetingFitBanner(model: model, option: $option, customMinutes: $customMinutes)
 
             workspacePreviewCard
@@ -372,6 +384,18 @@ struct CustomMinutesField: View {
                 .accessibilityLabel("Minutes")
             Text("min, at least \(LockInOption.customRange.lowerBound)")
                 .foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            ForEach([30, 45, 75, 120], id: \.self) { preset in
+                Button("\(preset)m") {
+                    minutes = LockInOption.clampedMinutes(preset)
+                }
+                .font(.caption2.weight(minutes == preset ? .bold : .medium).monospacedDigit())
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(minutes == preset ? Theme.indigo.opacity(0.16) : Color.primary.opacity(0.06)))
+                .foregroundStyle(minutes == preset ? Theme.indigo : .secondary)
+                .buttonStyle(.plain)
+            }
         }
     }
 

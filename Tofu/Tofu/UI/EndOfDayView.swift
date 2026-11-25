@@ -653,33 +653,8 @@ private struct ReviewPriorityRow: View {
             .buttonStyle(.plain)
             .help(priority.isAnchor ? "Anchored ★ priority" : "Mark as focus anchor (★)")
 
-            Menu {
-                ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
-                    Button {
-                        priority.estimatedMinutes = mins
-                    } label: {
-                        if priority.estimatedMinutes == mins {
-                            Label("\(mins)m", systemImage: "checkmark")
-                        } else {
-                            Text("\(mins)m")
-                        }
-                    }
-                }
-                if priority.estimatedMinutes != nil {
-                    Divider()
-                    Button("Clear") { priority.estimatedMinutes = nil }
-                }
-            } label: {
-                Text(priority.estimatedMinutes.map { "\($0)m" } ?? "+ Est")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(priority.estimatedMinutes != nil ? Color.primary : Color.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Set estimated focus time")
+            scheduleMenu
+            durationMenu
 
             SetupPicker(subjects: subjects, selection: setupSelection)
                 .frame(width: 150)
@@ -705,6 +680,76 @@ private struct ReviewPriorityRow: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
         }
+    }
+
+    private var scheduleMenu: some View {
+        let anchors = [9 * 60, 10 * 60 + 30, 13 * 60, 14 * 60 + 30, 16 * 60, 19 * 60, 20 * 60 + 30]
+        return Menu {
+            ForEach(anchors, id: \.self) { mins in
+                Button {
+                    priority.scheduledMinutesFromMidnight = mins
+                } label: {
+                    if priority.scheduledMinutesFromMidnight == mins {
+                        Label(OpenFocusWindow.formatMinutes(mins), systemImage: "checkmark")
+                    } else {
+                        Text(OpenFocusWindow.formatMinutes(mins))
+                    }
+                }
+            }
+            if priority.scheduledMinutesFromMidnight != nil {
+                Divider()
+                Button("Clear") { priority.scheduledMinutesFromMidnight = nil }
+            }
+        } label: {
+            if let sched = priority.scheduledMinutesFromMidnight {
+                Text(OpenFocusWindow.formatMinutes(sched))
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.indigo.opacity(0.14)))
+                    .foregroundStyle(Theme.indigo)
+            } else {
+                Text("+ Time")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Schedule start time")
+    }
+
+    private var durationMenu: some View {
+        Menu {
+            ForEach([15, 25, 45, 60, 90], id: \.self) { mins in
+                Button {
+                    priority.estimatedMinutes = mins
+                } label: {
+                    if priority.estimatedMinutes == mins {
+                        Label("\(mins)m", systemImage: "checkmark")
+                    } else {
+                        Text("\(mins)m")
+                    }
+                }
+            }
+            if priority.estimatedMinutes != nil {
+                Divider()
+                Button("Clear") { priority.estimatedMinutes = nil }
+            }
+        } label: {
+            Text(priority.estimatedMinutes.map { "\($0)m" } ?? "+ Est")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(priority.estimatedMinutes != nil ? Color.primary : Color.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Set estimated focus time")
     }
 
     private func applyAutoMatch(for title: String) {

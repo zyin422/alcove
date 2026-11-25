@@ -14,6 +14,7 @@ struct TodayView: View {
     @State private var newTitle = ""
     @State private var newSubjectID: UUID?
     @State private var userSelectedSubject = false
+    @State private var newIsAnchor = false
     @State private var lastAutoMatchedSubjectID: UUID?
     @State private var lockInTarget: LockInTarget?
     @State private var editingPriorityID: UUID?
@@ -1357,6 +1358,23 @@ struct TodayView: View {
                 .help("Set duration to \(mins) minutes")
             }
 
+            Button {
+                newIsAnchor.toggle()
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: newIsAnchor ? "star.fill" : "star")
+                        .font(.system(size: 9))
+                    Text("Anchor")
+                        .font(.system(size: 10.5, weight: newIsAnchor ? .bold : .medium))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(newIsAnchor ? Theme.amber.opacity(0.18) : Color.primary.opacity(0.06)))
+                .foregroundStyle(newIsAnchor ? Theme.amber : .secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Mark new priority as primary focus anchor (⭐)")
+
             let parsedDraft = DayPlanner.parsePriorityDetails(from: newTitle)
             if parsedDraft.scheduledMinutes != nil || parsedDraft.estimatedMinutes != nil {
                 Spacer(minLength: 4)
@@ -1423,17 +1441,23 @@ struct TodayView: View {
         guard !raw.isEmpty else { return }
         let (title, estimatedMinutes, scheduledMinutes) = DayPlanner.parsePriorityDetails(from: raw)
         let subjectID = userSelectedSubject ? newSubjectID : (newSubjectID ?? DayPlanner.matchSubject(title, subjects: model.data.subjects))
+        let newID = UUID()
         model.updatePlan(day: plan.day) {
             $0.priorities.append(Priority(
+                id: newID,
                 title: title,
                 subjectID: subjectID,
                 estimatedMinutes: estimatedMinutes,
                 scheduledMinutesFromMidnight: scheduledMinutes
             ))
         }
+        if newIsAnchor {
+            model.togglePriorityAnchor(newID, day: plan.day)
+        }
         newTitle = ""
         newSubjectID = nil
         userSelectedSubject = false
+        newIsAnchor = false
         lastAutoMatchedSubjectID = nil
     }
 }
