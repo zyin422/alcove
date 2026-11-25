@@ -512,16 +512,43 @@ struct SessionSummaryView: View {
                 .font(.system(size: 14, weight: .semibold))
 
             if let subject {
-                Button {
-                    dismiss()
-                    onStartNext?(subject, next)
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "bolt.fill")
-                        Text("Lock in “\(next.title)”")
+                HStack(spacing: Theme.Space.s) {
+                    Button {
+                        dismiss()
+                        onStartNext?(subject, next)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "bolt.fill")
+                            Text("Lock in “\(next.title)”")
+                        }
                     }
+                    .buttonStyle(SecondaryButtonStyle())
+
+                    Menu {
+                        ForEach([25, 50, 90], id: \.self) { mins in
+                            Button("\(mins)m") {
+                                model.selectActivePriority(next.id, for: subject.id, day: DayKey.key(for: session.start), notify: false)
+                                dismiss()
+                                Task { await model.lockIn(subjectID: subject.id, mode: .goal(minutes: mins)) }
+                            }
+                        }
+                        Divider()
+                        Button("Open-ended") {
+                            model.selectActivePriority(next.id, for: subject.id, day: DayKey.key(for: session.start), notify: false)
+                            dismiss()
+                            Task { await model.lockIn(subjectID: subject.id, mode: .open) }
+                        }
+                    } label: {
+                        Label("Quick", systemImage: "timer")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(RoundedRectangle(cornerRadius: Theme.radius).fill(Theme.indigo.opacity(0.10)))
+                            .foregroundStyle(Theme.indigo)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                 }
-                .buttonStyle(SecondaryButtonStyle())
                 .padding(.top, 2)
             }
         }
@@ -545,6 +572,29 @@ struct SessionSummaryView: View {
                     .font(.system(size: 13, weight: .medium))
             }
             Spacer()
+            Menu {
+                ForEach([25, 50, 90], id: \.self) { mins in
+                    Button("\(mins)m") {
+                        dismiss()
+                        Task { await model.lockIn(subjectID: subject.id, mode: .goal(minutes: mins)) }
+                    }
+                }
+                Divider()
+                Button("Open-ended") {
+                    dismiss()
+                    Task { await model.lockIn(subjectID: subject.id, mode: .open) }
+                }
+            } label: {
+                Label("Quick", systemImage: "bolt.fill")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: Theme.radius).fill(col.opacity(0.14)))
+                    .foregroundStyle(col)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+
             Button {
                 dismiss()
                 onStartNext?(subject, nil)

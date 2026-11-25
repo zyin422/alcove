@@ -88,6 +88,8 @@ struct SubjectDetailView: View {
     @State private var targetPriorityForLockIn: Priority?
     @State private var quickPriorityDraft = ""
     @State private var isTestingWorkspace = false
+    @State private var editingPriorityID: UUID?
+    @State private var editingPriorityTitle = ""
 
     init(model: AppModel, subject: Subject) {
         self.model = model
@@ -325,6 +327,26 @@ struct SubjectDetailView: View {
                 .foregroundStyle(priority.isDone ? .secondary : .primary)
                 .lineLimit(1)
 
+            if editingPriorityID == priority.id {
+                TextField("Task title", text: $editingPriorityTitle)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.callout)
+                    .onSubmit {
+                        let trimmed = editingPriorityTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty {
+                            model.updatePriorityDetails(
+                                priority.id,
+                                day: todayKey,
+                                title: trimmed,
+                                subjectID: priority.subjectID,
+                                estimatedMinutes: priority.estimatedMinutes
+                            )
+                        }
+                        editingPriorityID = nil
+                    }
+                    .onExitCommand { editingPriorityID = nil }
+            }
+
             if priority.isAnchor {
                 Image(systemName: "star.fill")
                     .font(.system(size: 9))
@@ -353,6 +375,21 @@ struct SubjectDetailView: View {
                 subjectPriorityDurationMenu(priority, todayKey: todayKey)
 
                 Button {
+                    if editingPriorityID == priority.id {
+                        editingPriorityID = nil
+                    } else {
+                        editingPriorityTitle = priority.title
+                        editingPriorityID = priority.id
+                    }
+                } label: {
+                    Image(systemName: editingPriorityID == priority.id ? "xmark" : "pencil")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(editingPriorityID == priority.id ? "Cancel rename" : "Rename task")
+
+                Button {
                     model.togglePriorityAnchor(priority.id, day: todayKey)
                 } label: {
                     Image(systemName: priority.isAnchor ? "star.fill" : "star")
@@ -361,6 +398,31 @@ struct SubjectDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Toggle focus anchor")
+
+                Menu {
+                    ForEach([25, 50, 90], id: \.self) { mins in
+                        Button("\(mins)m") {
+                            model.selectActivePriority(priority.id, for: subject.id, day: todayKey, notify: false)
+                            Task { await model.lockIn(subjectID: subject.id, mode: .goal(minutes: mins)) }
+                        }
+                    }
+                    Divider()
+                    Button("Open-ended") {
+                        model.selectActivePriority(priority.id, for: subject.id, day: todayKey, notify: false)
+                        Task { await model.lockIn(subjectID: subject.id, mode: .open) }
+                    }
+                } label: {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.indigo)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 5).fill(Theme.indigo.opacity(0.10)))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .disabled(model.engine.isLocked)
+                .help("Quick-start this task (25m, 50m, 90m, or Open)")
 
                 Button("Lock in") {
                     targetPriorityForLockIn = priority
@@ -377,7 +439,18 @@ struct SubjectDetailView: View {
     @ViewBuilder
     private func subjectPriorityScheduleMenu(_ priority: Priority, todayKey: String) -> some View {
         let anchors = [9 * 60, 10 * 60 + 30, 13 * 60, 14 * 60 + 30, 16 * 60, 19 * 60, 20 * 60 + 30]
+        let events = model.data.settings.googleShowEventsEnabled ? (model.googleSync?.todayEvents ?? []) : []
+        let openWindows = DayPlanner.availableFocusWindows(calendarEvents: events, isToday: true)
+        let conflictTitle = DayPlanner.scheduleConflictTitle(for: priority, in: events)
         Menu {
+            if let nextGap = openWindows.first {
+                Button(conflictTitle != nil
+                       ? "Move to Open Gap (\(OpenFocusWindow.formatMinutes(nextGap.startMinutes)))"
+                       : "Next Open Gap (\(OpenFocusWindow.formatMinutes(nextGap.startMinutes)))") {
+                    model.updatePriorityDetails(priority.id, day: todayKey, scheduledMinutesFromMidnight: .some(nextGap.startMinutes))
+                }
+                Divider()
+            }
             ForEach(anchors, id: \.self) { mins in
                 Button {
                     model.updatePriorityDetails(priority.id, day: todayKey, scheduledMinutesFromMidnight: .some(mins))
