@@ -202,11 +202,17 @@ struct EndOfDayView: View {
             }
 
             Spacer()
+            let quickCount = pendingRolloverPriorities.count + pendingParkedThoughts.count
             HStack {
-                if !pendingRolloverPriorities.isEmpty {
-                    Button("Skip to review (\(pendingRolloverPriorities.count))") {
-                        let rollover = DayPlanner.prepareRollover(from: today, selectedIDs: pendingRolloverPriorities)
-                        tomorrow = DayPlanner.fillingUnassignedSetups(rollover, subjects: model.data.subjects)
+                if quickCount > 0 {
+                    Button("Skip to review (\(quickCount))") {
+                        tomorrow = DayPlanner.buildTomorrowReviewList(
+                            base: [],
+                            rolloverSource: today,
+                            selectedRolloverIDs: pendingRolloverPriorities,
+                            parkedThoughts: Array(pendingParkedThoughts),
+                            subjects: model.data.subjects
+                        )
                         step = .review
                     }
                     .buttonStyle(SecondaryButtonStyle())
@@ -352,7 +358,14 @@ struct EndOfDayView: View {
                                                              subjects: model.data.subjects)
             isMakingList = false
             if turn.message.isEmpty && !turn.ready {
-                tomorrow = await model.priorityExtractor.priorities(from: listSource, subjects: model.data.subjects)
+                let extracted = await model.priorityExtractor.priorities(from: listSource, subjects: model.data.subjects)
+                tomorrow = DayPlanner.buildTomorrowReviewList(
+                    base: extracted,
+                    rolloverSource: today,
+                    selectedRolloverIDs: pendingRolloverPriorities,
+                    parkedThoughts: Array(pendingParkedThoughts),
+                    subjects: model.data.subjects
+                )
                 step = .review
             } else {
                 apply(turn)
@@ -362,9 +375,13 @@ struct EndOfDayView: View {
 
     private func apply(_ turn: PlannerTurn) {
         if turn.ready {
-            let rollover = DayPlanner.prepareRollover(from: today, selectedIDs: pendingRolloverPriorities)
-            let merged = DayPlanner.appendNew(rollover, to: turn.priorities)
-            tomorrow = DayPlanner.fillingUnassignedSetups(merged, subjects: model.data.subjects)
+            tomorrow = DayPlanner.buildTomorrowReviewList(
+                base: turn.priorities,
+                rolloverSource: today,
+                selectedRolloverIDs: pendingRolloverPriorities,
+                parkedThoughts: Array(pendingParkedThoughts),
+                subjects: model.data.subjects
+            )
             step = .review
             return
         }
@@ -380,17 +397,12 @@ struct EndOfDayView: View {
         if voiceIn.isRecording { voiceIn.stop() }
         isMakingList = true
         Task {
-            var result = source.isEmpty ? [] : await model.priorityExtractor.priorities(from: source, subjects: model.data.subjects)
-            for pending in pendingParkedThoughts {
-                let (title, estimated) = DayPlanner.parseTimeEstimate(from: pending)
-                let subject = DayPlanner.matchSubject(title, subjects: model.data.subjects)
-                if !result.contains(where: { $0.title == title }) {
-                    result.append(Priority(title: title, subjectID: subject, estimatedMinutes: estimated))
-                }
-            }
-            let rollover = DayPlanner.prepareRollover(from: today, selectedIDs: pendingRolloverPriorities)
-            tomorrow = DayPlanner.fillingUnassignedSetups(
-                DayPlanner.appendNew(rollover, to: result),
+            let result = source.isEmpty ? [] : await model.priorityExtractor.priorities(from: source, subjects: model.data.subjects)
+            tomorrow = DayPlanner.buildTomorrowReviewList(
+                base: result,
+                rolloverSource: today,
+                selectedRolloverIDs: pendingRolloverPriorities,
+                parkedThoughts: Array(pendingParkedThoughts),
                 subjects: model.data.subjects
             )
             isMakingList = false

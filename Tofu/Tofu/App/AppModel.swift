@@ -688,6 +688,22 @@ enum TokenSource: Equatable {
         }
     }
 
+    /// Promotes a parked thought from the active focus session into Today's priority plan
+    /// (`#subject` hashtags and time estimates parsed automatically) and removes it from session thoughts.
+    @discardableResult
+    func promoteSessionThoughtToToday(at index: Int, now: Date = Date()) -> Priority? {
+        guard engine.parkedThoughts.indices.contains(index) else { return nil }
+        let thought = engine.parkedThoughts[index]
+        let priority = ThoughtParkingEngine.promoteThoughtToPriority(thought: thought, subjects: data.subjects)
+        let todayKey = DayKey.key(for: now)
+        updatePlan(day: todayKey) { plan in
+            plan.priorities.append(priority)
+        }
+        engine.removeParkedThought(at: index)
+        ToastCenter.shared.show("Promoted to Today: \(priority.title) 🎯")
+        return priority
+    }
+
     /// Updates a priority's editable title, assigned subject, or estimated duration inline.
     func updatePriorityDetails(
         _ id: UUID,

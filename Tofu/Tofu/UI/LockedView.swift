@@ -144,7 +144,7 @@ struct LockedView: View {
                 if sessionTab == .plan {
                     PlanningPriorityView(model: model)
                 } else if sessionTab == .thoughts {
-                    ParkedThoughtsView(engine: model.engine)
+                    ParkedThoughtsView(model: model, engine: model.engine)
                 } else if sessionTab == .closedTabs {
                     ClosedTabsRecoveryView(model: model, engine: model.engine)
                 } else {
@@ -676,6 +676,7 @@ private struct PlanningPriorityView: View {
             } label: {
                 Image(systemName: priority.isDone ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 18))
+                    .foregroundStyle(priority.isDone ? Theme.emerald : Color.secondary)
             }
             .buttonStyle(.plain)
 
@@ -683,11 +684,33 @@ private struct PlanningPriorityView: View {
                 Text(priority.title)
                     .strikethrough(priority.isDone)
                     .foregroundStyle(priority.isDone ? .secondary : .primary)
-                if let subject = priority.subjectID.flatMap(model.subject(id:)) {
-                    Text(subject.name).font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    if let subject = priority.subjectID.flatMap(model.subject(id:)) {
+                        let color = Theme.subjectColor(subject.colorHex)
+                        HStack(spacing: 4) {
+                            Circle().fill(color).frame(width: 5, height: 5)
+                            Text(subject.name).font(.caption.weight(.semibold)).foregroundStyle(color)
+                        }
+                    }
+                    if let est = priority.estimatedMinutes {
+                        Text("· \(est)m")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             Spacer()
+            if !priority.isDone {
+                Button {
+                    model.togglePriorityAnchor(priority.id, day: plan.day)
+                } label: {
+                    Image(systemName: priority.isAnchor ? "star.fill" : "star")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(priority.isAnchor ? Theme.amber : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help(priority.isAnchor ? "Remove focus anchor" : "Set as primary focus anchor (★)")
+            }
             Button {
                 model.updatePlan(day: plan.day) { $0.priorities.removeAll { $0.id == priority.id } }
             } label: {
@@ -704,8 +727,13 @@ private struct PlanningPriorityView: View {
     private func add() {
         let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
-        let subjectID = userSelectedSubject ? newSubjectID : (newSubjectID ?? DayPlanner.matchSubject(title, subjects: model.data.subjects))
-        model.updatePlan(day: plan.day) { $0.priorities.append(Priority(title: title, subjectID: subjectID)) }
+        var created = ThoughtParkingEngine.promoteThoughtToPriority(thought: title, subjects: model.data.subjects)
+        if userSelectedSubject {
+            created.subjectID = newSubjectID
+        } else if created.subjectID == nil {
+            created.subjectID = newSubjectID ?? DayPlanner.matchSubject(created.title, subjects: model.data.subjects)
+        }
+        model.updatePlan(day: plan.day) { $0.priorities.append(created) }
         newTitle = ""
         newSubjectID = nil
         userSelectedSubject = false
@@ -713,8 +741,9 @@ private struct PlanningPriorityView: View {
     }
 }
 
-/// In-session scratchpad to park intrusive ideas or urgent reminders without leaving lock-in.
+/// In-session scratchpad to park intrusive ideas or promote them directly to Today without leaving lock-in.
 private struct ParkedThoughtsView: View {
+    let model: AppModel
     let engine: SessionEngine
     @State private var newThoughtText = ""
     @FocusState private var isFieldFocused: Bool
@@ -779,6 +808,18 @@ private struct ParkedThoughtsView: View {
                             Text(thought)
                                 .font(.body)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                            Button {
+                                _ = model.promoteSessionThoughtToToday(at: index)
+                            } label: {
+                                Text("→ Today")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Theme.emerald.opacity(0.14)))
+                                    .foregroundStyle(Theme.emerald)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Convert thought into a priority on Today's plan (supports #subject and 30m)")
                             Button {
                                 NSPasteboard.general.clearContents()
                                 NSPasteboard.general.setString(thought, forType: .string)

@@ -269,6 +269,24 @@ enum DayPlanner {
             }
     }
 
+    /// Merges base tomorrow priorities with checked rollover priorities and queued parked thoughts,
+    /// parsing `#subject` hashtags and time estimates on parked thoughts and auto-filling unassigned setups.
+    static func buildTomorrowReviewList(
+        base: [Priority],
+        rolloverSource: [Priority],
+        selectedRolloverIDs: Set<UUID>,
+        parkedThoughts: [String],
+        subjects: [Subject]
+    ) -> [Priority] {
+        let convertedThoughts = parkedThoughts
+            .sorted()
+            .map { ThoughtParkingEngine.promoteThoughtToPriority(thought: $0, subjects: subjects) }
+        let rollover = prepareRollover(from: rolloverSource, selectedIDs: selectedRolloverIDs)
+        let withThoughts = appendNew(convertedThoughts, to: base)
+        let merged = appendNew(rollover, to: withThoughts)
+        return fillingUnassignedSetups(merged, subjects: subjects)
+    }
+
     private static func normalized(_ title: String) -> String {
         title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }

@@ -852,4 +852,21 @@ final class DayPlanModelTests: XCTestCase {
         XCTAssertEqual(windows[1].endMinutes, 15 * 60)
         XCTAssertEqual(windows[1].suggestedBlockMinutes, 90)
     }
+
+    func testBuildTomorrowReviewListPreservesBothRolloverAndHashtagParkedThoughts() {
+        let research = Subject(name: "Research", sites: ["arxiv.org"])
+        let existing = Priority(title: "Read paper", subjectID: research.id, isDone: false, estimatedMinutes: 40)
+        let result = DayPlanner.buildTomorrowReviewList(
+            base: [Priority(title: "Morning warmup")],
+            rolloverSource: [existing],
+            selectedRolloverIDs: [existing.id],
+            parkedThoughts: ["#research Write ablation notes 30m"],
+            subjects: [research]
+        )
+
+        XCTAssertEqual(result.count, 3)
+        XCTAssertTrue(result.contains { $0.title == "Morning warmup" })
+        XCTAssertTrue(result.contains { $0.title == "Read paper" && $0.subjectID == research.id && $0.estimatedMinutes == 40 })
+        XCTAssertTrue(result.contains { $0.title == "Write ablation notes" && $0.subjectID == research.id && $0.estimatedMinutes == 30 })
+    }
 }

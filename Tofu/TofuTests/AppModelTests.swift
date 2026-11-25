@@ -707,4 +707,22 @@ final class AppModelTests: XCTestCase {
         XCTAssertNil(cleared?.subjectID)
         XCTAssertNil(cleared?.estimatedMinutes)
     }
+
+    func testPromoteSessionThoughtToTodayParsesHashtagAndRemovesThought() async throws {
+        let h = EngineHarness()
+        let model = AppModel(store: try makeStore(), engine: h.engine)
+        let subject = makeSubject("CS128")
+        model.addSubject(subject)
+
+        await h.engine.start(subject: subject, mode: .open, displayName: "Alex")
+        h.engine.addParkedThought("#cs128 Fix cache invalidation 45m")
+        XCTAssertEqual(h.engine.parkedThoughts.count, 1)
+
+        let promoted = model.promoteSessionThoughtToToday(at: 0)
+        XCTAssertEqual(promoted?.title, "Fix cache invalidation")
+        XCTAssertEqual(promoted?.subjectID, subject.id)
+        XCTAssertEqual(promoted?.estimatedMinutes, 45)
+        XCTAssertTrue(h.engine.parkedThoughts.isEmpty)
+        XCTAssertEqual(model.todayPlan().priorities.last?.id, promoted?.id)
+    }
 }
