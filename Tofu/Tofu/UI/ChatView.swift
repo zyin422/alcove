@@ -32,6 +32,7 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            chatHeaderBar
             messageList
             inputBar
         }
@@ -58,7 +59,63 @@ struct ChatView: View {
         }
     }
 
-    // MARK: Messages
+    // MARK: Header & Messages
+
+    private var chatHeaderBar: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: Theme.Space.s) {
+                Circle()
+                    .fill(assistant.isThinking ? Theme.amber : Theme.emerald)
+                    .frame(width: 6, height: 6)
+                Text(assistant.subject.isEmpty ? "Study Buddy" : "Study Buddy · \(assistant.subject)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer()
+                if isDuplexMode {
+                    Text("Duplex Live")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.indigo.opacity(0.14)))
+                        .foregroundStyle(Theme.indigo)
+                } else if autoSpeakReplies {
+                    Text("Auto-speak")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let pending = assistant.pending.first {
+                HStack(spacing: Theme.Space.s) {
+                    Image(systemName: "questionmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Theme.amber)
+                    Text("Pending check: \(pending.host)")
+                        .font(.caption2.weight(.medium))
+                        .lineLimit(1)
+                    Spacer()
+                    if ChatAssistant.canQuietlyAllow(pending.host) {
+                        Button("Keep") {
+                            _ = assistant.allowSiteNow(pending.host)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                    Button("Close") {
+                        assistant.closeSiteNow(pending.host)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Theme.amber.opacity(0.10)))
+            }
+        }
+        .padding(.horizontal, Theme.Space.m)
+        .padding(.vertical, Theme.Space.xs)
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1) }
+    }
 
     private var messageList: some View {
         ScrollViewReader { proxy in

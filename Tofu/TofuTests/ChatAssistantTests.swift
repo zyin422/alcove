@@ -678,4 +678,13 @@ final class ChatAssistantTests: XCTestCase {
         XCTAssertTrue(rig.sites.allowed.isEmpty)
         XCTAssertEqual(rig.assistant.pending.map(\.host), ["youtube.com"])
     }
+
+    func testObservableSubjectTracksSessionStartAndEnd() {
+        let rig = makeRig()
+        XCTAssertEqual(rig.assistant.subject, "")
+        rig.assistant.beginSession(subject: "MATH241")
+        XCTAssertEqual(rig.assistant.subject, "MATH241")
+        rig.assistant.endSession()
+        XCTAssertEqual(rig.assistant.subject, "")
+    }
 }

@@ -43,6 +43,41 @@ struct SessionStakeBanner: View {
     }
 }
 
+/// Offers a restorative 5-minute break instead of bailing once earned (>=25m focused).
+struct SessionBreakOfferBanner: View {
+    let model: AppModel
+    let onDismissParent: () -> Void
+
+    var body: some View {
+        if model.engine.canTakeBreak && !model.engine.isOnBreak {
+            HStack(spacing: Theme.Space.m) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Theme.emerald)
+                        Text("Need to recharge instead of quitting?")
+                            .font(.caption.weight(.semibold))
+                    }
+                    Text("You unlocked a 5-minute restorative break cleanly.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Take 5m Break") {
+                    onDismissParent()
+                    _ = model.engine.beginBreak(minutes: MirrorTurn.breakDefault)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.emerald)
+                .controlSize(.small)
+            }
+            .padding(Theme.Space.s)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.emerald.opacity(0.12)))
+        }
+    }
+}
+
 /// Shared 2-minute Grace Pass banner surfaced in GiveUpSheet and MirrorSheet.
 struct SessionGracePassBanner: View {
     let model: AppModel
@@ -97,6 +132,7 @@ struct GiveUpSheet: View {
                 .foregroundStyle(.secondary)
 
             SessionStakeBanner(model: model)
+            SessionBreakOfferBanner(model: model) { dismiss() }
             SessionGracePassBanner(model: model) { dismiss() }
 
             VStack(alignment: .leading, spacing: Theme.Space.xs) {

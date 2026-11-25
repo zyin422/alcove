@@ -297,9 +297,14 @@ struct SettingsView: View {
                                     .foregroundStyle(.secondary)
                             }
                         } else if let syncedAt = sync.lastSyncedAt {
-                            Text("Synced \(syncedAt, style: .relative) ago")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            let evCount = sync.todayEvents.count
+                            HStack(spacing: 4) {
+                                Text("\(evCount) \(evCount == 1 ? "event" : "events") · Synced")
+                                Text(syncedAt, style: .relative)
+                                Text("ago")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         }
                         Button("Sync now") {
                             Task { await sync.syncNow() }

@@ -29,6 +29,8 @@ import Observation
 
     /// Sites waiting for the user's answer, oldest first.
     private(set) var pending: [PendingSite] = []
+    /// Active study subject name for UI headers.
+    private(set) var subject = ""
 
     @ObservationIgnored private let apiKey: () -> String?
     @ObservationIgnored private let transport: HTTPTransport
@@ -45,7 +47,6 @@ import Observation
         let deadline: Date
     }
 
-    @ObservationIgnored private var subject = ""
     /// The subject's description, included in the system prompt when one was written.
     @ObservationIgnored private var details = ""
     /// What the model sees (no system message): user / assistant (with tool calls) / tool results.

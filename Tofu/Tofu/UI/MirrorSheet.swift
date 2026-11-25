@@ -27,6 +27,7 @@ struct MirrorSheet: View {
             Text("The Mirror").font(Theme.captionFont).foregroundStyle(.secondary)
 
             SessionStakeBanner(model: model)
+            SessionBreakOfferBanner(model: model) { dismiss() }
             SessionGracePassBanner(model: model) { dismiss() }
 
             if let turn {
