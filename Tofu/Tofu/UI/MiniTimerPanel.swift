@@ -474,9 +474,11 @@ struct MiniTimerView: View {
                         }
                     } else {
                         HStack(spacing: 8) {
-                            let sound = model?.data.settings.focusSound ?? .off
-                            let isSoundActive = sound != .off && FocusAudioEngine.shared.isPlaying
-                            Image(systemName: FocusAudioEngine.iconName(for: sound))
+                            let musicMode = model?.data.settings.focusMusicMode ?? .off
+                            let isSoundActive = (musicMode != .off || (model?.data.settings.focusSound ?? .off) != .off)
+                                && FocusAudioEngine.shared.isPlaying
+                            let trackLabel = FocusAudioEngine.shared.currentTrackTitle ?? musicMode.rawValue
+                            Image(systemName: isSoundActive ? "music.note" : "speaker.slash")
                                 .font(.system(size: 11))
                                 .foregroundStyle(isSoundActive ? Theme.indigo : Color.secondary)
                                 .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
@@ -484,14 +486,16 @@ struct MiniTimerView: View {
                                 .overlay(
                                     isSoundActive ? Circle().stroke(Theme.indigo.opacity(0.4), lineWidth: 1) : nil
                                 )
-                                .help(isSoundActive ? "Soundscape: \(sound.rawValue) (click to cycle, ⌥-click to mute)" : "Focus soundscape: Off (click to cycle, ⌥-click to resume)")
+                                .help(isSoundActive
+                                    ? "Playing: \(trackLabel) (click next track, ⌥-click mute)"
+                                    : "Background music: Off (click to enable, ⌥-click toggle)")
 
                             Image(systemName: "lightbulb.fill")
                                 .font(.system(size: 11))
                                 .foregroundStyle(Color.secondary)
                                 .frame(width: MiniTimerLayout.closeButtonSize, height: MiniTimerLayout.closeButtonSize)
                                 .background(Circle().fill(Color.primary.opacity(0.08)))
-                                .help("Park stray thought (⌘3)")
+                                .help("Park stray thought (\(model?.data.settings.quickThoughtShortcut.rawValue ?? "⌃Space"))")
 
                             Image(systemName: "xmark")
                                 .font(.system(size: 10, weight: .bold))

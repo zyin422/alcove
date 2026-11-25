@@ -87,12 +87,12 @@ struct SettingsView: View {
 
     private var focusSoundSection: some View {
         Section {
-            Picker("Soundscape", selection: focusSoundBinding) {
-                ForEach(FocusSound.allCases) { sound in
-                    Text(sound.rawValue).tag(sound)
+            Picker("Music Mode", selection: focusMusicModeBinding) {
+                ForEach(FocusMusicMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
                 }
             }
-            if model.data.settings.focusSound != .off {
+            if model.data.settings.focusMusicMode != .off {
                 HStack {
                     Text("Volume")
                     Slider(value: focusSoundVolumeBinding, in: 0.05...1.0)
@@ -100,33 +100,45 @@ struct SettingsView: View {
                         .monospacedDigit()
                         .frame(width: 40, alignment: .trailing)
                 }
-                Button(FocusAudioEngine.shared.isPlaying ? "Stop preview" : "Preview soundscape") {
-                    if FocusAudioEngine.shared.isPlaying {
-                        FocusAudioEngine.shared.stop()
-                    } else {
-                        FocusAudioEngine.shared.volume = Float(model.data.settings.focusSoundVolume)
-                        FocusAudioEngine.shared.play(model.data.settings.focusSound)
+                HStack(spacing: Theme.Space.s) {
+                    Button(FocusAudioEngine.shared.isPlaying ? "Stop" : "Play now") {
+                        if FocusAudioEngine.shared.isPlaying {
+                            FocusAudioEngine.shared.stop()
+                        } else {
+                            model.syncBackgroundMusic()
+                        }
+                    }
+                    if FocusAudioEngine.shared.isPlaying && FocusAudioEngine.shared.activePlaylist != nil {
+                        Button("Next track") {
+                            _ = FocusAudioEngine.shared.nextTrack()
+                        }
+                        if let track = FocusAudioEngine.shared.currentTrackTitle {
+                            Text(track)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
             Toggle("Acoustic audio cues", isOn: soundCuesBinding)
         } header: {
-            Text("Focus Soundscape & Audio Cues")
+            Text("Focus Music & Audio Cues")
         } footer: {
-            Text("Continuous ambient background audio synthesized live to mask distractions, plus crisp tactile audio cues on session start, finish, breaks, and distraction intercepts.")
+            Text("Instrumental CC0 game music playlists (zero lyrics): Adaptive mode plays steady Focus music inside blocks and calm Relaxed music during breaks or unlocked hours.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
 
-    private var focusSoundBinding: Binding<FocusSound> {
+    private var focusMusicModeBinding: Binding<FocusMusicMode> {
         Binding(
-            get: { model.data.settings.focusSound },
-            set: { newSound in
-                model.updateSettings { $0.focusSound = newSound }
-                if FocusAudioEngine.shared.isPlaying {
-                    FocusAudioEngine.shared.play(newSound)
+            get: { model.data.settings.focusMusicMode },
+            set: { newMode in
+                model.updateSettings {
+                    $0.focusMusicMode = newMode
+                    if newMode == .off { $0.focusSound = .off }
                 }
+                model.syncBackgroundMusic()
             }
         )
     }
@@ -160,22 +172,24 @@ struct SettingsView: View {
                 }
                 Spacer()
                 HStack(spacing: 4) {
-                    Text("⌃")
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.18)))
-                    Text("⌥")
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.18)))
-                    Text("Space")
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.18)))
+                    ForEach(model.data.settings.quickThoughtShortcut.badgeKeys, id: \.self) { key in
+                        Text(key)
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.18)))
+                    }
                 }
+            }
+            Picker("Keybinding", selection: quickThoughtShortcutBinding) {
+                ForEach(QuickThoughtShortcut.allCases) { shortcut in
+                    Text(shortcut.rawValue).tag(shortcut)
+                }
+            }
+            if GlobalHotKeyManager.shared.quickThoughtConflict {
+                Text("That shortcut is currently claimed by macOS (e.g. Input Source switching on ⌃Space). Pick ⌥Space or disable Input Source shortcut in System Settings.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.amber)
             }
 
             Button {
@@ -189,10 +203,19 @@ struct SettingsView: View {
         } header: {
             Text("Global Shortcuts")
         } footer: {
-            Text("Works globally in all spaces without requiring Accessibility permissions. Type your stray thought, press Return to park, or Esc to cancel.")
+            Text("Works globally in all spaces without requiring Accessibility permissions. Type immediately, press Return to park, or Esc to cancel.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var quickThoughtShortcutBinding: Binding<QuickThoughtShortcut> {
+        Binding(
+            get: { model.data.settings.quickThoughtShortcut },
+            set: { newShortcut in
+                model.updateSettings { $0.quickThoughtShortcut = newShortcut }
+            }
+        )
     }
 
     private var discordSection: some View {
@@ -303,7 +326,7 @@ struct SettingsView: View {
         } header: {
             Text("Anti-Avoidance & Startup")
         } footer: {
-            Text("Starts Tofu on login and keeps it active between 07:30 and 23:00 so you cannot derail your day by avoiding the app.")
+            Text("Starts Tofu on login and keeps it active between 04:00 and 23:00 so you cannot derail your day by avoiding the app.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -465,25 +465,41 @@ struct LockedView: View {
 
     private var focusSoundControl: some View {
         Menu {
-            Section("Soundscape") {
-                ForEach(FocusSound.allCases) { sound in
+            Section("Music Mode") {
+                ForEach(FocusMusicMode.allCases) { mode in
                     Button {
-                        model.updateSettings { $0.focusSound = sound }
-                        FocusAudioEngine.shared.play(sound)
-                    } label: {
-                        if FocusAudioEngine.shared.activeSound == sound {
-                            Label(sound.rawValue, systemImage: "checkmark")
-                        } else {
-                            Text(sound.rawValue)
+                        model.updateSettings {
+                            $0.focusMusicMode = mode
+                            if mode == .off { $0.focusSound = .off }
                         }
+                        model.syncBackgroundMusic()
+                    } label: {
+                        if model.data.settings.focusMusicMode == mode {
+                            Label(mode.rawValue, systemImage: "checkmark")
+                        } else {
+                            Text(mode.rawValue)
+                        }
+                    }
+                }
+            }
+            if FocusAudioEngine.shared.isPlaying && FocusAudioEngine.shared.activePlaylist != nil {
+                Section("Track") {
+                    if let title = FocusAudioEngine.shared.currentTrackTitle {
+                        Text("Playing: \(title)")
+                    }
+                    Button("Next track") {
+                        _ = FocusAudioEngine.shared.nextTrack()
                     }
                 }
             }
             if FocusAudioEngine.shared.isPlaying {
                 Section("Volume") {
                     Button("Mute") {
-                        model.updateSettings { $0.focusSound = .off }
-                        FocusAudioEngine.shared.stop()
+                        model.updateSettings {
+                            $0.focusMusicMode = .off
+                            $0.focusSound = .off
+                        }
+                        model.syncBackgroundMusic()
                     }
                     Button("25% Volume") {
                         model.updateSettings { $0.focusSoundVolume = 0.25 }
@@ -505,12 +521,15 @@ struct LockedView: View {
             }
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: FocusAudioEngine.shared.isPlaying ? "waveform" : "waveform.slash")
+                let playing = FocusAudioEngine.shared.isPlaying
+                let title = FocusAudioEngine.shared.currentTrackTitle
+                    ?? (model.data.settings.focusMusicMode == .off ? "Music: Off" : model.data.settings.focusMusicMode.rawValue)
+                Image(systemName: playing ? "music.note" : "speaker.slash")
                     .font(.system(size: 11))
-                    .foregroundStyle(FocusAudioEngine.shared.isPlaying ? Theme.indigo : Color.secondary)
-                Text(FocusAudioEngine.shared.activeSound == .off ? "Sound: Off" : FocusAudioEngine.shared.activeSound.rawValue)
+                    .foregroundStyle(playing ? Theme.indigo : Color.secondary)
+                Text(playing ? title : "Music: Off")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(FocusAudioEngine.shared.isPlaying ? Color.primary : Color.secondary)
+                    .foregroundStyle(playing ? Color.primary : Color.secondary)
                     .lineLimit(1)
             }
             .padding(.horizontal, 8)
@@ -519,7 +538,7 @@ struct LockedView: View {
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(FocusAudioEngine.shared.isPlaying ? Theme.indigo.opacity(0.3) : Color.clear, lineWidth: 1))
         }
         .menuStyle(.borderlessButton)
-        .help("Ambient focus sound")
+        .help("Instrumental focus & relaxed music")
     }
 }
 

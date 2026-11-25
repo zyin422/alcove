@@ -16,7 +16,10 @@ enum GlobalHotKeyAction: UInt32, CaseIterable {
     }
 
     var modifiers: UInt32 {
-        UInt32(controlKey | optionKey)
+        switch self {
+        case .quickThought: return UInt32(controlKey)
+        case .toggleMute, .toggleHUD: return UInt32(controlKey | optionKey)
+        }
     }
 }
 
@@ -32,7 +35,7 @@ protocol HotKeyManaging: AnyObject {
     func dispatch(action: GlobalHotKeyAction)
 }
 
-/// Global HotKey Manager registering system-wide shortcuts (default: ⌃⌥Space, ⌃⌥M, ⌃⌥H)
+/// Global HotKey Manager registering system-wide shortcuts (default: ⌃Space, ⌃⌥M, ⌃⌥H)
 /// Uses Carbon EventHotKey API for zero-accessibility-permission global capture across macOS spaces.
 @MainActor
 final class GlobalHotKeyManager: HotKeyManaging {
@@ -42,17 +45,34 @@ final class GlobalHotKeyManager: HotKeyManaging {
     var onToggleMute: (() -> Void)?
     var onToggleHUD: (() -> Void)?
     private(set) var isRegistered = false
+    private(set) var quickThoughtConflict = false
 
     private var hotKeyRefs: [UInt32: EventHotKeyRef] = [:]
     private var eventHandler: EventHandlerRef?
 
-    let keyCode: UInt32
-    let modifiers: UInt32
+    private(set) var keyCode: UInt32
+    private(set) var modifiers: UInt32
 
-    /// Default hotkey: Control + Option + Space (kVK_Space: 49)
-    init(keyCode: UInt32 = UInt32(kVK_Space), modifiers: UInt32 = UInt32(controlKey | optionKey)) {
+    /// Default hotkey: Control + Space (kVK_Space: 49)
+    init(keyCode: UInt32 = UInt32(kVK_Space), modifiers: UInt32 = UInt32(controlKey)) {
         self.keyCode = keyCode
         self.modifiers = modifiers
+    }
+
+    static func modifiers(for shortcut: QuickThoughtShortcut) -> UInt32 {
+        switch shortcut {
+        case .controlSpace: return UInt32(controlKey)
+        case .optionSpace: return UInt32(optionKey)
+        case .controlOptionSpace: return UInt32(controlKey | optionKey)
+        }
+    }
+
+    func updateQuickThoughtShortcut(_ shortcut: QuickThoughtShortcut) {
+        let nextMods = Self.modifiers(for: shortcut)
+        guard nextMods != modifiers || !isRegistered else { return }
+        modifiers = nextMods
+        unregister()
+        register()
     }
 
     @discardableResult
@@ -88,6 +108,7 @@ final class GlobalHotKeyManager: HotKeyManaging {
         let handlerStatus = InstallEventHandler(GetApplicationEventTarget(), handler, 1, &eventType, selfPtr, &eventHandler)
         guard handlerStatus == noErr else { return false }
 
+        quickThoughtConflict = false
         for action in GlobalHotKeyAction.allCases {
             var hotKeyID = EventHotKeyID()
             hotKeyID.signature = OSType(0x544F4655) // 'TOFU'
@@ -99,6 +120,8 @@ final class GlobalHotKeyManager: HotKeyManaging {
             let regStatus = RegisterEventHotKey(key, mods, hotKeyID, GetApplicationEventTarget(), 0, &ref)
             if regStatus == noErr, let ref {
                 hotKeyRefs[action.rawValue] = ref
+            } else if action == .quickThought {
+                quickThoughtConflict = true
             }
         }
 

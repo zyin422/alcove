@@ -42,6 +42,33 @@ enum FocusSound: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// Mode-based instrumental background music playlist preference.
+enum FocusMusicMode: String, Codable, CaseIterable, Identifiable {
+    case off = "Off"
+    case adaptive = "Adaptive (Focus · Relaxed)"
+    case focus = "Focus Playlist"
+    case relaxed = "Relaxed Playlist"
+
+    var id: String { rawValue }
+}
+
+/// Configurable global shortcut for opening Quick-Thought capture.
+enum QuickThoughtShortcut: String, Codable, CaseIterable, Identifiable {
+    case controlSpace = "⌃Space"
+    case optionSpace = "⌥Space"
+    case controlOptionSpace = "⌃⌥Space"
+
+    var id: String { rawValue }
+
+    var badgeKeys: [String] {
+        switch self {
+        case .controlSpace: return ["⌃", "Space"]
+        case .optionSpace: return ["⌥", "Space"]
+        case .controlOptionSpace: return ["⌃", "⌥", "Space"]
+        }
+    }
+}
+
 /// User preferences persisted in store.json. The Discord bot token is NOT here (Keychain only).
 struct AppSettings: Codable, Equatable {
     var displayName: String
@@ -107,6 +134,12 @@ struct AppSettings: Codable, Equatable {
     var dailyTargetMinutes: Int
     /// Discrete acoustic cues on block start, finish, breaks, and distraction intercepts.
     var soundCuesEnabled: Bool
+    /// Overarching instrumental game-music mode (Adaptive plays Focus in blocks and Relaxed out of blocks).
+    var focusMusicMode: FocusMusicMode
+    /// Global shortcut modifier preset for Spotlight Quick-Thought.
+    var quickThoughtShortcut: QuickThoughtShortcut
+    /// `DayKey` of the last day the "All study subjects completed" celebration toast fired.
+    var lastStudyCelebratedDay: String?
 
     init(displayName: String = NSFullUserName(), discordEnabled: Bool = false,
          giveUpTemplate: String = "I give up on {subject}", channelCache: [String: String] = [:],
@@ -129,7 +162,10 @@ struct AppSettings: Codable, Equatable {
          kokoroVoice: KokoroVoice = .heart,
          voiceVolume: Double = 1.0,
          dailyTargetMinutes: Int = 4 * 60,
-         soundCuesEnabled: Bool = true) {
+         soundCuesEnabled: Bool = true,
+         focusMusicMode: FocusMusicMode = .off,
+         quickThoughtShortcut: QuickThoughtShortcut = .controlSpace,
+         lastStudyCelebratedDay: String? = nil) {
         self.displayName = displayName
         self.discordEnabled = discordEnabled
         self.giveUpTemplate = giveUpTemplate
@@ -163,6 +199,9 @@ struct AppSettings: Codable, Equatable {
         self.voiceVolume = voiceVolume
         self.dailyTargetMinutes = dailyTargetMinutes
         self.soundCuesEnabled = soundCuesEnabled
+        self.focusMusicMode = focusMusicMode
+        self.quickThoughtShortcut = quickThoughtShortcut
+        self.lastStudyCelebratedDay = lastStudyCelebratedDay
     }
 }
 
@@ -171,6 +210,10 @@ extension AppSettings {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = AppSettings()
+        let decodedFocusSound = try container.decodeIfPresent(FocusSound.self, forKey: .focusSound)
+            ?? defaults.focusSound
+        let decodedMusicMode = try container.decodeIfPresent(FocusMusicMode.self, forKey: .focusMusicMode)
+            ?? (decodedFocusSound == .off ? defaults.focusMusicMode : .adaptive)
         self.init(
             displayName: try container.decodeIfPresent(String.self, forKey: .displayName) ?? defaults.displayName,
             discordEnabled: try container.decodeIfPresent(Bool.self, forKey: .discordEnabled) ?? defaults.discordEnabled,
@@ -207,8 +250,7 @@ extension AppSettings {
                 ?? defaults.aiFeedURL,
             lastMidnightPlanningKey: try container.decodeIfPresent(String.self, forKey: .lastMidnightPlanningKey),
             lastDayPlanningKey: try container.decodeIfPresent(String.self, forKey: .lastDayPlanningKey),
-            focusSound: try container.decodeIfPresent(FocusSound.self, forKey: .focusSound)
-                ?? defaults.focusSound,
+            focusSound: decodedFocusSound,
             focusSoundVolume: try container.decodeIfPresent(Double.self, forKey: .focusSoundVolume)
                 ?? defaults.focusSoundVolume,
             autoLaunchAtLogin: try container.decodeIfPresent(Bool.self, forKey: .autoLaunchAtLogin)
@@ -222,7 +264,11 @@ extension AppSettings {
             dailyTargetMinutes: try container.decodeIfPresent(Int.self, forKey: .dailyTargetMinutes)
                 ?? defaults.dailyTargetMinutes,
             soundCuesEnabled: try container.decodeIfPresent(Bool.self, forKey: .soundCuesEnabled)
-                ?? defaults.soundCuesEnabled)
+                ?? defaults.soundCuesEnabled,
+            focusMusicMode: decodedMusicMode,
+            quickThoughtShortcut: try container.decodeIfPresent(QuickThoughtShortcut.self, forKey: .quickThoughtShortcut)
+                ?? defaults.quickThoughtShortcut,
+            lastStudyCelebratedDay: try container.decodeIfPresent(String.self, forKey: .lastStudyCelebratedDay))
     }
 }
 

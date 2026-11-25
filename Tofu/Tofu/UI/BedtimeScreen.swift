@@ -50,8 +50,8 @@ private final class BedtimeWindow: NSWindow {
             let window = BedtimeWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.allowsClose = false
             window.isReleasedWhenClosed = false
-            window.level = .screenSaver
-            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+            window.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
             window.hidesOnDeactivate = false
             window.isMovable = false
             window.backgroundColor = NSColor(red: 0.05, green: 0.06, blue: 0.10, alpha: 1.0)
@@ -65,13 +65,15 @@ private final class BedtimeWindow: NSWindow {
 
     private func reassert() {
         guard !windows.isEmpty else { return }
-        let alreadyUp = windows.allSatisfy(\.isVisible) && NSApp.isActive
+        let alreadyUp = windows.allSatisfy { $0.isVisible && $0.isOnActiveSpace }
+            && NSApp.isActive
+            && windows.contains(where: \.isKeyWindow)
         guard !alreadyUp else { return }
+        NSApp.activate(ignoringOtherApps: true)
         for window in windows {
             window.orderFrontRegardless()
         }
-        NSRunningApplication.current.activate()
-        windows.first { $0.contentView is NSHostingView<BedtimeView> }?.makeKey()
+        windows.first { $0.contentView is NSHostingView<BedtimeView> }?.makeKeyAndOrderFront(nil)
     }
 
     private func refit() {

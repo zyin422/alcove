@@ -198,10 +198,7 @@ enum TokenSource: Equatable {
         engine.onLockedIn = { [weak self] subject in
             self?.assistant.beginSession(subject: subject.name, details: subject.details)
             BlockGuard.arm()
-            if let settings = self?.data.settings, settings.focusSound != .off {
-                FocusAudioEngine.shared.volume = Float(settings.focusSoundVolume)
-                FocusAudioEngine.shared.play(settings.focusSound)
-            }
+            self?.syncBackgroundMusic()
         }
         engine.onSiteAllowed = { [weak self] host in self?.persistAllowedHost(host) }
         engine.onAppAllowed = { [weak self] app in self?.persistAllowedApp(app) }
@@ -212,12 +209,12 @@ enum TokenSource: Equatable {
         engine.soundCuesEnabled = { [weak self] in
             self?.data.settings.soundCuesEnabled ?? true
         }
-        engine.onBreakStarted = { FocusAudioEngine.shared.pause() }
-        engine.onBreakEnded = { FocusAudioEngine.shared.resume() }
+        engine.onBreakStarted = { [weak self] in self?.syncBackgroundMusic() }
+        engine.onBreakEnded = { [weak self] in self?.syncBackgroundMusic() }
         assistant.apps = engine
         engine.onEnded = { [weak self] in
             BlockGuard.disarm()
-            FocusAudioEngine.shared.fadeOutAndStop(duration: 0.8)
+            self?.syncBackgroundMusic()
             self?.assistant.endSession()
             self?.onSessionEnded?()
             self?.checkMorning()
@@ -564,6 +561,7 @@ enum TokenSource: Equatable {
 
     /// Ticks (or unticks) a priority of `day`. Finishing one posts an update to Discord.
     func setPriority(_ id: UUID, done: Bool, day: String) {
+        let wasCompleted = isStudyCompleted(day: day)
         var finished: Priority?
         updatePlan(day: day) { plan in
             guard let index = plan.priorities.firstIndex(where: { $0.id == id }) else { return }
@@ -576,7 +574,10 @@ enum TokenSource: Equatable {
             if isStudyCompleted(day: day) {
                 dismissMorning()
                 onStudyCompleted?()
-                ToastCenter.shared.show("All study subjects completed for today! 🎉")
+                if !wasCompleted && data.settings.lastStudyCelebratedDay != day {
+                    updateSettings { $0.lastStudyCelebratedDay = day }
+                    ToastCenter.shared.show("All study subjects completed for today! 🎉")
+                }
             }
         }
     }
@@ -793,6 +794,7 @@ enum TokenSource: Equatable {
                 self?.morningReturnTimer = nil
                 self?.endReturnTimerActivity()
                 self?.checkMorning()
+                self?.checkBedtime()
             }
         }
         timer.tolerance = 0
@@ -957,9 +959,11 @@ enum TokenSource: Equatable {
     }
 
     func showBedtime(now: Date = Date()) {
-        guard !engine.isLocked, !isShowingBedtime else { return }
+        guard !engine.isLocked else { return }
         if isShowingMorning { dismissMorning() }
-        isShowingBedtime = true
+        if !isShowingBedtime {
+            isShowingBedtime = true
+        }
         onShowBedtime?()
     }
 
@@ -1070,17 +1074,44 @@ enum TokenSource: Equatable {
     // MARK: Settings
 
     func updateSettings(_ mutate: (inout AppSettings) -> Void) {
+        let oldShortcut = data.settings.quickThoughtShortcut
         mutate(&data.settings)
         save()
         syncAutoLaunchAndGuardian()
+        if oldShortcut != data.settings.quickThoughtShortcut,
+           ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            GlobalHotKeyManager.shared.updateQuickThoughtShortcut(data.settings.quickThoughtShortcut)
+        }
         VoiceOutput.shared.voice = data.settings.kokoroVoice
         VoiceOutput.shared.volume = Float(data.settings.voiceVolume)
     }
 
     /// Synchronizes LaunchAgents with user preferences to prevent morning evasion.
     func syncAutoLaunchAndGuardian() {
-        AutoLaunchManager.setAutoLaunch(enabled: data.settings.autoLaunchAtLogin)
-        AutoLaunchManager.setDayGuardian(enabled: data.settings.dayGuardianEnabled)
+        AutoLaunchManager.reconcile(settings: data.settings)
+    }
+
+    /// Aligns Focus/Relaxed background game music with the active lock-in and break state.
+    func syncBackgroundMusic(now: Date = Date()) {
+        guard !isShowingBedtime else {
+            FocusAudioEngine.shared.stop()
+            return
+        }
+        let volume = Float(data.settings.focusSoundVolume)
+        let mode = data.settings.focusMusicMode
+        if mode != .off {
+            FocusAudioEngine.shared.syncMusicMode(
+                mode,
+                isLocked: engine.isLocked,
+                isOnBreak: engine.isOnBreak,
+                volume: volume
+            )
+        } else if data.settings.focusSound != .off && engine.isLocked && !engine.isOnBreak {
+            FocusAudioEngine.shared.volume = volume
+            FocusAudioEngine.shared.play(data.settings.focusSound)
+        } else if FocusAudioEngine.shared.isPlaying {
+            FocusAudioEngine.shared.fadeOutAndStop(duration: 0.6)
+        }
     }
 
     /// Writes `data` to the store. A failure is shown as a toast; the in-memory data stays intact.

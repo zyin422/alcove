@@ -90,7 +90,10 @@ enum QuitPolicy {
         GlobalHotKeyManager.shared.onToggleHUD = { [weak self] in
             self?.presenter?.toggleMiniTimerTuck()
         }
+        GlobalHotKeyManager.shared.updateQuickThoughtShortcut(model.data.settings.quickThoughtShortcut)
         GlobalHotKeyManager.shared.register()
+        model.syncAutoLaunchAndGuardian()
+        model.syncBackgroundMusic()
         endOfDayTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.storedModel?.checkMorning()

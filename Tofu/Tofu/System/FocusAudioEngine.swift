@@ -72,13 +72,85 @@ enum FocusAudioMath {
     }
 }
 
-/// Plays continuous, soothing ambient soundscapes on the Mac's audio hardware
-/// using cached audio recordings when available or high-fidelity organic synthesis.
-@Observable @MainActor final class FocusAudioEngine: NSObject {
+/// Curated public-domain (CC0) instrumental game-music playlists.
+enum FocusMusicPlaylist: String, CaseIterable {
+    case focus = "Focus"
+    case relaxed = "Relaxed"
+
+    var subdirectory: String {
+        switch self {
+        case .focus: return "Audio/Focus"
+        case .relaxed: return "Audio/Relaxed"
+        }
+    }
+}
+
+/// One playable audio track belonging to a playlist.
+struct MusicTrack: Equatable {
+    let title: String
+    let url: URL
+}
+
+/// Plays continuous, soothing instrumental game-music playlists or ambient soundscapes
+/// on the Mac's audio hardware using bundled/cached recordings with smooth fades and voice ducking.
+@Observable @MainActor final class FocusAudioEngine: NSObject, AVAudioPlayerDelegate {
     static let shared = FocusAudioEngine()
 
-    static var audioDirectory: URL {
+    nonisolated static var audioDirectory: URL {
         Store.defaultURL().deletingLastPathComponent().appendingPathComponent("Audio")
+    }
+
+    nonisolated static func formattedTrackTitle(for url: URL) -> String {
+        url.deletingPathExtension().lastPathComponent
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .capitalized
+    }
+
+    nonisolated static func tracks(for playlist: FocusMusicPlaylist, bundle: Bundle = .main,
+                                   customRoot: URL? = nil) -> [MusicTrack] {
+        let fm = FileManager.default
+        let exts = Set(["mp3", "m4a", "wav", "caf", "aif"])
+        var urls: [URL] = []
+
+        let sub = playlist.subdirectory
+        if let resURL = bundle.resourceURL?.appendingPathComponent(sub),
+           let items = try? fm.contentsOfDirectory(at: resURL, includingPropertiesForKeys: nil) {
+            urls.append(contentsOf: items.filter { exts.contains($0.pathExtension.lowercased()) })
+        } else {
+            for ext in ["mp3", "m4a", "wav"] {
+                if let list = bundle.urls(forResourcesWithExtension: ext, subdirectory: sub) {
+                    urls.append(contentsOf: list)
+                }
+            }
+        }
+
+        let userDir = (customRoot ?? audioDirectory).appendingPathComponent(playlist.rawValue)
+        if let userItems = try? fm.contentsOfDirectory(at: userDir, includingPropertiesForKeys: nil) {
+            urls.append(contentsOf: userItems.filter { exts.contains($0.pathExtension.lowercased()) })
+        }
+
+        var seen = Set<String>()
+        return urls
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .compactMap { url -> MusicTrack? in
+                guard seen.insert(url.lastPathComponent.lowercased()).inserted else { return nil }
+                return MusicTrack(title: formattedTrackTitle(for: url), url: url)
+            }
+    }
+
+    nonisolated static func targetPlaylist(for mode: FocusMusicMode, isLocked: Bool, isOnBreak: Bool) -> FocusMusicPlaylist? {
+        switch mode {
+        case .off: return nil
+        case .focus: return .focus
+        case .relaxed: return .relaxed
+        case .adaptive: return (isLocked && !isOnBreak) ? .focus : .relaxed
+        }
+    }
+
+    nonisolated static func musicIconName(for mode: FocusMusicMode, isPlaying: Bool) -> String {
+        guard mode != .off else { return "speaker.slash" }
+        return isPlaying ? "music.note" : "speaker.wave.2"
     }
 
     /// Cycles to the next soundscape in the quick-cycle rotation.
@@ -109,6 +181,10 @@ enum FocusAudioMath {
     private(set) var isPlaying = false
     private(set) var isPaused = false
     private(set) var activeSound: FocusSound = .off
+    private(set) var activePlaylist: FocusMusicPlaylist?
+    private(set) var currentTrackTitle: String?
+    @ObservationIgnored private var playlistTracks: [MusicTrack] = []
+    @ObservationIgnored private var playlistIndex = 0
     var volume: Float = 0.5 {
         didSet {
             if isPlaying && !isPaused {
@@ -152,6 +228,79 @@ enum FocusAudioMath {
             }
             self?.engine?.mainMixerNode.outputVolume = target
             completion?()
+        }
+    }
+
+    /// Starts playing the curated CC0 instrumental playlist for `playlist` (no synthesis fallback noise).
+    func playPlaylist(_ playlist: FocusMusicPlaylist, fadeIn: Bool = true) {
+        let tracks = Self.tracks(for: playlist)
+        guard !tracks.isEmpty else { return }
+        if isPlaying, activePlaylist == playlist, player != nil {
+            if isPaused { resume(fadeInDuration: fadeIn ? 0.8 : 0) }
+            return
+        }
+        stop()
+        activePlaylist = playlist
+        playlistTracks = tracks
+        playlistIndex = 0
+        startCurrentPlaylistTrack(fadeIn: fadeIn)
+    }
+
+    /// Advances to the next instrumental track in the current playlist.
+    @discardableResult
+    func nextTrack() -> String? {
+        guard !playlistTracks.isEmpty, let playlist = activePlaylist else { return nil }
+        playlistIndex = (playlistIndex + 1) % playlistTracks.count
+        activePlaylist = playlist
+        startCurrentPlaylistTrack(fadeIn: false)
+        return currentTrackTitle
+    }
+
+    /// Aligns playback automatically with Focus (in-block) vs Relaxed (break/out-of-block) music mode.
+    func syncMusicMode(_ mode: FocusMusicMode, isLocked: Bool, isOnBreak: Bool, volume: Float) {
+        self.volume = volume
+        guard let target = Self.targetPlaylist(for: mode, isLocked: isLocked, isOnBreak: isOnBreak) else {
+            if activePlaylist != nil || isPlaying {
+                fadeOutAndStop(duration: 0.5)
+            }
+            return
+        }
+        if isPaused {
+            resume(fadeInDuration: 0.6)
+        }
+        if activePlaylist != target || !isPlaying {
+            playPlaylist(target, fadeIn: true)
+        }
+    }
+
+    private func startCurrentPlaylistTrack(fadeIn: Bool) {
+        guard playlistTracks.indices.contains(playlistIndex) else { return }
+        let track = playlistTracks[playlistIndex]
+        do {
+            let audioPlayer = try AVAudioPlayer(contentsOf: track.url)
+            audioPlayer.delegate = self
+            audioPlayer.numberOfLoops = playlistTracks.count == 1 ? -1 : 0
+            audioPlayer.volume = fadeIn ? 0.0 : volume
+            audioPlayer.prepareToPlay()
+            audioPlayer.play()
+            if fadeIn {
+                audioPlayer.setVolume(volume, fadeDuration: 1.0)
+            }
+            self.player?.stop()
+            self.player = audioPlayer
+            self.currentTrackTitle = track.title
+            self.activeSound = activePlaylist == .focus ? .lofiDrone : .stream
+            self.isPaused = false
+            self.isPlaying = true
+        } catch {
+            self.currentTrackTitle = nil
+        }
+    }
+
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor [weak self] in
+            guard let self, self.player === player, self.activePlaylist != nil else { return }
+            _ = self.nextTrack()
         }
     }
 
@@ -444,6 +593,10 @@ enum FocusAudioMath {
         isPlaying = false
         isPaused = false
         activeSound = .off
+        activePlaylist = nil
+        currentTrackTitle = nil
+        playlistTracks = []
+        playlistIndex = 0
     }
 
     /// Pauses current playback without deallocating the pipeline, with optional smooth fade-out.

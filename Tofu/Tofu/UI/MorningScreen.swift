@@ -53,8 +53,8 @@ private final class MorningWindow: NSWindow {
             let window = MorningWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.allowsClose = false
             window.isReleasedWhenClosed = false
-            window.level = .screenSaver
-            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+            window.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
             window.hidesOnDeactivate = false
             window.isMovable = false
             window.backgroundColor = .windowBackgroundColor
@@ -69,13 +69,15 @@ private final class MorningWindow: NSWindow {
     /// Switching away, hiding the app, or closing the window brings the screen back.
     private func reassert() {
         guard !windows.isEmpty else { return }
-        let alreadyUp = windows.allSatisfy(\.isVisible) && NSApp.isActive
+        let alreadyUp = windows.allSatisfy { $0.isVisible && $0.isOnActiveSpace }
+            && NSApp.isActive
+            && windows.contains(where: \.isKeyWindow)
         guard !alreadyUp else { return }
+        NSApp.activate(ignoringOtherApps: true)
         for window in windows {
             window.orderFrontRegardless()
         }
-        NSRunningApplication.current.activate()
-        windows.first { $0.contentView is NSHostingView<MorningView> }?.makeKey()
+        windows.first { $0.contentView is NSHostingView<MorningView> }?.makeKeyAndOrderFront(nil)
     }
 
     private func refit() {

@@ -168,4 +168,31 @@ final class FocusAudioTests: XCTestCase {
         XCTAssertFalse(engine.isPlaying)
         XCTAssertEqual(engine.activeSound, .off)
     }
+
+    func testFocusMusicModePlaylistRoutingAndLegacyMigration() throws {
+        XCTAssertEqual(FocusAudioEngine.targetPlaylist(for: .off, isLocked: true, isOnBreak: false), nil)
+        XCTAssertEqual(FocusAudioEngine.targetPlaylist(for: .adaptive, isLocked: true, isOnBreak: false), .focus)
+        XCTAssertEqual(FocusAudioEngine.targetPlaylist(for: .adaptive, isLocked: true, isOnBreak: true), .relaxed)
+        XCTAssertEqual(FocusAudioEngine.targetPlaylist(for: .adaptive, isLocked: false, isOnBreak: false), .relaxed)
+        XCTAssertEqual(FocusAudioEngine.targetPlaylist(for: .focus, isLocked: false, isOnBreak: false), .focus)
+        XCTAssertEqual(FocusAudioEngine.targetPlaylist(for: .relaxed, isLocked: true, isOnBreak: false), .relaxed)
+
+        let legacySoundJSON = #"{"displayName":"Z","focusSound":"Gentle Rain"}"#.data(using: .utf8)!
+        let migrated = try JSONDecoder().decode(AppSettings.self, from: legacySoundJSON)
+        XCTAssertEqual(migrated.focusMusicMode, .adaptive)
+        XCTAssertEqual(migrated.quickThoughtShortcut, .controlSpace)
+
+        XCTAssertEqual(
+            FocusAudioEngine.formattedTrackTitle(for: URL(fileURLWithPath: "/tmp/town_theme.mp3")),
+            "Town Theme"
+        )
+    }
+
+    @MainActor
+    func testBundledCC0PlaylistsContainTracks() {
+        let focus = FocusAudioEngine.tracks(for: .focus, bundle: Bundle.main)
+        let relaxed = FocusAudioEngine.tracks(for: .relaxed, bundle: Bundle.main)
+        XCTAssertGreaterThanOrEqual(focus.count, 3)
+        XCTAssertGreaterThanOrEqual(relaxed.count, 3)
+    }
 }

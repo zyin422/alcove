@@ -12,6 +12,8 @@ private final class QuickThoughtPanel: NSPanel {
     static let shared = QuickThoughtPanelController()
 
     private var panel: NSPanel?
+    private var previousApplication: NSRunningApplication?
+    private var escapeMonitor: Any?
 
     var isPresented: Bool {
         panel != nil && panel?.isVisible == true
@@ -36,17 +38,22 @@ private final class QuickThoughtPanel: NSPanel {
         onParked: ((String) -> Void)? = nil,
         onPromoted: ((String) -> Void)? = nil
     ) {
-        panel?.close()
+        tearDownPanel(restorePreviousApp: false)
+
+        if let frontmost = NSWorkspace.shared.frontmostApplication,
+           frontmost.bundleIdentifier != Bundle.main.bundleIdentifier {
+            previousApplication = frontmost
+        }
 
         let size = CGSize(width: 530, height: 52)
-        guard let screen = NSScreen.main else { return }
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         let visible = screen.visibleFrame
         let x = visible.midX - (size.width / 2)
         let y = visible.maxY - 140
 
         let window = QuickThoughtPanel(
             contentRect: NSRect(x: x, y: y, width: size.width, height: size.height),
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
@@ -57,16 +64,15 @@ private final class QuickThoughtPanel: NSPanel {
         window.hasShadow = true
 
         let view = QuickThoughtView(
-            onCommit: { [weak self, weak window] thought in
+            onCommit: { [weak self] thought in
                 let cleaned = thought.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !cleaned.isEmpty {
                     engine.addParkedThought(cleaned)
                     onParked?(cleaned)
                 }
-                window?.close()
-                self?.panel = nil
+                self?.close()
             },
-            onPromote: { [weak self, weak window] thought in
+            onPromote: { [weak self] thought in
                 let cleaned = thought.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !cleaned.isEmpty {
                     engine.addParkedThought(cleaned)
@@ -83,24 +89,65 @@ private final class QuickThoughtPanel: NSPanel {
                     }
                     onPromoted?(cleaned)
                 }
-                window?.close()
-                self?.panel = nil
+                self?.close()
             },
-            onCancel: { [weak self, weak window] in
-                window?.close()
-                self?.panel = nil
+            onCancel: { [weak self] in
+                self?.close()
             }
         )
 
         window.contentView = NSHostingView(rootView: view)
-        window.orderFrontRegardless()
-        window.makeKey()
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
         self.panel = window
+
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // Escape
+                Task { @MainActor in self?.close() }
+                return nil
+            }
+            return event
+        }
+
+        // Promote the SwiftUI TextField's underlying NSTextField to firstResponder immediately on the next tick.
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, self.panel === window else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            if let field = Self.findTextField(in: window.contentView) {
+                window.makeFirstResponder(field)
+            }
+        }
     }
 
     func close() {
+        tearDownPanel(restorePreviousApp: true)
+    }
+
+    private func tearDownPanel(restorePreviousApp: Bool) {
+        if let escapeMonitor {
+            NSEvent.removeMonitor(escapeMonitor)
+            self.escapeMonitor = nil
+        }
         panel?.close()
         panel = nil
+        if restorePreviousApp, let prev = previousApplication {
+            prev.activate()
+        }
+        previousApplication = nil
+    }
+
+    private static func findTextField(in view: NSView?) -> NSTextField? {
+        guard let view else { return nil }
+        if let field = view as? NSTextField, field.isEditable {
+            return field
+        }
+        for subview in view.subviews {
+            if let found = findTextField(in: subview) {
+                return found
+            }
+        }
+        return nil
     }
 }
 

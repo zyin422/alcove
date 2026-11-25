@@ -53,7 +53,7 @@ enum AutoLaunchManager {
         app=\(shell(appURL.path))
         while true; do
           hour=$(date +%-H)
-          if [ "$hour" -ge 7 ] && [ "$hour" -lt 23 ]; then
+          if [ "$hour" -ge 4 ] && [ "$hour" -lt 23 ]; then
             if ! pgrep -x Tofu >/dev/null 2>&1; then
               open -g "$app"
             fi
@@ -85,6 +85,11 @@ enum AutoLaunchManager {
         </dict>
         </plist>
         """
+    }
+
+    static func reconcile(settings: AppSettings, appURL: URL = Bundle.main.bundleURL) {
+        setAutoLaunch(enabled: settings.autoLaunchAtLogin, appURL: appURL)
+        setDayGuardian(enabled: settings.dayGuardianEnabled, appURL: appURL)
     }
 
     static func setAutoLaunch(enabled: Bool, appURL: URL = Bundle.main.bundleURL) {

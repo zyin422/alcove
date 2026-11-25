@@ -471,7 +471,8 @@ final class MorningTests: XCTestCase {
         let model = try makeModel(EngineHarness())
         model.updateSettings {
             $0.morningScreenEnabled = true
-            $0.dayEndMinutes = 24 * 60
+            $0.bedtimeGuardEnabled = false // isolate daytime between-block lock-in from nocturnal bedtime guard
+            $0.dayEndMinutes = 28 * 60 // covers past-midnight testing across the full 4 AM - 4 AM DayKey cycle
         }
         let s1 = Subject(name: "CS128")
         model.addSubject(s1)
@@ -490,5 +491,25 @@ final class MorningTests: XCTestCase {
 
         wait(for: [shown], timeout: 2.0)
         XCTAssertTrue(model.isShowingMorning)
+    }
+
+    @MainActor func testStudyCompletedCelebratesOncePerDay() throws {
+        let model = try makeModel(EngineHarness())
+        let now = Date()
+        let today = DayKey.key(for: now)
+        let p1 = Priority(title: "First task", isDone: false)
+        model.updatePlan(day: today) { $0.priorities = [p1] }
+
+        var callbacks = 0
+        model.onStudyCompleted = { callbacks += 1 }
+        model.setPriority(p1.id, done: true, day: today)
+        XCTAssertEqual(model.data.settings.lastStudyCelebratedDay, today)
+        XCTAssertEqual(callbacks, 1)
+
+        // Adding and completing another priority later the same day must not re-celebrate in settings.
+        let p2 = Priority(title: "Added later", isDone: false)
+        model.updatePlan(day: today) { $0.priorities.append(p2) }
+        model.setPriority(p2.id, done: true, day: today)
+        XCTAssertEqual(model.data.settings.lastStudyCelebratedDay, today)
     }
 }

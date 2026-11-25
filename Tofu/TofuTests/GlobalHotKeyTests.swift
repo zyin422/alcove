@@ -7,8 +7,17 @@ final class GlobalHotKeyTests: XCTestCase {
     func testGlobalHotKeyInitializationDefaults() {
         let manager = GlobalHotKeyManager()
         XCTAssertEqual(manager.keyCode, UInt32(kVK_Space))
-        XCTAssertEqual(manager.modifiers, UInt32(controlKey | optionKey))
+        XCTAssertEqual(manager.modifiers, UInt32(controlKey))
         XCTAssertFalse(manager.isRegistered)
+    }
+
+    @MainActor
+    func testQuickThoughtShortcutModifierMapping() {
+        XCTAssertEqual(GlobalHotKeyManager.modifiers(for: .controlSpace), UInt32(controlKey))
+        XCTAssertEqual(GlobalHotKeyManager.modifiers(for: .optionSpace), UInt32(optionKey))
+        XCTAssertEqual(GlobalHotKeyManager.modifiers(for: .controlOptionSpace), UInt32(controlKey | optionKey))
+        XCTAssertEqual(QuickThoughtShortcut.controlSpace.badgeKeys, ["⌃", "Space"])
+        XCTAssertEqual(QuickThoughtShortcut.optionSpace.badgeKeys, ["⌥", "Space"])
     }
 
     @MainActor

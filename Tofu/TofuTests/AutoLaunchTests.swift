@@ -19,6 +19,7 @@ final class AutoLaunchTests: XCTestCase {
         XCTAssertTrue(script.contains("app='/Users/test/Applications/Tofu.app'"))
         XCTAssertTrue(script.contains("open -g \"$app\""))
         XCTAssertTrue(script.contains("hour=$(date +%-H)"))
+        XCTAssertTrue(script.contains("\"$hour\" -ge 4"))
 
         let plist = AutoLaunchManager.guardianPlist(scriptPath: "/tmp/day-guardian.sh")
         XCTAssertTrue(plist.contains("<string>com.tofu.dayguardian</string>"))
