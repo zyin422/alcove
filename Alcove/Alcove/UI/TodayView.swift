@@ -40,12 +40,7 @@ struct TodayView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.l) {
-                HStack(alignment: .top, spacing: Theme.Space.l) {
-                    dayStepper
-                    Spacer(minLength: Theme.Space.m)
-                    MonthCalendar(month: month, today: todayKey, selected: shownDay, completedDays: completedDays,
-                                  onShiftMonth: { shiftMonth($0) }, onSelect: { showDay($0) })
-                }
+                dayStepper
 
                 forceBlockCountdownBanner
 
@@ -395,7 +390,7 @@ struct SetupPicker: View {
 
 /// A compact month. Today is filled in. Days after today are gray and cannot be selected.
 /// A dot marks a day with a completed priority.
-private struct MonthCalendar: View {
+struct MonthCalendar: View {
     let month: (year: Int, month: Int)
     let today: String
     let selected: String

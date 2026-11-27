@@ -85,9 +85,10 @@ struct TabTriage {
     }
 
     /// Stores the user's answer for `host`. A newer answer replaces an older one.
+    /// Search engine hosts are never whitelisted/blacklisted at the host level so each query is judged individually.
     mutating func recordAnswer(host: String, needed: Bool) {
         let host = DomainMatcher.normalize(host)
-        guard !host.isEmpty else { return }
+        guard !host.isEmpty, !DomainMatcher.isSearchEngine(host) else { return }
         if needed {
             if !alwaysBlocked.isEmpty && DistractionList.matches(host, any: alwaysBlocked) {
                 if let cat = DistractionList.category(of: host), cat != .video {
@@ -126,10 +127,9 @@ struct TabTriage {
         return neededHosts.contains(host) || closedHosts.contains(host)
     }
 
-    /// Not a Chrome internal / blank / unparseable page, not a study site, not a protected pre-existing tab, and not a search engine.
+    /// Not a Chrome internal / blank / unparseable page, not a study site, and not a protected pre-existing tab.
     private func isCandidate(_ tab: ChromeTab) -> Bool {
         !protected.contains(ChromeScripts.protectionKey(tab))
             && !DomainMatcher.isAllowed(tab.url, allowed: studyDomains)
-            && !DomainMatcher.isSearchEngine(tab.url)
     }
 }

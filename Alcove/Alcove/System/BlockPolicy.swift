@@ -16,7 +16,7 @@ enum BlockPolicy {
     /// assistant the user is coding with), where quitting would lose work or end the session.
     static let neverQuit: Set<String> = [
         "com.apple.finder", "com.apple.dt.Xcode", "com.apple.Terminal", "com.googlecode.iterm2",
-        "com.todesktop.230313mzl4w4u92", "com.apple.ActivityMonitor", "com.apple.systempreferences",
+        "com.todesktop.230313mzl4w4u92", "com.apple.systempreferences",
     ]
 
     /// alwaysAllowed ∪ {ownBundleID} ∪ the setup's browser and window apps ∪ subject.allowedApps bundle IDs.

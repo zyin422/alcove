@@ -41,13 +41,36 @@ struct StatsView: View {
                     .frame(width: 300)
                 }
                 if StatsFormatting.hasTrackedSessions(sessions) {
-                    periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
                     if span == .day {
+                        HStack(alignment: .top, spacing: Theme.Space.l) {
+                            periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
+                            Spacer(minLength: Theme.Space.m)
+                            MonthCalendar(
+                                month: (
+                                    year: Calendar.current.component(.year, from: shown),
+                                    month: Calendar.current.component(.month, from: shown)
+                                ),
+                                today: DayKey.key(for: today),
+                                selected: DayKey.key(for: shown),
+                                completedDays: Set(model.data.dayPlans.filter { $0.priorities.contains(where: \.isDone) }.map(\.day)),
+                                onShiftMonth: { delta in
+                                    if let shifted = Calendar.current.date(byAdding: .month, value: delta, to: shown) {
+                                        anchor = min(shifted, latest)
+                                    }
+                                },
+                                onSelect: { day in
+                                    if let date = DayKey.date(for: day) {
+                                        anchor = min(date, latest)
+                                    }
+                                }
+                            )
+                        }
                         if !period.isEmpty {
                             DayChronologicalTimeline(sessions: period, day: shown, color: color(for:))
                         }
                         dayDetail(StatsFormatting.subjectBlocks(period))
                     } else {
+                        periodControls(stats: stats, sessions: sessions, shown: shown, latest: latest)
                         periodChart(stats: stats, sessions: period, shown: shown)
                         if !shares.isEmpty {
                             StatsSubjectBreakdown(shares: shares, color: color(for:))

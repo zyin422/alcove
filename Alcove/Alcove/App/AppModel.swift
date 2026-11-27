@@ -845,7 +845,7 @@ enum TokenSource: Equatable {
 
     /// Checks if the current time is past midnight (00:00 - 04:00 AM) and locks the computer unless a block is running.
     func checkBedtime(now: Date = Date()) {
-        guard DayPlanner.shouldShowBedtime(now: now, settings: data.settings, isLocked: engine.isLocked, isBusy: isWrappingUpDay) else {
+        guard DayPlanner.shouldShowBedtime(now: now, settings: data.settings, isLocked: engine.isLocked, isBusy: false) else {
             if isShowingBedtime && !DayPlanner.isPastMidnight(now: now) {
                 dismissBedtime()
             }
@@ -857,6 +857,7 @@ enum TokenSource: Equatable {
     func showBedtime(now: Date = Date()) {
         guard !engine.isLocked, !isShowingBedtime else { return }
         if isShowingMorning { dismissMorning() }
+        if isWrappingUpDay { isWrappingUpDay = false }
         isShowingBedtime = true
         onShowBedtime?()
     }

@@ -362,27 +362,31 @@ final class TabTriageTests: XCTestCase {
         XCTAssertFalse(triage.isRelated(redditTab))
     }
 
-    func testGoogleSearchAndSearchEnginesAreKeptAndNeverClosed() {
+    func testSearchEngineQueriesAreJudgedPerURLWithoutHostWhitelisting() {
         var triage = blockingTriage()
         let googleHome = tab("https://www.google.com", id: 1)
         let googleSearch = tab("https://www.google.com/search?q=swift+concurrency", id: 2)
-        let duckduckgo = tab("https://duckduckgo.com/?q=swift", id: 3)
+        let duckduckgo = tab("https://duckduckgo.com/?q=cats", id: 3)
         let bing = tab("https://www.bing.com/search?q=swift", id: 4)
 
-        // Search engine tabs must not be queued for AI off-task judging
-        XCTAssertEqual(triage.tabsToCheck([googleHome, googleSearch, duckduckgo, bing]), [])
+        // Search engine tabs are queued for RelevanceJudge per URL
+        XCTAssertEqual(triage.tabsToCheck([googleHome, googleSearch, duckduckgo, bing]).map(\.url),
+                       [googleHome.url, googleSearch.url, duckduckgo.url, bing.url])
 
-        // Search engine tabs must never be closed immediately
-        XCTAssertFalse(triage.shouldCloseImmediately(googleHome))
+        // Off-task search query is closed, relevant search query is kept
+        triage.record(url: duckduckgo.url, verdict: .offTask)
+        triage.record(url: googleSearch.url, verdict: .relevant)
+        XCTAssertTrue(triage.shouldCloseImmediately(duckduckgo))
         XCTAssertFalse(triage.shouldCloseImmediately(googleSearch))
-        XCTAssertFalse(triage.shouldCloseImmediately(duckduckgo))
-        XCTAssertFalse(triage.shouldCloseImmediately(bing))
 
-        // Search engine tabs must be recognized as related during break recovery
-        XCTAssertTrue(triage.isRelated(googleHome))
-        XCTAssertTrue(triage.isRelated(googleSearch))
-        XCTAssertTrue(triage.isRelated(duckduckgo))
-        XCTAssertTrue(triage.isRelated(bing))
+        // Host-level recordAnswer must not whitelist/blacklist the entire search engine host
+        triage.recordAnswer(host: "google.com", needed: true)
+        triage.recordAnswer(host: "duckduckgo.com", needed: false)
+        let newGoogleSearch = tab("https://www.google.com/search?q=funny+memes", id: 5)
+        let newDuckDuckGo = tab("https://duckduckgo.com/?q=swift+actors", id: 6)
+        XCTAssertEqual(triage.tabsToCheck([newGoogleSearch, newDuckDuckGo]).map(\.url),
+                       [newGoogleSearch.url, newDuckDuckGo.url])
+        XCTAssertFalse(triage.shouldCloseImmediately(newDuckDuckGo))
     }
 
     func testDistractionsUnderGoogleDomainRemainBlocked() {
