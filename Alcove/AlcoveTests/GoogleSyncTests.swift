@@ -185,7 +185,7 @@ import XCTest
         XCTAssertFalse(api.log.contains { $0.hasPrefix("insertEvent") }, "queue drained")
     }
 
-    func testExistingTofuCalendarIsReusedNotRecreated() async {
+    func testExistingAlcoveCalendarIsReusedNotRecreated() async {
         api.calendars = [GoogleCalendarInfo(id: "cal-old", summary: "Alcove", selected: nil)]
         settings.googleTasksSyncEnabled = false
         settings.googleShowEventsEnabled = false
@@ -198,7 +198,7 @@ import XCTest
         XCTAssertTrue(api.log.contains("insertEvent cal-old Focus: X"))
     }
 
-    func testEventsPulledFromSelectedCalendarsExcludingTofu() async {
+    func testEventsPulledFromSelectedCalendarsExcludingAlcove() async {
         settings.googleTasksSyncEnabled = false
         settings.googleSessionLogEnabled = false
         settings.googleCalendarID = "alcove-cal"
@@ -240,7 +240,7 @@ import XCTest
         XCTAssertEqual(errors.count, 1)
     }
 
-    func testUncachedTofuCalendarIsExcludedByName() async {
+    func testUncachedAlcoveCalendarIsExcludedByName() async {
         settings.googleTasksSyncEnabled = false
         settings.googleSessionLogEnabled = false
         api.calendars = [GoogleCalendarInfo(id: "alcove-other", summary: "Alcove", selected: true)]

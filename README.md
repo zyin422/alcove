@@ -4,8 +4,6 @@
 
 Alcove is a native macOS app. One click hides every other app and opens your study sites in Google Chrome, tiled in the layout you picked. Distractions are pushed away the moment they appear, your friends on Discord see that you're locked in, and the app tracks how long you actually stayed focused.
 
-Built for **Code Ada 2026, Off the Clock** track.
- 
 ## How a lock-in works
 
 1. Create a subject, for example `CS128`. Give it one or two study sites, a window layout, and any extra apps it needs. The subject's name is what the AI judges tabs against.
@@ -301,9 +299,8 @@ To start over, quit the app and delete `~/Library/Application Support/Alcove/`. 
 ```
 accountabilibrosis/
 ├── README.md
+├── MIRROR_INTERROGATION_PROMPT.md  Mirror interrogation rules and state machine protocol
 ├── .env                     team secrets (DISCORD_BOT_TOKEN, OPENAI_API_KEY), bundled into the app at build time
-├── docs/superpowers/        design spec and implementation plan
-├── *.pdf                    Code Ada 2026 packet and presentation guidelines
 └── Alcove/
     ├── project.yml          XcodeGen spec (source of truth for the Xcode project)
     ├── Alcove.xcodeproj/

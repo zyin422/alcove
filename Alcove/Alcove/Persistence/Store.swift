@@ -21,15 +21,15 @@ final class Store {
                 .appendingPathComponent("Application Support", isDirectory: true)
         let directory = base.appendingPathComponent("Alcove", isDirectory: true)
         let file = directory.appendingPathComponent("store.json", isDirectory: false)
-        let tofuPath = base.appendingPathComponent("Tofu", isDirectory: true)
+        let legacyTofuStore = base.appendingPathComponent("Tofu", isDirectory: true)
             .appendingPathComponent("store.json", isDirectory: false)
         let previous = base.appendingPathComponent(["Acc", "ountabili", "brosis"].joined(), isDirectory: true)
             .appendingPathComponent("store.json", isDirectory: false)
 
         if !fileManager.fileExists(atPath: file.path) {
             try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-            if fileManager.fileExists(atPath: tofuPath.path) {
-                try? fileManager.copyItem(at: tofuPath, to: file)
+            if fileManager.fileExists(atPath: legacyTofuStore.path) {
+                try? fileManager.copyItem(at: legacyTofuStore, to: file)
             } else if fileManager.fileExists(atPath: previous.path) {
                 try? fileManager.copyItem(at: previous, to: file)
             }

@@ -214,7 +214,7 @@ import Observation
 
     private func pullEvents() async throws {
         let calendars = try await api.listCalendars()
-        let tofuID = settings().googleCalendarID
+        let alcoveID = settings().googleCalendarID
         // Calendar days are midnight-to-midnight local (spec §4), unlike DayKey's 4 AM window.
         let dayStart = Calendar.current.startOfDay(for: now())
         let dayEnd = dayStart.addingTimeInterval(86_400)
@@ -222,7 +222,7 @@ import Observation
         var lastError: Error?
         var succeeded = 0
         for calendar in calendars
-        where calendar.selected == true && calendar.id != tofuID && calendar.summary != "Alcove" {
+        where calendar.selected == true && calendar.id != alcoveID && calendar.summary != "Alcove" {
             // One unreadable calendar (403/404) must not hide the others; only all of them failing is an error.
             do {
                 all.append(contentsOf: try await api.listEvents(calendarID: calendar.id, from: dayStart, to: dayEnd))

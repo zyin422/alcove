@@ -168,6 +168,7 @@
 		F0F7829D7ED52440528D745C /* HTTPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C056B58FB708890AED5CBB31 /* HTTPTransport.swift */; };
 		F1EB3AFC1E8273CC685B88D2 /* MorningScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7CFB9D2748D6EFC232361FC /* MorningScreen.swift */; };
 		F470518FCB9497C13DF30EF5 /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD85FAC31E9297F9318BDCF /* DemoData.swift */; };
+		F477B17D04EF543426BA3E5B /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 6927747E8C8C75D7B5332F02 /* AppIcon.icns */; };
 		F4D45733F724B1A075DE916A /* ClosedBrowserState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC2C52A912BD3E7951A50206 /* ClosedBrowserState.swift */; };
 		F4E43A79DEC9F8360237B835 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6257564C16B882020FE5E28D /* AppSettings.swift */; };
 		F8EDDF0C84D31907AF375382 /* BlockPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B943C99EF81C101B78B5A5 /* BlockPolicyTests.swift */; };
@@ -257,6 +258,7 @@
 		67168756B1EA4110269B1E77 /* BedtimeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedtimeScreen.swift; sourceTree = "<group>"; };
 		67CECB78D0EB1521F936953D /* ChannelPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelPickerTests.swift; sourceTree = "<group>"; };
 		68953A96E9DC7ABBDE61C3C8 /* DiscordMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordMessagesTests.swift; sourceTree = "<group>"; };
+		6927747E8C8C75D7B5332F02 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		6A1DB2A2B234F7721697FA0D /* MiniTimerLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniTimerLayoutTests.swift; sourceTree = "<group>"; };
 		6B4DD654189863C300C16E67 /* AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCatalog.swift; sourceTree = "<group>"; };
 		6F7B5C63BB2AE496239DDABC /* GoogleAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuth.swift; sourceTree = "<group>"; };
@@ -449,6 +451,7 @@
 		7FA26A085FC829113B9F7DF9 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				6927747E8C8C75D7B5332F02 /* AppIcon.icns */,
 				AA9B2CDBE75F21AA03B824A1 /* Assets.xcassets */,
 			);
 			path = Resources;
@@ -731,6 +734,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F477B17D04EF543426BA3E5B /* AppIcon.icns in Resources */,
 				6FA4C701B77597A71477A057 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
